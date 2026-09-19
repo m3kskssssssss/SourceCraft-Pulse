@@ -102,8 +102,9 @@ async function bootstrapSeedsFile(count: number): Promise<void> {
   const client = getSourcecraftClient();
   const collected: Array<{ org: string; repo: string }> = [];
 
+  // Сортировка /repos поддерживает только `created_at` и `rating` (проверено на API).
   for await (const item of client.paginate(
-    (p) => client.discoverRepositories({ ...p, sortBy: '-counters.forks' }),
+    (p) => client.discoverRepositories({ ...p, sortBy: 'rating' }),
     'repositories',
     50,
   )) {
