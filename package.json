@@ -11,26 +11,36 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "gen:api": "tsx scripts/gen-api.ts",
+    "collect": "tsx src/cli/collect.ts",
+    "worker": "tsx src/worker/run.ts",
+    "seed:repos": "tsx src/db/seed-repos.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",
     "drizzle-orm": "^0.36.0",
     "next": "^15.5.0",
+    "pg": "^8.23.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "yaml": "^2.9.1",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/swagger2openapi": "^7.0.4",
     "dotenv": "^16.4.5",
     "drizzle-kit": "^0.30.0",
     "eslint": "^9",
     "eslint-config-next": "^15.5.0",
+    "openapi-typescript": "^7.13.0",
+    "swagger2openapi": "^7.0.8",
     "tailwindcss": "^4",
     "tsx": "^4.19.2",
     "typescript": "^5"

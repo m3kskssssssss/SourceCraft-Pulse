@@ -12,7 +12,29 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
   {
-    ignores: ['.next/**', 'out/**', 'build/**', 'node_modules/**', 'drizzle/**'],
+    ignores: [
+      '.next/**',
+      'out/**',
+      'build/**',
+      'node_modules/**',
+      'drizzle/**',
+      'next-env.d.ts',
+      'src/lib/sourcecraft/types.gen.ts',
+      'src/lib/sourcecraft/openapi/**',
+    ],
+  },
+  {
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
   },
 ];
 

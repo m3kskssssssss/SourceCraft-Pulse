@@ -42,6 +42,10 @@
 - `pnpm start` — запуск прод-сборки
 - `pnpm typecheck` — `tsc --noEmit`
 - `pnpm lint` — ESLint (flat config через FlatCompat)
+- `pnpm gen:api` — скачать/сконвертировать OpenAPI SourceCraft и обновить `types.gen.ts`
+- `pnpm collect <org> <repo>` — проверка Этапа 2: печатает RepoFacts в консоль
+- `pnpm worker` — прогон воркера очереди `analysis_jobs`
+- `pnpm seed:repos [--auto] [--count=N]` — поставить репозитории в очередь
 - `pnpm db:generate` — сгенерировать SQL-миграции из `src/db/schema.ts`
 - `pnpm db:migrate` — применить миграции к БД из `DATABASE_URL`
 - `pnpm db:push` — dev-режим Drizzle, пушит схему без миграций
@@ -51,29 +55,57 @@
 
 ```
 src/
-├── app/                       # маршруты App Router
-│   ├── api/health/route.ts    # /api/health — SELECT 1
+├── app/                          # маршруты App Router
+│   ├── api/health/route.ts       # /api/health — SELECT 1
 │   ├── r/[org]/[repo]/page.tsx
 │   ├── admin/page.tsx
 │   ├── layout.tsx
-│   ├── page.tsx               # публичный рейтинг
+│   ├── page.tsx                  # публичный рейтинг
 │   └── globals.css
-└── db/
-    ├── schema.ts              # 10 таблиц (users, accounts, sessions,
-    │                          #   verification_tokens, repositories,
-    │                          #   analyses, analysis_jobs, ai_calls,
-    │                          #   ai_cache, events)
-    ├── client.ts              # Drizzle over neon-http для приложения
-    ├── migrate.ts             # tsx-скрипт для pnpm db:migrate
-    └── seed.ts                # заглушка
-drizzle/                       # SQL-миграции и meta (коммитятся)
-drizzle.config.ts              # конфиг drizzle-kit (Neon Postgres)
+├── cli/
+│   └── collect.ts                # pnpm collect <org> <repo>
+├── db/
+│   ├── schema.ts                 # 10 таблиц Drizzle
+│   ├── client.ts                 # neon-http, для приложения (короткоживущие serverless)
+│   ├── worker-client.ts          # pg-Pool, только для воркера (FOR UPDATE SKIP LOCKED)
+│   ├── migrate.ts                # pnpm db:migrate
+│   ├── seed.ts                   # заглушка
+│   └── seed-repos.ts             # pnpm seed:repos
+├── lib/
+│   ├── collect.ts                # collectRepoFacts(org, repo) → RepoFacts
+│   ├── git/
+│   │   ├── clone.ts              # withBareClone() + readFileFromClone() (только воркер)
+│   │   ├── history.ts            # analyzeGitHistory / analyzeGitHistoryInClone
+│   │   ├── log-parser.ts         # чистый парсер git log --numstat
+│   │   └── secrets.ts            # regex-детектор секретов в диффах
+│   ├── security/
+│   │   ├── types.ts              # SecurityProvider интерфейс + типы
+│   │   ├── provider.ts           # фабрика getSecurityProvider()
+│   │   ├── osv-dev.ts            # реальная реализация через api.osv.dev
+│   │   ├── sourcecraft-appsec.ts # заглушка «нет данных»
+│   │   └── lockfiles.ts          # парсеры package-lock.json + pnpm-lock.yaml
+│   └── sourcecraft/
+│       ├── client.ts             # SourcecraftClient + getSourcecraftClient()
+│       ├── errors.ts             # SourcecraftApiError, SourcecraftNotFoundError
+│       ├── semaphore.ts          # ограничитель параллелизма
+│       ├── types.gen.ts          # сгенерированные типы (pnpm gen:api)
+│       └── openapi/              # swagger.json + openapi3.json (обе коммитятся)
+└── worker/
+    └── run.ts                    # обычный Node-скрипт, pnpm worker
+scripts/
+└── gen-api.ts                    # конвертер swagger2openapi + генерация types.gen.ts
+seeds/
+└── repos.json                    # список org/repo для seed:repos
+.github/workflows/
+└── worker.yml                    # ручной workflow_dispatch для воркера
+drizzle/                          # SQL-миграции и meta (коммитятся)
+drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 ```
 
 ## Прогресс
 
 - [x] Этап 1 — каркас, схема БД, health-эндпоинт, деплой
-- [ ] Этап 2 — SourceCraft-клиент, сбор фактов, воркер
+- [x] Этап 2 — SourceCraft-клиент, сбор фактов, воркер
 - [ ] Этап 3 — движок оценки + тесты + seed по реальным данным
 - [ ] Этап 4 — слой ИИ, кэш, учёт затрат, лимит бюджета
 - [ ] Этап 5 — авторизация Auth.js, гостевой доступ, лимиты

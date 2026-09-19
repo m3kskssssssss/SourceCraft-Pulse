@@ -1,0 +1,38 @@
+name: Pulse worker
+
+# Пока запускается только вручную через кнопку "Run workflow" в UI GitHub Actions.
+# Периодический cron прикрутим на Этапе 7 (админка).
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Сколько задач взять из очереди за один запуск'
+        required: false
+        default: '5'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SOURCECRAFT_PAT: ${{ secrets.SOURCECRAFT_PAT }}
+      WORKER_BATCH_SIZE: ${{ github.event.inputs.batch_size }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run worker
+        run: pnpm worker
