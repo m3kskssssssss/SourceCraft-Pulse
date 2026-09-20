@@ -7,7 +7,7 @@
 ## Стек (не обсуждается)
 
 - **Приложение:** Next.js 15 (App Router), TypeScript strict, pnpm
-- **База:** Postgres на Neon free tier, Drizzle ORM, drizzle-kit миграции
+- **База:** Postgres 16 (self-hosted), node-postgres драйвер, Drizzle ORM, drizzle-kit миграции
 - **Стили:** Tailwind CSS, без готовых UI-китов — компоненты пишем сами
 - **Валидация:** Zod для всего, что приходит извне
 - **Тесты:** Vitest, только на движке оценки и парсерах

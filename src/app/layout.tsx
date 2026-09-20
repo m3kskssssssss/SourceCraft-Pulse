@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { SessionProvider } from 'next-auth/react';
-import { Analytics } from '@vercel/analytics/next';
 import { UserBar } from './components/UserBar';
 import './globals.css';
 
@@ -31,7 +30,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <SiteFooter />
           </div>
         </SessionProvider>
-        <Analytics />
       </body>
     </html>
   );

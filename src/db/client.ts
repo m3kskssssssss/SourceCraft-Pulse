@@ -1,19 +1,40 @@
-// Клиент Drizzle поверх драйвера Neon serverless.
-// Используем HTTP-режим, потому что serverless-функции Vercel живут коротко
-// и не выигрывают от WebSocket-пула соединений.
+// Клиент Drizzle приложения. Работает с любым Postgres по строке подключения:
+// локальный (для self-hosted) или удалённый с SSL.
+//
+// Singleton через globalThis, чтобы hot reload в dev не плодил пулы.
 
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from './schema';
 
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL не задан. Проверьте окружение (.env локально, переменные проекта на Vercel).');
+declare global {
+  var __pulsePgPool: Pool | undefined;
 }
 
-const sql = neon(databaseUrl);
+function needsSsl(url: string): boolean {
+  return /sslmode=require/i.test(url) || /\.neon\.tech/i.test(url);
+}
 
-export const db = drizzle(sql, { schema });
+function makePool(): Pool {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      'DATABASE_URL не задан. Проверьте окружение (.env локально, переменные проекта на сервере).',
+    );
+  }
+  return new Pool({
+    connectionString: url,
+    ssl: needsSsl(url) ? { rejectUnauthorized: false } : undefined,
+    max: 8,
+    idleTimeoutMillis: 30_000,
+  });
+}
+
+const pool = globalThis.__pulsePgPool ?? makePool();
+if (process.env.NODE_ENV !== 'production') {
+  globalThis.__pulsePgPool = pool;
+}
+
+export const db = drizzle(pool, { schema });
 
 export { schema };

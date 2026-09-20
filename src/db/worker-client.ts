@@ -1,6 +1,5 @@
-// Postgres-клиент для воркера. Используем классический pg-драйвер поверх Neon,
-// потому что HTTP-режим Neon не поддерживает multi-statement транзакции и
-// `SELECT FOR UPDATE SKIP LOCKED`. На приложении остаётся `neon-http`.
+// Postgres-клиент воркера. Всегда pg-драйвер: нужны multi-statement транзакции
+// и SELECT ... FOR UPDATE SKIP LOCKED. SSL включаем по URL (Neon и явный sslmode).
 //
 // Пул одного процесса; закрывается через shutdownWorkerDb() в конце run().
 
@@ -10,16 +9,19 @@ import * as schema from './schema';
 
 let pool: Pool | null = null;
 
+function needsSsl(url: string): boolean {
+  return /sslmode=require/i.test(url) || /\.neon\.tech/i.test(url);
+}
+
 export function getWorkerDb() {
   if (!pool) {
     const url = process.env.DATABASE_URL;
     if (!url) {
-      throw new Error('DATABASE_URL не задан. Требуется строка подключения к Neon Postgres.');
+      throw new Error('DATABASE_URL не задан. Требуется строка подключения к Postgres.');
     }
     pool = new Pool({
       connectionString: url,
-      // Neon требует ssl для внешних подключений.
-      ssl: { rejectUnauthorized: false },
+      ssl: needsSsl(url) ? { rejectUnauthorized: false } : undefined,
       // Воркер живёт коротко; ставим маленький пул.
       max: 4,
       idleTimeoutMillis: 10_000,
