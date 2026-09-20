@@ -4,6 +4,7 @@
 // запускаем действие; если без параметра — показываем форму.
 
 import { AnalyzeForm } from '@/app/components/AnalyzeForm';
+import { Chip } from '@/app/components/ui';
 import { analyzeRepo } from '@/app/actions/analyze';
 
 type PageProps = {
@@ -14,22 +15,35 @@ export default async function AnalyzePage({ searchParams }: PageProps) {
   const { target } = await searchParams;
 
   if (target) {
-    // Автозапуск после логина. analyzeRepo либо редиректит на /a/<id>,
-    // либо возвращает объект с ошибкой (тогда покажем форму с текстом).
     const result = await analyzeRepo(target);
     return (
-      <main className="mx-auto flex max-w-md flex-col gap-4 px-6 py-16">
-        <h1 className="text-2xl font-semibold tracking-tight">Не получилось запустить</h1>
-        <p className="text-neutral-700">{result.error ?? 'Неизвестная ошибка'}</p>
-        <AnalyzeForm defaultValue={target} />
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-16">
+        <div>
+          <Chip tone="outline">запуск</Chip>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight">Не получилось запустить</h1>
+        </div>
+        <div className="rounded-2xl bg-[color:var(--panel)] px-5 py-4 text-sm text-[color:var(--ink-2)]">
+          {result.error ?? 'Неизвестная ошибка'}
+        </div>
+        <div className="rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-5">
+          <AnalyzeForm defaultValue={target} />
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-4 px-6 py-16">
-      <h1 className="text-3xl font-semibold tracking-tight">Оценить репозиторий</h1>
-      <AnalyzeForm />
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-16">
+      <div>
+        <Chip tone="outline">оценка</Chip>
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight">Оценить репозиторий</h1>
+        <p className="mt-2 text-sm text-[color:var(--muted)]">
+          Вставьте адрес репозитория с SourceCraft. Мы поставим его в очередь и покажем результат.
+        </p>
+      </div>
+      <div className="rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-5">
+        <AnalyzeForm />
+      </div>
     </main>
   );
 }

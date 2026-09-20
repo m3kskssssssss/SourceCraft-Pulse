@@ -1,4 +1,5 @@
 import { requireAdmin } from '@/app/actions/admin';
+import { Chip, Stat } from '@/app/components/ui';
 import { getOverviewStats } from '@/lib/admin-stats';
 
 export const dynamic = 'force-dynamic';
@@ -21,27 +22,21 @@ export default async function AdminOverview() {
 
   return (
     <section>
-      <h1 className="text-3xl font-semibold tracking-tight">Сводка</h1>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Card label="Анализов за сутки" value={fmt(stats.analyses.day)} />
-        <Card label="За неделю" value={fmt(stats.analyses.week)} />
-        <Card label="За месяц" value={fmt(stats.analyses.month)} />
-        <Card label="Успешных" value={fmt(stats.analyses.done)} />
-        <Card label="Упавших" value={fmt(stats.analyses.failed)} />
-        <Card label="Медиана времени" value={fmtDuration(stats.medianRuntimeMs)} />
-        <Card label="Пользователей" value={fmt(stats.users.total)} />
-        <Card label="Активны за неделю" value={fmt(stats.users.activeWeek)} />
-        <Card label="Опубликовано в рейтинге" value={fmt(stats.ranking.published)} />
+      <Chip tone="outline">админ</Chip>
+      <h1 className="mt-3 text-3xl font-semibold tracking-tight">Сводка</h1>
+      <p className="mt-2 text-sm text-[color:var(--muted)]">Ключевые числа по системе.</p>
+
+      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Stat label="Анализов за сутки" value={fmt(stats.analyses.day)} />
+        <Stat label="За неделю" value={fmt(stats.analyses.week)} />
+        <Stat label="За месяц" value={fmt(stats.analyses.month)} />
+        <Stat label="Успешных" value={fmt(stats.analyses.done)} />
+        <Stat label="Упавших" value={fmt(stats.analyses.failed)} />
+        <Stat label="Медиана времени" value={fmtDuration(stats.medianRuntimeMs)} />
+        <Stat label="Пользователей" value={fmt(stats.users.total)} />
+        <Stat label="Активны за неделю" value={fmt(stats.users.activeWeek)} />
+        <Stat label="Опубликовано в рейтинге" value={fmt(stats.ranking.published)} />
       </div>
     </section>
-  );
-}
-
-function Card({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-3xl bg-neutral-100 p-4">
-      <div className="text-xs text-neutral-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums">{value}</div>
-    </div>
   );
 }

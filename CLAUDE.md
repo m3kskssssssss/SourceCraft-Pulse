@@ -81,7 +81,9 @@ src/
 │   ├── signup/page.tsx
 │   ├── analyze/page.tsx
 │   ├── a/[id]/page.tsx
-│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar
+│   ├── not-found.tsx             # общий 404
+│   ├── icon.svg                  # ЧБ-логотип-favicon
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, BadgeMarkdown, AdminSignInForm, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
@@ -148,4 +150,4 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 5 — Auth.js v5 (credentials + argon2), гостевой доступ, лимиты, /signin, /signup, /analyze, /a/[id] (живой прогон требует Neon)
 - [x] Этап 6 — публикация анализа, рейтинг с сортировкой/поиском, публичный API + SVG-бейдж (живой прогон требует Neon)
 - [x] Этап 7 — админка: отдельный вход /admin/login (HMAC-cookie, argon2id, rate-limit 5/15мин), 6 разделов (сводка/ai/очередь/пользователи/репозитории/настройки), таблица settings, pnpm admin:hash
-- [ ] Этап 8 — визуальная полировка под чёрно-белую тему
+- [x] Этап 8 — ЧБ-тема, набор примитивов (ScoreDial/Bar/Chip/Card/Stat), раскрыта страница /a/[id] с категориями/метриками/рекомендациями, обновлены главная/карточка репо/auth/админка, favicon SVG, not-found

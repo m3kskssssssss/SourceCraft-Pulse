@@ -1,45 +1,71 @@
-// Верхняя панель: слева — ссылка на главную, справа — состояние сессии.
+// Верхняя навигация. Sticky, тонкая нижняя граница, справа состояние сессии.
 
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { signOutAction } from '@/app/actions/auth';
+import { Button } from './ui';
 
 export async function UserBar() {
   const session = await auth();
   const user = session?.user as { email?: string; name?: string } | undefined;
 
   return (
-    <div className="flex w-full items-center justify-between border-b border-neutral-200 px-6 py-4 text-sm">
-      <Link href="/" className="font-semibold tracking-tight">
-        Pulse
-      </Link>
-      <div className="flex items-center gap-4">
-        {user ? (
-          <>
-            <span className="text-neutral-600">{user.name ?? user.email}</span>
-            <form action={signOutAction}>
-              <button
-                type="submit"
-                className="rounded-full border border-neutral-300 px-3 py-1 text-neutral-700 hover:bg-neutral-100"
+    <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--paper)]/85 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
+        <Link href="/" className="group inline-flex items-center gap-2.5">
+          <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-full bg-[color:var(--ink)] text-[11px] font-semibold text-[color:var(--paper)]">
+            P
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[color:var(--paper)] ring-2 ring-[color:var(--ink)] transition group-hover:scale-110" />
+          </span>
+          <span className="text-base font-semibold tracking-tight">Pulse</span>
+        </Link>
+
+        <nav className="hidden items-center gap-1 text-sm sm:flex">
+          <NavLink href="/">Рейтинг</NavLink>
+          <NavLink href="/analyze">Оценить</NavLink>
+        </nav>
+
+        <div className="flex items-center gap-2">
+          {user ? (
+            <>
+              <span className="hidden max-w-[180px] truncate text-sm text-[color:var(--muted)] sm:inline">
+                {user.name ?? user.email}
+              </span>
+              <form action={signOutAction}>
+                <Button type="submit" variant="ghost" size="sm">
+                  Выйти
+                </Button>
+              </form>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/signin"
+                className="rounded-full px-3 py-1.5 text-sm text-[color:var(--ink-2)] hover:bg-[color:var(--panel)]"
               >
-                Выйти
-              </button>
-            </form>
-          </>
-        ) : (
-          <>
-            <Link href="/signin" className="text-neutral-700 hover:underline">
-              Войти
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-full bg-neutral-900 px-3 py-1 text-white hover:opacity-90"
-            >
-              Регистрация
-            </Link>
-          </>
-        )}
+                Войти
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-full bg-[color:var(--ink)] px-3.5 py-1.5 text-sm font-medium text-[color:var(--paper)] hover:bg-[color:var(--ink-2)]"
+              >
+                Регистрация
+              </Link>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </header>
+  );
+}
+
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="rounded-full px-3 py-1.5 text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
+    >
+      {children}
+    </Link>
   );
 }

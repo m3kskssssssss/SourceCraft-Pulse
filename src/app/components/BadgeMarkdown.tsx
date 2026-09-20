@@ -17,8 +17,8 @@ export function BadgeMarkdown({ org, repo }: { org: string; repo: string }) {
     origin && `[![Pulse](${origin}/api/badge/${org}/${repo}.svg)](${origin}/r/${org}/${repo})`;
 
   return (
-    <div className="mt-2 flex items-center gap-2">
-      <code className="flex-1 overflow-x-auto rounded-2xl bg-neutral-100 px-3 py-2 text-xs">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+      <code className="flex-1 overflow-x-auto rounded-2xl bg-[color:var(--panel)] px-4 py-3 font-mono text-xs text-[color:var(--ink-2)]">
         {markdown || 'Готовим…'}
       </code>
       <button
@@ -33,9 +33,9 @@ export function BadgeMarkdown({ org, repo }: { org: string; repo: string }) {
             // ignore
           }
         }}
-        className="rounded-full border border-neutral-300 px-3 py-2 text-xs hover:bg-neutral-100"
+        className="rounded-2xl border border-[color:var(--line)] px-4 py-3 text-xs font-medium hover:bg-[color:var(--panel)] sm:min-w-[128px]"
       >
-        {copied ? 'Скопировано' : 'Скопировать'}
+        {copied ? '✓ Скопировано' : 'Скопировать'}
       </button>
     </div>
   );

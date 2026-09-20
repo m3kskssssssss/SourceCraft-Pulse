@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { signUpAction, type SignUpState } from '@/app/actions/auth';
+import { Button, Field, Input } from './ui';
 
 const initial: SignUpState = { ok: false };
 
@@ -12,44 +13,25 @@ export function SignUpForm() {
   const [state, formAction, pending] = useActionState(signUpAction, initial);
 
   return (
-    <form action={formAction} className="flex w-full max-w-sm flex-col gap-3">
+    <form action={formAction} className="flex w-full flex-col gap-4">
       <input type="hidden" name="returnTo" value={returnTo} />
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-neutral-700">Email</span>
-        <input
-          type="email"
-          name="email"
-          required
-          className="rounded-full bg-neutral-100 px-4 py-3 outline-none focus:ring-2 focus:ring-neutral-900"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-neutral-700">Пароль (от 8 символов)</span>
-        <input
-          type="password"
-          name="password"
-          minLength={8}
-          required
-          className="rounded-full bg-neutral-100 px-4 py-3 outline-none focus:ring-2 focus:ring-neutral-900"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-neutral-700">Имя (необязательно)</span>
-        <input
-          type="text"
-          name="name"
-          maxLength={120}
-          className="rounded-full bg-neutral-100 px-4 py-3 outline-none focus:ring-2 focus:ring-neutral-900"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-full bg-neutral-900 px-5 py-3 text-sm font-medium text-white disabled:opacity-50"
-      >
+      <Field label="Email">
+        <Input type="email" name="email" required autoComplete="email" />
+      </Field>
+      <Field label="Пароль" hint="От 8 символов.">
+        <Input type="password" name="password" minLength={8} required autoComplete="new-password" />
+      </Field>
+      <Field label="Имя" hint="Необязательно — показывается вам в шапке.">
+        <Input type="text" name="name" maxLength={120} autoComplete="name" />
+      </Field>
+      <Button type="submit" disabled={pending} size="lg" className="mt-1">
         {pending ? 'Регистрируем…' : 'Создать аккаунт'}
-      </button>
-      {state.error && <p className="text-sm text-neutral-700">{state.error}</p>}
+      </Button>
+      {state.error && (
+        <p className="rounded-2xl bg-[color:var(--panel)] px-4 py-3 text-sm text-[color:var(--ink-2)]">
+          {state.error}
+        </p>
+      )}
     </form>
   );
 }

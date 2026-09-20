@@ -1,4 +1,5 @@
 import { adminRerunJobAction, requireAdmin } from '@/app/actions/admin';
+import { Chip, EmptyState } from '@/app/components/ui';
 import { getQueueRows } from '@/lib/admin-stats';
 
 export const dynamic = 'force-dynamic';
@@ -16,49 +17,58 @@ export default async function AdminQueue() {
 
   return (
     <section>
-      <h1 className="text-3xl font-semibold tracking-tight">Очередь</h1>
+      <Chip tone="outline">админ</Chip>
+      <h1 className="mt-3 text-3xl font-semibold tracking-tight">Очередь</h1>
+
       {rows.length === 0 ? (
-        <p className="mt-4 text-neutral-500">Очередь пуста.</p>
+        <EmptyState className="mt-8" title="Очередь пуста" hint="Работы для воркера нет." />
       ) : (
-        <table className="mt-6 w-full text-sm">
-          <thead className="text-left text-neutral-500">
-            <tr>
-              <th className="py-2">Репозиторий</th>
-              <th>Статус</th>
-              <th className="text-right">Попыток</th>
-              <th>Ошибка</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.jobId} className="border-t border-neutral-200 align-top">
-                <td className="py-2">
-                  <div>{row.orgRepo ?? '—'}</div>
-                  <div className="text-xs text-neutral-500">
-                    задача · {new Date(row.createdAt).toLocaleString('ru-RU')}
-                  </div>
-                </td>
-                <td>{STATUS_LABELS[row.status]}</td>
-                <td className="text-right tabular-nums">{row.attempts}</td>
-                <td className="max-w-md text-xs text-neutral-600">
-                  {row.lastError ? truncate(row.lastError, 240) : '—'}
-                </td>
-                <td className="text-right">
-                  <form action={adminRerunJobAction}>
-                    <input type="hidden" name="analysisId" value={row.analysisId} />
-                    <button
-                      type="submit"
-                      className="rounded-full border border-neutral-300 px-3 py-1 text-xs hover:bg-neutral-100"
-                    >
-                      Перезапустить
-                    </button>
-                  </form>
-                </td>
+        <div className="mt-8 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
+          <table className="w-full text-sm">
+            <thead className="text-left text-[color:var(--muted)]">
+              <tr>
+                <th className="px-5 py-3 font-normal">Репозиторий</th>
+                <th className="px-5 py-3 font-normal">Статус</th>
+                <th className="px-5 py-3 text-right font-normal">Попыток</th>
+                <th className="px-5 py-3 font-normal">Ошибка</th>
+                <th className="px-5 py-3" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.jobId}
+                  className="border-t border-[color:var(--line)] align-top"
+                >
+                  <td className="px-5 py-3">
+                    <div className="font-medium">{row.orgRepo ?? '—'}</div>
+                    <div className="mt-0.5 text-xs text-[color:var(--muted)]">
+                      {new Date(row.createdAt).toLocaleString('ru-RU')}
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <Chip tone="default">{STATUS_LABELS[row.status]}</Chip>
+                  </td>
+                  <td className="px-5 py-3 text-right tabular-nums">{row.attempts}</td>
+                  <td className="max-w-md px-5 py-3 text-xs text-[color:var(--muted)]">
+                    {row.lastError ? truncate(row.lastError, 240) : '—'}
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <form action={adminRerunJobAction}>
+                      <input type="hidden" name="analysisId" value={row.analysisId} />
+                      <button
+                        type="submit"
+                        className="rounded-full border border-[color:var(--line)] px-3 py-1.5 text-xs hover:bg-[color:var(--panel)]"
+                      >
+                        Перезапустить
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

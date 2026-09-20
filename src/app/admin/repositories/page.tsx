@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { adminUnpublishAction, requireAdmin } from '@/app/actions/admin';
+import { Chip, EmptyState, cx } from '@/app/components/ui';
 import { getAllAnalyses } from '@/lib/admin-stats';
 
 export const dynamic = 'force-dynamic';
@@ -27,9 +28,10 @@ export default async function AdminRepositories({
 
   return (
     <section>
-      <div className="flex items-baseline justify-between">
+      <Chip tone="outline">админ</Chip>
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
         <h1 className="text-3xl font-semibold tracking-tight">Репозитории</h1>
-        <div className="flex gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-1 rounded-full bg-[color:var(--panel)] p-1 text-sm">
           <FilterLink label="Все" href="/admin/repositories" active={!filter} />
           {(['queued', 'running', 'done', 'failed'] as const).map((s) => (
             <FilterLink
@@ -43,49 +45,53 @@ export default async function AdminRepositories({
       </div>
 
       {rows.length === 0 ? (
-        <p className="mt-6 text-neutral-500">Анализов нет.</p>
+        <EmptyState className="mt-8" title="Анализов нет" />
       ) : (
-        <table className="mt-6 w-full text-sm">
-          <thead className="text-left text-neutral-500">
-            <tr>
-              <th className="py-2">Репозиторий</th>
-              <th>Статус</th>
-              <th className="text-right">Оценка</th>
-              <th>Публично</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t border-neutral-200">
-                <td className="py-2">
-                  <Link href={`/a/${row.id}`} className="hover:underline">
-                    {row.orgRepo}
-                  </Link>
-                  <div className="text-xs text-neutral-500">
-                    {new Date(row.createdAt).toLocaleString('ru-RU')}
-                  </div>
-                </td>
-                <td>{STATUS_LABELS[row.status]}</td>
-                <td className="text-right tabular-nums">{row.score ?? '—'}</td>
-                <td>{row.isPublic ? 'да' : 'нет'}</td>
-                <td className="text-right">
-                  {row.isPublic && (
-                    <form action={adminUnpublishAction}>
-                      <input type="hidden" name="analysisId" value={row.id} />
-                      <button
-                        type="submit"
-                        className="rounded-full border border-neutral-300 px-3 py-1 text-xs hover:bg-neutral-100"
-                      >
-                        Снять с публикации
-                      </button>
-                    </form>
-                  )}
-                </td>
+        <div className="mt-8 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
+          <table className="w-full text-sm">
+            <thead className="text-left text-[color:var(--muted)]">
+              <tr>
+                <th className="px-5 py-3 font-normal">Репозиторий</th>
+                <th className="px-5 py-3 font-normal">Статус</th>
+                <th className="px-5 py-3 text-right font-normal">Оценка</th>
+                <th className="px-5 py-3 font-normal">Публично</th>
+                <th className="px-5 py-3" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-t border-[color:var(--line)]">
+                  <td className="px-5 py-3">
+                    <Link href={`/a/${row.id}`} className="font-medium hover:underline">
+                      {row.orgRepo}
+                    </Link>
+                    <div className="mt-0.5 text-xs text-[color:var(--muted)]">
+                      {new Date(row.createdAt).toLocaleString('ru-RU')}
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <Chip tone="default">{STATUS_LABELS[row.status]}</Chip>
+                  </td>
+                  <td className="px-5 py-3 text-right tabular-nums">{row.score ?? '—'}</td>
+                  <td className="px-5 py-3">{row.isPublic ? 'да' : 'нет'}</td>
+                  <td className="px-5 py-3 text-right">
+                    {row.isPublic && (
+                      <form action={adminUnpublishAction}>
+                        <input type="hidden" name="analysisId" value={row.id} />
+                        <button
+                          type="submit"
+                          className="rounded-full border border-[color:var(--line)] px-3 py-1.5 text-xs hover:bg-[color:var(--panel)]"
+                        >
+                          Снять с публикации
+                        </button>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -93,7 +99,15 @@ export default async function AdminRepositories({
 
 function FilterLink({ label, href, active }: { label: string; href: string; active: boolean }) {
   return (
-    <Link href={href} className={active ? 'font-semibold' : 'text-neutral-600 hover:underline'}>
+    <Link
+      href={href}
+      className={cx(
+        'rounded-full px-3 py-1.5 transition',
+        active
+          ? 'bg-[color:var(--ink)] text-[color:var(--paper)]'
+          : 'text-[color:var(--muted)] hover:text-[color:var(--ink)]',
+      )}
+    >
       {label}
     </Link>
   );

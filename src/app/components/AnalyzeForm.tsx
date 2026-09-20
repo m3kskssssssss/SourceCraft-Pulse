@@ -6,6 +6,7 @@
 
 import { useActionState } from 'react';
 import { analyzeAction, type AnalyzeState } from '@/app/actions/analyze';
+import { Button, Input } from './ui';
 
 const initial: AnalyzeState = { ok: false };
 
@@ -14,25 +15,28 @@ export function AnalyzeForm({ defaultValue }: { defaultValue?: string }) {
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-neutral-700">Адрес репозитория</span>
-        <input
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
           type="text"
           name="target"
           required
           defaultValue={defaultValue}
           placeholder="org/repo или https://sourcecraft.tech/org/repo"
-          className="rounded-full bg-neutral-100 px-4 py-3 text-base outline-none focus:ring-2 focus:ring-neutral-900"
+          className="sm:flex-1"
+          aria-label="Адрес репозитория"
         />
-      </label>
-      <button
-        type="submit"
-        disabled={pending}
-        className="self-start rounded-full bg-neutral-900 px-5 py-3 text-sm font-medium text-white transition-opacity disabled:opacity-50"
-      >
-        {pending ? 'Ставим в очередь…' : 'Оценить'}
-      </button>
-      {state.error && <p className="text-sm text-neutral-700">{state.error}</p>}
+        <Button type="submit" disabled={pending} size="lg" className="sm:w-40">
+          {pending ? 'В очередь…' : 'Оценить'}
+        </Button>
+      </div>
+      {state.error && (
+        <p className="rounded-2xl bg-[color:var(--panel)] px-4 py-3 text-sm text-[color:var(--ink-2)]">
+          {state.error}
+        </p>
+      )}
+      <p className="text-xs text-[color:var(--muted)]">
+        Гостю мы сначала предложим войти — результат откроется автоматически после входа.
+      </p>
     </form>
   );
 }
