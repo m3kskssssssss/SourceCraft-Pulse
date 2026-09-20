@@ -70,7 +70,11 @@ src/
 ├── app/
 │   ├── actions/
 │   │   ├── auth.ts               # signUpAction, signOutAction
-│   │   └── analyze.ts            # analyzeRepo — slug + limits + SC check + queue
+│   │   ├── analyze.ts            # analyzeRepo — slug + limits + SC check + queue
+│   │   └── visibility.ts         # setAnalysisVisibility (публикация в рейтинг)
+│   ├── api/badge/[org]/[repo].svg/route.ts    # SVG-бейдж по последнему public
+│   ├── api/public/leaderboard/route.ts         # GET рейтинга (rate-limited)
+│   ├── api/public/repos/[org]/[repo]/route.ts  # GET последнего публичного
 │   ├── api/auth/[...nextauth]/route.ts
 │   ├── signin/page.tsx
 │   ├── signup/page.tsx
@@ -141,6 +145,6 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 3 — движок оценки + Vitest (seed по реальным данным отложен до подключения Neon)
 - [x] Этап 4 — слой ИИ через RouterAI, кэш, учёт затрат, лимит бюджета (Drizzle-версии кэша/телеметрии отложены до Neon)
 - [x] Этап 5 — Auth.js v5 (credentials + argon2), гостевой доступ, лимиты, /signin, /signup, /analyze, /a/[id] (живой прогон требует Neon)
-- [ ] Этап 6 — публичный рейтинг, публичный API, SVG-бейдж
+- [x] Этап 6 — публикация анализа, рейтинг с сортировкой/поиском, публичный API + SVG-бейдж (живой прогон требует Neon)
 - [ ] Этап 7 — админка (сводка, расходы, очередь, настройки)
 - [ ] Этап 8 — визуальная полировка под чёрно-белую тему
