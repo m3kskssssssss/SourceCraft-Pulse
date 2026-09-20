@@ -153,14 +153,17 @@ echo "  Заполняю переменные окружения. Enter — зн
 echo "  Секреты вводятся скрытно."
 echo ""
 
+CADDYFILE="$(get_existing CADDYFILE)"
+CADDYFILE="${CADDYFILE:-Caddyfile.docker}"
+
 DB_PASSWORD="$(get_existing DB_PASSWORD)"
-[[ -z "$DB_PASSWORD" ]] && DB_PASSWORD="$(random_hex 24)"
+DB_PASSWORD="${DB_PASSWORD:-$(random_hex 24)}"
 
 AUTH_SECRET="$(get_existing AUTH_SECRET)"
-[[ -z "$AUTH_SECRET" ]] && AUTH_SECRET="$(random_hex 32)"
+AUTH_SECRET="${AUTH_SECRET:-$(random_hex 32)}"
 
 CRON_SECRET="$(get_existing CRON_SECRET)"
-[[ -z "$CRON_SECRET" ]] && CRON_SECRET="$(random_hex 32)"
+CRON_SECRET="${CRON_SECRET:-$(random_hex 32)}"
 
 SOURCECRAFT_PAT="$(get_existing SOURCECRAFT_PAT)"
 read_var SOURCECRAFT_PAT "SOURCECRAFT_PAT" 1 "$SOURCECRAFT_PAT"
@@ -205,6 +208,7 @@ cat > "$env_file" <<EOF
 # Автогенерирован deploy/setup.sh. Секреты — не коммитить.
 
 DOMAIN=${DOMAIN}
+CADDYFILE=${CADDYFILE}
 PULSE_IMAGE=${PULSE_IMAGE}
 DB_PASSWORD=${DB_PASSWORD}
 AUTH_SECRET=${AUTH_SECRET}

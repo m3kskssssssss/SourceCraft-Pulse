@@ -45,6 +45,8 @@ services:
       DATABASE_URL: postgres://pulse:${DB_PASSWORD}@postgres:5432/pulse
       AUTH_SECRET: ${AUTH_SECRET}
       NEXTAUTH_URL: https://${DOMAIN}
+      # За прокси (Caddy, Cloudflare) Auth.js должен доверять заголовкам Host.
+      AUTH_TRUST_HOST: "true"
       SOURCECRAFT_PAT: ${SOURCECRAFT_PAT}
       AI_BASE_URL: ${AI_BASE_URL}
       AI_API_KEY: ${AI_API_KEY}
@@ -87,7 +89,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deploy/Caddyfile.docker:/etc/caddy/Caddyfile:ro
+      # Caddyfile.docker — свой TLS через Let's Encrypt;
+      # Caddyfile.cloudflare — HTTP за прокси Cloudflare. Выбор в .env.
+      - ./deploy/${CADDYFILE:-Caddyfile.docker}:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
 
