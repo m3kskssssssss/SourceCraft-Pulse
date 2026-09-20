@@ -1,0 +1,25 @@
+# Вариант для случая, когда TLS терминируется перед нами: балансировщик
+# провайдера с сертификатом на домен, Cloudflare-прокси и т.п.
+# Сюда приходит обычный HTTP по 80-му порту, ACME на сервере не нужен —
+# ровно поэтому файл и существует: исходящие к Let's Encrypt с ВМ не проходят.
+#
+# Включается через CADDYFILE=Caddyfile.behind-proxy в .env.
+#
+# Заголовки о клиенте (X-Forwarded-For, X-Forwarded-Proto) проставляет тот,
+# кто терминирует TLS; мы их только передаём дальше в приложение.
+
+:80 {
+	encode zstd gzip
+
+	# app — имя сервиса в compose. Docker DNS резолвит по имени.
+	reverse_proxy app:3000
+
+	@badge path_regexp badge ^/api/badge/.+\.svg$
+	header @badge Cache-Control "public, max-age=300, stale-while-revalidate=86400"
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+	}
+}
