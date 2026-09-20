@@ -17,6 +17,7 @@ import { hostname } from 'node:os';
 import { getWorkerDb, getWorkerPool, shutdownWorkerDb } from '../db/worker-client';
 import { analyses, analysisJobs, repositories, events } from '../db/schema';
 import { collectRepoFacts } from '../lib/collect';
+import { scoreRepo } from '../lib/scoring';
 
 const DEFAULT_BATCH_SIZE = 5;
 const MAX_ATTEMPTS = 3;
@@ -109,12 +110,21 @@ async function processJob(job: LockedJob): Promise<void> {
       `job_timeout_${JOB_TIMEOUT_MS}ms`,
     );
 
+    const result = scoreRepo(facts);
+
     await db
       .update(analyses)
       .set({
         status: 'done',
-        metrics: facts as unknown as Record<string, unknown>,
-        missing: facts.missing as unknown as Record<string, unknown>,
+        score: result.score,
+        categoryScores: result.categoryScores as unknown as Record<string, unknown>,
+        metrics: {
+          facts: facts as unknown as Record<string, unknown>,
+          penalties: result.penalties,
+          scoreBeforePenalties: result.scoreBeforePenalties,
+        },
+        recommendations: result.recommendations as unknown as Record<string, unknown>,
+        missing: result.missing as unknown as Record<string, unknown>,
         finishedAt: new Date(),
       })
       .where(eq(analyses.id, job.analysisId));
@@ -128,11 +138,14 @@ async function processJob(job: LockedJob): Promise<void> {
         analysisId: job.analysisId,
         org: repo.orgSlug,
         repo: repo.repoSlug,
-        missingCount: facts.missing.length,
+        score: result.score,
+        missingCount: result.missing.length,
       },
     });
 
-    console.log(`[worker ${workerId}] ✓ analysis=${job.analysisId} done, missing=${facts.missing.length}`);
+    console.log(
+      `[worker ${workerId}] ✓ analysis=${job.analysisId} done, score=${result.score}, missing=${result.missing.length}`,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[worker ${workerId}] ✗ analysis=${job.analysisId} failed: ${message}`);

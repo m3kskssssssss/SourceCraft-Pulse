@@ -42,8 +42,9 @@
 - `pnpm start` — запуск прод-сборки
 - `pnpm typecheck` — `tsc --noEmit`
 - `pnpm lint` — ESLint (flat config через FlatCompat)
+- `pnpm test` / `pnpm test:watch` — Vitest, только движок оценки и парсеры
 - `pnpm gen:api` — скачать/сконвертировать OpenAPI SourceCraft и обновить `types.gen.ts`
-- `pnpm collect <org> <repo>` — проверка Этапа 2: печатает RepoFacts в консоль
+- `pnpm collect <org> <repo> [--score]` — сбор фактов; с `--score` также печатает AnalysisResult
 - `pnpm worker` — прогон воркера очереди `analysis_jobs`
 - `pnpm seed:repos [--auto] [--count=N]` — поставить репозитории в очередь
 - `pnpm db:generate` — сгенерировать SQL-миграции из `src/db/schema.ts`
@@ -73,6 +74,15 @@ src/
 │   └── seed-repos.ts             # pnpm seed:repos
 ├── lib/
 │   ├── collect.ts                # collectRepoFacts(org, repo) → RepoFacts
+│   ├── scoring/
+│   │   ├── index.ts              # scoreRepo(facts) → AnalysisResult
+│   │   ├── config.ts             # веса, пороги, штрафы, effort
+│   │   ├── types.ts              # MetricScore, CategoryScore, AnalysisResult, Recommendation
+│   │   ├── normalize.ts          # linearScore/logScore/boolScore/clamp
+│   │   ├── facts-helpers.ts      # isUnknown(), safeShare()
+│   │   ├── recommendations.ts    # top-3 через симуляцию
+│   │   └── metrics/              # activity.ts, code.ts, security.ts, docs.ts
+│   │   └── __tests__/            # Vitest фикстуры + тесты
 │   ├── git/
 │   │   ├── clone.ts              # withBareClone() + readFileFromClone() (только воркер)
 │   │   ├── history.ts            # analyzeGitHistory / analyzeGitHistoryInClone
@@ -106,7 +116,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 
 - [x] Этап 1 — каркас, схема БД, health-эндпоинт, деплой
 - [x] Этап 2 — SourceCraft-клиент, сбор фактов, воркер
-- [ ] Этап 3 — движок оценки + тесты + seed по реальным данным
+- [x] Этап 3 — движок оценки + Vitest (seed по реальным данным отложен до подключения Neon)
 - [ ] Этап 4 — слой ИИ, кэш, учёт затрат, лимит бюджета
 - [ ] Этап 5 — авторизация Auth.js, гостевой доступ, лимиты
 - [ ] Этап 6 — публичный рейтинг, публичный API, SVG-бейдж

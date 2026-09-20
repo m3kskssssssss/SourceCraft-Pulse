@@ -77,6 +77,8 @@ export type RepoFacts = {
   issues: Issue[];
   gitHistory: GitHistoryFacts;
   security: SecurityScanResult;
+  /** Полный текст README.md (если найден в git-клоне). */
+  readme: string | null;
   missing: string[];
 };
 
@@ -238,22 +240,25 @@ export async function collectRepoFacts(
     errors: [],
   };
   let lockfileContents: { packageLockJson?: string; pnpmLockYaml?: string } = {};
+  let readme: string | null = null;
 
   if ((options.runGitAnalysis ?? true) && cloneUrlHttps) {
     try {
       await withBareClone(
         { cloneUrlHttps, token: process.env.SOURCECRAFT_PAT ?? undefined },
         async (workDir) => {
-          const [history, packageLockJson, pnpmLockYaml] = await Promise.all([
+          const [history, packageLockJson, pnpmLockYaml, readmeText] = await Promise.all([
             analyzeGitHistoryInClone(workDir),
             readFileFromClone(workDir, 'HEAD:package-lock.json'),
             readFileFromClone(workDir, 'HEAD:pnpm-lock.yaml'),
+            readReadme(workDir),
           ]);
           gitHistory = history;
           lockfileContents = {
             packageLockJson: packageLockJson ?? undefined,
             pnpmLockYaml: pnpmLockYaml ?? undefined,
           };
+          readme = readmeText;
         },
       );
     } catch (err) {
@@ -303,8 +308,19 @@ export async function collectRepoFacts(
     issues,
     gitHistory,
     security: scanResult,
+    readme,
     missing: dedupeStrings(missing),
   };
+}
+
+/** Попытка прочитать README любой из принятых расширений. */
+async function readReadme(workDir: string): Promise<string | null> {
+  const candidates = ['README.md', 'readme.md', 'README.rst', 'README.txt', 'README'];
+  for (const path of candidates) {
+    const content = await readFileFromClone(workDir, `HEAD:${path}`);
+    if (content) return content;
+  }
+  return null;
 }
 
 // ---------- helpers ----------
