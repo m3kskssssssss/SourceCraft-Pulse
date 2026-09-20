@@ -1,22 +1,42 @@
-// Auth.js middleware, работает в Edge-рантайме.
-// Использует Edge-совместимый authConfig (без argon2 и без Drizzle-клиента).
-//
-// Публичные пути пропускаем всех; /analyze требует сессии.
+// Единый Next.js middleware:
+//   1) /admin/* (кроме /admin/login) — своя проверка admin-cookie (HMAC).
+//      Верификация здесь Edge-совместимая (Web Crypto через lib/admin-session-edge).
+//   2) /analyze и его подпути — Auth.js JWT-сессия обычного пользователя.
+//   3) остальное — пропускаем.
 
 import NextAuth from 'next-auth';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { authConfig } from '@/auth.config';
+import { verifyAdminSessionEdge } from '@/lib/admin-session-edge';
+import { ADMIN_COOKIE_NAME } from '@/lib/admin-session-constants';
 
-const PROTECTED_PREFIXES = ['/analyze'];
+const USER_PROTECTED_PREFIXES = ['/analyze'];
 
 const { auth } = NextAuth(authConfig);
 
-export default auth((req) => {
+async function guardAdmin(req: NextRequest): Promise<NextResponse | null> {
   const { pathname, search } = req.nextUrl;
-  const isProtected = PROTECTED_PREFIXES.some(
+  if (!pathname.startsWith('/admin')) return null;
+  if (pathname === '/admin/login' || pathname.startsWith('/admin/login/')) return null;
+
+  const cookie = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
+  const payload = await verifyAdminSessionEdge(cookie);
+  if (payload) return null;
+
+  const url = new URL('/admin/login', req.nextUrl.origin);
+  url.searchParams.set('returnTo', pathname + search);
+  return NextResponse.redirect(url);
+}
+
+export default auth(async (req) => {
+  const adminBlock = await guardAdmin(req);
+  if (adminBlock) return adminBlock;
+
+  const { pathname, search } = req.nextUrl;
+  const isUserProtected = USER_PROTECTED_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
-  if (!isProtected) return NextResponse.next();
+  if (!isUserProtected) return NextResponse.next();
   if (req.auth) return NextResponse.next();
 
   const url = new URL('/signin', req.nextUrl.origin);

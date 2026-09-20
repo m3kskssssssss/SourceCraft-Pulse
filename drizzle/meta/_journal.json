@@ -15,6 +15,13 @@
       "when": 1789874261733,
       "tag": "0001_eminent_nekra",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789875464587,
+      "tag": "0002_sparkling_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }

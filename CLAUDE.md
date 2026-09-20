@@ -46,6 +46,7 @@
 - `pnpm gen:api` — скачать/сконвертировать OpenAPI SourceCraft и обновить `types.gen.ts`
 - `pnpm collect <org> <repo> [--score] [--ai]` — сбор фактов; `--score` печатает AnalysisResult; `--ai` также прогоняет три AI-задачи через RouterAI
 - `pnpm ai:ping` — проверка RouterAI: маленький запрос + повтор из кэша
+- `pnpm admin:hash` — печатает `ADMIN_PASSWORD_HASH=…` для .env (пароль от 20 символов)
 - `pnpm worker` — прогон воркера очереди `analysis_jobs`
 - `pnpm seed:repos [--auto] [--count=N]` — поставить репозитории в очередь
 - `pnpm db:generate` — сгенерировать SQL-миграции из `src/db/schema.ts`
@@ -146,5 +147,5 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 4 — слой ИИ через RouterAI, кэш, учёт затрат, лимит бюджета (Drizzle-версии кэша/телеметрии отложены до Neon)
 - [x] Этап 5 — Auth.js v5 (credentials + argon2), гостевой доступ, лимиты, /signin, /signup, /analyze, /a/[id] (живой прогон требует Neon)
 - [x] Этап 6 — публикация анализа, рейтинг с сортировкой/поиском, публичный API + SVG-бейдж (живой прогон требует Neon)
-- [ ] Этап 7 — админка (сводка, расходы, очередь, настройки)
+- [x] Этап 7 — админка: отдельный вход /admin/login (HMAC-cookie, argon2id, rate-limit 5/15мин), 6 разделов (сводка/ai/очередь/пользователи/репозитории/настройки), таблица settings, pnpm admin:hash
 - [ ] Этап 8 — визуальная полировка под чёрно-белую тему

@@ -18,7 +18,8 @@
     "collect": "tsx src/cli/collect.ts",
     "worker": "tsx src/worker/run.ts",
     "seed:repos": "tsx src/db/seed-repos.ts",
-    "ai:ping": "tsx src/cli/ai-ping.ts"
+    "ai:ping": "tsx src/cli/ai-ping.ts",
+    "admin:hash": "tsx src/cli/admin-hash.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",

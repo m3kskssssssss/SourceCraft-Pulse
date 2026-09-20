@@ -214,6 +214,21 @@ export const aiCache = pgTable(
   },
 );
 
+// ---------- Настройки приложения (для админки) ----------
+// Ключ → JSON. Известные ключи:
+//   ai.model            — активная модель роутера
+//   ai.monthly_budget   — месячный бюджет ИИ в рублях
+//   limits.user_daily   — суточный лимит анализов на пользователя
+//   limits.user_concurrent — одновременных анализов на пользователя
+
+export const settings = pgTable('settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .default(sql`now()`),
+});
+
 // ---------- Общий журнал событий для админки ----------
 
 export const events = pgTable(
