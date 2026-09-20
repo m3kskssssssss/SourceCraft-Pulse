@@ -11,8 +11,18 @@
 :80 {
 	encode zstd gzip
 
-	# app — имя сервиса в compose. Docker DNS резолвит по имени.
-	reverse_proxy app:3000
+	# Проверка владения доменом при выпуске сертификата (ZeroSSL, Let's Encrypt)
+	# кладёт файл в deploy/webroot/.well-known/... — отдаём его как статику,
+	# не пуская в приложение, иначе оно ответит своей 404-страницей.
+	handle /.well-known/* {
+		root * /webroot
+		file_server
+	}
+
+	handle {
+		# app — имя сервиса в compose. Docker DNS резолвит по имени.
+		reverse_proxy app:3000
+	}
 
 	@badge path_regexp badge ^/api/badge/.+\.svg$
 	header @badge Cache-Control "public, max-age=300, stale-while-revalidate=86400"

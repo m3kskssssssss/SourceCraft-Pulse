@@ -92,6 +92,8 @@ services:
       # Caddyfile.docker — свой TLS через Let's Encrypt;
       # Caddyfile.cloudflare — HTTP за прокси Cloudflare. Выбор в .env.
       - ./deploy/${CADDYFILE:-Caddyfile.docker}:/etc/caddy/Caddyfile:ro
+      # Файлы проверки владения доменом при выпуске сертификата.
+      - ./deploy/webroot:/webroot:ro
       # Сертификаты, выпущенные вручную (CADDYFILE=Caddyfile.manual-tls).
       - ./deploy/certs:/certs:ro
       - caddy-data:/data
