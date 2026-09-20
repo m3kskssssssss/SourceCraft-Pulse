@@ -64,6 +64,19 @@ src/
 │   ├── layout.tsx
 │   ├── page.tsx                  # публичный рейтинг
 │   └── globals.css
+├── auth.ts                       # Auth.js v5, Node-конфиг с credentials+argon2
+├── auth.config.ts                # Edge-safe конфиг (для middleware)
+├── middleware.ts                 # gate для /analyze
+├── app/
+│   ├── actions/
+│   │   ├── auth.ts               # signUpAction, signOutAction
+│   │   └── analyze.ts            # analyzeRepo — slug + limits + SC check + queue
+│   ├── api/auth/[...nextauth]/route.ts
+│   ├── signin/page.tsx
+│   ├── signup/page.tsx
+│   ├── analyze/page.tsx
+│   ├── a/[id]/page.tsx
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
@@ -127,7 +140,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 2 — SourceCraft-клиент, сбор фактов, воркер
 - [x] Этап 3 — движок оценки + Vitest (seed по реальным данным отложен до подключения Neon)
 - [x] Этап 4 — слой ИИ через RouterAI, кэш, учёт затрат, лимит бюджета (Drizzle-версии кэша/телеметрии отложены до Neon)
-- [ ] Этап 5 — авторизация Auth.js, гостевой доступ, лимиты
+- [x] Этап 5 — Auth.js v5 (credentials + argon2), гостевой доступ, лимиты, /signin, /signup, /analyze, /a/[id] (живой прогон требует Neon)
 - [ ] Этап 6 — публичный рейтинг, публичный API, SVG-бейдж
 - [ ] Этап 7 — админка (сводка, расходы, очередь, настройки)
 - [ ] Этап 8 — визуальная полировка под чёрно-белую тему

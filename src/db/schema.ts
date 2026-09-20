@@ -43,6 +43,8 @@ export const users = pgTable('users', {
   image: text('image'), // Auth.js использует это поле
   provider: text('provider'),
   providerId: text('provider_id'),
+  /** argon2id-хеш пароля для credentials-провайдера. Null для OAuth-пользователей. */
+  passwordHash: text('password_hash'),
   role: userRoleEnum('role').notNull().default('user'),
   blockedAt: timestamp('blocked_at', { withTimezone: true, mode: 'date' }),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })

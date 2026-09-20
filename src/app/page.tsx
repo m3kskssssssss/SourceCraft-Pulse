@@ -1,5 +1,8 @@
-// Главная — публичный рейтинг репозиториев. Пока заглушка.
-// Реальный список появится на Этапе 3 (реальные оценки) и Этапе 6 (публикация).
+// Главная — рейтинг + форма запуска. Форма доступна гостям: если гость
+// жмёт «Оценить», server action увидит, что пользователя нет, и редиректит
+// на /signin с сохранённым returnTo. После входа анализ стартует сам.
+
+import { AnalyzeForm } from './components/AnalyzeForm';
 
 export default function HomePage() {
   return (
@@ -8,6 +11,17 @@ export default function HomePage() {
       <p className="mt-4 text-lg text-neutral-600">
         Оценка здоровья открытых репозиториев платформы SourceCraft.
       </p>
+
+      <section className="mt-10 rounded-3xl bg-neutral-100 p-6">
+        <h2 className="text-xl font-medium">Оценить репозиторий</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Введите адрес репозитория с SourceCraft. Гостю мы сначала предложим войти.
+        </p>
+        <div className="mt-4">
+          <AnalyzeForm />
+        </div>
+      </section>
+
       <section className="mt-12">
         <h2 className="text-xl font-medium">Рейтинг</h2>
         <p className="mt-2 text-neutral-500">
