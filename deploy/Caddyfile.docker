@@ -1,23 +1,16 @@
 source-craft-pulse.tech, www.source-craft-pulse.tech {
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:3000
 
-	# Пропускаем /api/badge/*.svg с более длинным кэшем — бейджи меняются редко.
+	# app — имя сервиса в compose. Docker DNS резолвит по имени.
+	reverse_proxy app:3000
+
 	@badge path_regexp badge ^/api/badge/.+\.svg$
 	header @badge Cache-Control "public, max-age=300, stale-while-revalidate=86400"
 
-	# Базовые security-заголовки.
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		X-Frame-Options "DENY"
-	}
-
-	log {
-		output file /var/log/caddy/pulse.log {
-			roll_size 10mb
-			roll_keep 5
-		}
 	}
 }

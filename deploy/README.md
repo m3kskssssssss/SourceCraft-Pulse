@@ -1,54 +1,71 @@
-# Развёртывание Pulse на своём сервере
+# Развёртывание Pulse через Docker Compose
 
-Стек: Ubuntu 22.04/24.04 + Node 22 + pnpm + Postgres 16 (локально) + Caddy
-(авто-TLS от Let's Encrypt) + systemd. Vercel/Neon не участвуют.
+Стек в контейнерах: Postgres 16, приложение Next.js, воркер очереди, Caddy
+с автоматическим TLS от Let's Encrypt. Всё поднимается одной командой.
 
 ## Один шаг
 
-На чистом сервере под `root`:
+На чистом Ubuntu 22.04/24.04 под `root`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/m3kskssssssss/SourceCraft-Pulse/main/deploy/setup.sh -o /tmp/setup.sh
 bash /tmp/setup.sh
 ```
 
-Скрипт по очереди спросит секреты (`SOURCECRAFT_PAT`, `AI_API_KEY` и т.д.),
-затем всё поднимет сам:
+Скрипт поставит Docker, склонирует репу в `/opt/pulse`, спросит недостающие
+секреты, соберёт `.env`, поднимет контейнеры.
 
-1. Установит Node 22, pnpm, Caddy, Postgres, git, build-tools.
-2. Создаст роль и БД в Postgres, сгенерирует и сохранит пароль в `/root/.pulse-db-pass`.
-3. Создаст пользователя `pulse` и склонирует репу в `/opt/pulse`.
-4. Соберёт Next.js и накатит миграции Drizzle.
-5. Развернёт `pulse-app.service` (Next.js на 3000) и `pulse-worker.timer`
-   (запускает `pnpm worker` каждые 2 минуты).
-6. Настроит Caddy: `source-craft-pulse.tech` → `127.0.0.1:3000` с авто-TLS.
-7. Откроет 22/80/443 в ufw.
+Спрашивает:
+- `SOURCECRAFT_PAT` (скрыто)
+- `AI_BASE_URL` — Enter (по умолчанию `https://routerai.ru/v1`)
+- `AI_API_KEY` (скрыто)
+- `AI_MODEL` — Enter
+- `AI_MONTHLY_BUDGET_RUB` — Enter (500)
+- `ADMIN_LOGIN` — Enter (`admin`)
+- Пароль админа (скрыто, ≥ 20 символов)
+
+`DB_PASSWORD`, `AUTH_SECRET`, `CRON_SECRET` — сгенерирует сам.
 
 ## Требования
 
-- Домен должен указывать A-записью на IP сервера (нужно для TLS-сертификата).
-- В сервере открыты 80 и 443.
+- Домен указывает A-записью на IP сервера (Caddy получит TLS-сертификат сам).
+- Открыты 22/80/443 (ufw откроет).
 
-## Обновление после git push
+## Ручной запуск
+
+Если хочется без setup.sh:
+
+```bash
+git clone https://github.com/m3kskssssssss/SourceCraft-Pulse.git /opt/pulse
+cd /opt/pulse
+cp deploy/env.example .env
+$EDITOR .env               # заполнить секреты
+docker compose up -d --build
+```
+
+## Обновление
 
 ```bash
 cd /opt/pulse
-sudo -u pulse git pull
-sudo -u pulse pnpm install --frozen-lockfile
-sudo -u pulse pnpm build
-sudo -u pulse pnpm db:migrate
-systemctl restart pulse-app.service
+git pull
+docker compose up -d --build
 ```
 
-Или проще — запусти `setup.sh` ещё раз, он идемпотентен.
+Или снова запустить `setup.sh` — идемпотентен.
 
-## Диагностика
+## Логи и диагностика
 
 ```bash
-systemctl status pulse-app.service
-systemctl status pulse-worker.timer
-journalctl -u pulse-app.service -f
-journalctl -u pulse-worker.service --since '30 min ago'
-tail -f /var/log/caddy/pulse.log
-psql "$(grep DATABASE_URL /opt/pulse/.env | cut -d= -f2- | tr -d '\"')"
+docker compose ps
+docker compose logs -f app
+docker compose logs -f worker
+docker compose logs -f caddy
+docker compose exec postgres psql -U pulse pulse
+```
+
+## Остановить / удалить
+
+```bash
+docker compose down            # остановить, оставить данные
+docker compose down -v         # + удалить volume postgres (снесёт БД)
 ```

@@ -1,59 +1,110 @@
 #!/usr/bin/env bash
-# Полное разворачивание Pulse на чистом Ubuntu 22.04/24.04.
+# Развёртывание Pulse через Docker Compose на чистом Ubuntu 22.04/24.04.
 #
 # Что делает:
-#   1. Ставит Node 22, pnpm, Caddy, Postgres 16, git, build-tools для argon2.
-#   2. Создаёт пользователя pulse, БД pulse c ролью pulse.
-#   3. Клонирует репу в /opt/pulse.
-#   4. Спрашивает недостающие секреты (SC PAT, AI key, пароль админа).
-#   5. Пишет .env (chmod 600), собирает Next.js, накатывает миграции.
-#   6. Разворачивает systemd: pulse-app.service + pulse-worker.timer (каждые 2 мин).
-#   7. Кладёт Caddyfile — TLS автоматом от Let's Encrypt.
-#   8. Открывает 22/80/443 в ufw.
+#   1. Ставит Docker и compose-plugin (если не стоят).
+#   2. Забирает код в /opt/pulse (git с фолбэком на tarball).
+#   3. Спрашивает недостающие секреты → пишет /opt/pulse/.env.
+#   4. docker compose up -d --build.
+#   5. ufw: 22/80/443.
 #
-# Запуск (от root):
+# Запуск от root:
 #   curl -fsSL https://raw.githubusercontent.com/m3kskssssssss/SourceCraft-Pulse/main/deploy/setup.sh -o /tmp/setup.sh
 #   bash /tmp/setup.sh
 #
-# Идемпотентен: повторный запуск переиспользует БД и обновляет код.
+# Идемпотентен: повторный запуск обновит код и передеплоит.
 
 set -euo pipefail
 
-# ---------- параметры ----------
-
 readonly REPO_URL="https://github.com/m3kskssssssss/SourceCraft-Pulse.git"
+readonly TARBALL_URL="https://codeload.github.com/m3kskssssssss/SourceCraft-Pulse/tar.gz/refs/heads/main"
 readonly APP_DIR="/opt/pulse"
-readonly APP_USER="pulse"
-readonly LOG_DIR="/var/log/pulse"
 readonly DOMAIN="source-craft-pulse.tech"
-readonly APP_PORT="3000"
-readonly DB_NAME="pulse"
-readonly DB_USER="pulse"
-
-# ---------- helpers ----------
 
 step() { printf "\n\033[1;34m▶ %s\033[0m\n" "$*"; }
 info() { printf "  \033[36m%s\033[0m\n" "$*"; }
 warn() { printf "  \033[33m⚠ %s\033[0m\n" "$*"; }
 die()  { printf "\n\033[1;31m✗ %s\033[0m\n" "$*" >&2; exit 1; }
 
-require_root() {
-	[[ $EUID -eq 0 ]] || die "Запускай от root: sudo bash setup.sh"
+[[ $EUID -eq 0 ]] || die "Запускай от root: sudo bash setup.sh"
+
+# ---------- 1. Docker ----------
+
+step "Ставлю Docker (если нужно)"
+if ! command -v docker >/dev/null; then
+	export DEBIAN_FRONTEND=noninteractive
+	apt-get update -qq
+	apt-get install -y -qq ca-certificates curl gnupg lsb-release ufw openssl
+	install -m 0755 -d /etc/apt/keyrings
+	curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+	chmod a+r /etc/apt/keyrings/docker.gpg
+	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+		> /etc/apt/sources.list.d/docker.list
+	apt-get update -qq
+	apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+	systemctl enable --now docker
+fi
+info "docker $(docker --version | awk '{print $3}' | tr -d ,)"
+info "compose $(docker compose version --short)"
+
+# ---------- 2. Код ----------
+
+step "Забираю код"
+if [[ ! -d "$APP_DIR" ]]; then
+	if timeout 30 git ls-remote --exit-code "$REPO_URL" HEAD >/dev/null 2>&1; then
+		git clone --depth=1 "$REPO_URL" "$APP_DIR"
+	else
+		warn "github.com недоступен по 443. Скачиваю tarball через codeload."
+		mkdir -p "$APP_DIR"
+		curl -fsSL --connect-timeout 15 --max-time 120 "$TARBALL_URL" -o /tmp/pulse.tar.gz
+		tar -xzf /tmp/pulse.tar.gz --strip-components=1 -C "$APP_DIR"
+		rm -f /tmp/pulse.tar.gz
+	fi
+else
+	info "Директория уже существует, обновляю"
+	if [[ -d "$APP_DIR/.git" ]] && timeout 30 git -C "$APP_DIR" ls-remote --exit-code origin HEAD >/dev/null 2>&1; then
+		git config --global --add safe.directory "$APP_DIR" || true
+		git -C "$APP_DIR" fetch --depth=1 origin main
+		git -C "$APP_DIR" reset --hard origin/main
+	else
+		warn "git недоступен, обновляю через tarball (существующий .env не трогаю)"
+		local_env=""
+		[[ -f "$APP_DIR/.env" ]] && local_env="$(cat "$APP_DIR/.env")"
+		curl -fsSL --connect-timeout 15 --max-time 120 "$TARBALL_URL" -o /tmp/pulse.tar.gz
+		# Заменяем всё, кроме .env; проще всего — удалить всё, распаковать заново
+		find "$APP_DIR" -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} +
+		tar -xzf /tmp/pulse.tar.gz --strip-components=1 -C "$APP_DIR"
+		[[ -n "$local_env" ]] && printf "%s" "$local_env" > "$APP_DIR/.env"
+		rm -f /tmp/pulse.tar.gz
+	fi
+fi
+
+# ---------- 3. .env ----------
+
+step "Собираю .env"
+
+env_file="$APP_DIR/.env"
+get_existing() {
+	local key="$1"
+	if [[ -f "$env_file" ]]; then
+		grep "^${key}=" "$env_file" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/^"//;s/"$//' || true
+	fi
+	return 0
 }
 
-read_secret() {
+read_var() {
 	local var="$1" prompt="$2" silent="${3:-0}" default="${4:-}"
 	local value
 	while :; do
 		if [[ "$silent" == "1" ]]; then
-			read -r -s -p "$prompt: " value
+			read -r -s -p "$prompt: " value || true
 			printf "\n"
 		else
 			if [[ -n "$default" ]]; then
-				read -r -p "$prompt [$default]: " value
+				read -r -p "$prompt [$default]: " value || true
 				value="${value:-$default}"
 			else
-				read -r -p "$prompt: " value
+				read -r -p "$prompt: " value || true
 			fi
 		fi
 		[[ -n "$value" ]] && break
@@ -64,267 +115,85 @@ read_secret() {
 
 random_hex() { openssl rand -hex "$1"; }
 
-# ---------- 1. система ----------
-
-require_root
-
-step "Обновляю пакеты"
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get upgrade -y -qq
-
-step "Ставлю базовые пакеты"
-apt-get install -y -qq \
-	curl ca-certificates gnupg lsb-release git \
-	build-essential python3 pkg-config \
-	debian-keyring debian-archive-keyring apt-transport-https \
-	ufw openssl
-
-# ---------- 2. Node 22 + pnpm ----------
-
-step "Ставлю Node.js 22"
-if ! node --version 2>/dev/null | grep -q "^v22"; then
-	curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-	apt-get install -y -qq nodejs
-fi
-info "node $(node --version), npm $(npm --version)"
-
-step "Ставлю pnpm через corepack"
-corepack enable
-corepack prepare pnpm@10.33.2 --activate
-ln -sf "$(command -v pnpm)" /usr/bin/pnpm
-info "pnpm $(pnpm --version)"
-
-# ---------- 3. Caddy ----------
-
-step "Ставлю Caddy"
-if ! command -v caddy >/dev/null; then
-	curl -fsSL 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-		| gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-	curl -fsSL 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
-		> /etc/apt/sources.list.d/caddy-stable.list
-	apt-get update -qq
-	apt-get install -y -qq caddy
-fi
-info "caddy $(caddy version | head -1)"
-
-# ---------- 4. Postgres 16 ----------
-
-step "Ставлю Postgres"
-apt-get install -y -qq postgresql postgresql-contrib
-systemctl enable --now postgresql
-PG_VERSION="$(psql --version | grep -oE '[0-9]+' | head -1)"
-info "postgres $PG_VERSION"
-
-step "Создаю роль ${DB_USER} и БД ${DB_NAME}"
-DB_PASSWORD_FILE="/root/.pulse-db-pass"
-if [[ -f "$DB_PASSWORD_FILE" ]]; then
-	DB_PASSWORD="$(cat "$DB_PASSWORD_FILE")"
-	info "Пароль БД уже сгенерирован ранее (${DB_PASSWORD_FILE})"
-else
-	DB_PASSWORD="$(random_hex 24)"
-	printf "%s" "$DB_PASSWORD" > "$DB_PASSWORD_FILE"
-	chmod 600 "$DB_PASSWORD_FILE"
-	info "Пароль БД сгенерирован и сохранён в ${DB_PASSWORD_FILE}"
-fi
-
-sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" | grep -q 1 \
-	|| sudo -u postgres psql -c "CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASSWORD}'"
-# Обновим пароль на всякий случай (если файл был перезаписан).
-sudo -u postgres psql -c "ALTER ROLE ${DB_USER} WITH PASSWORD '${DB_PASSWORD}'"
-sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1 \
-	|| sudo -u postgres createdb -O "${DB_USER}" "${DB_NAME}"
-
-DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}"
-
-# ---------- 5. Пользователь и директории ----------
-
-step "Создаю пользователя ${APP_USER} и директории"
-if ! id "$APP_USER" &>/dev/null; then
-	useradd --system --create-home --shell /bin/bash "$APP_USER"
-fi
-mkdir -p "$APP_DIR" "$LOG_DIR" /var/log/caddy
-chown -R "$APP_USER:$APP_USER" "$LOG_DIR"
-
-# ---------- 6. Репозиторий ----------
-
-step "Забираю код репозитория"
-
-# Сначала пробуем git clone. Если github.com недоступен по 443 (частая
-# история для российских провайдеров), падаем на tarball через codeload/Fastly.
-readonly TARBALL_URL="https://codeload.github.com/m3kskssssssss/SourceCraft-Pulse/tar.gz/refs/heads/main"
-
-fetch_via_git() {
-	if [[ -d "$APP_DIR/.git" ]]; then
-		# Репа уже клонирована; owner — pulse. Работаем от него, чтобы git не
-		# упирался в dubious-ownership.
-		local owner
-		owner="$(stat -c '%U' "$APP_DIR/.git" 2>/dev/null || echo root)"
-		if [[ "$owner" == "$APP_USER" ]] && id "$APP_USER" &>/dev/null; then
-			sudo -u "$APP_USER" git -C "$APP_DIR" fetch --depth=1 --tags origin main
-			sudo -u "$APP_USER" git -C "$APP_DIR" reset --hard origin/main
-		else
-			git config --global --add safe.directory "$APP_DIR" || true
-			git -C "$APP_DIR" fetch --depth=1 --tags origin main
-			git -C "$APP_DIR" reset --hard origin/main
-		fi
-	else
-		git clone --depth=1 "$REPO_URL" "$APP_DIR"
-	fi
-}
-
-fetch_via_tarball() {
-	local tmp
-	tmp="$(mktemp -d)"
-	trap 'rm -rf "$tmp"' RETURN
-	warn "Пробую tarball через codeload.github.com (Fastly CDN)."
-	curl -fsSL --connect-timeout 15 --max-time 120 "$TARBALL_URL" -o "$tmp/repo.tar.gz"
-	# Сохраняем .env, если он уже был.
-	local saved_env=""
-	if [[ -f "$APP_DIR/.env" ]]; then
-		saved_env="$tmp/.env.saved"
-		cp "$APP_DIR/.env" "$saved_env"
-	fi
-	rm -rf "$APP_DIR"
-	mkdir -p "$APP_DIR"
-	tar -xzf "$tmp/repo.tar.gz" --strip-components=1 -C "$APP_DIR"
-	if [[ -n "$saved_env" ]]; then
-		cp "$saved_env" "$APP_DIR/.env"
-	fi
-}
-
-if timeout 30 git ls-remote --exit-code "$REPO_URL" HEAD >/dev/null 2>&1; then
-	fetch_via_git
-else
-	warn "github.com недоступен по 443 (git ls-remote тайм-аут). Переключаюсь на tarball."
-	fetch_via_tarball
-fi
-
-chown -R "$APP_USER:$APP_USER" "$APP_DIR"
-
-# ---------- 7. Env ----------
-
-step "Собираю .env"
-
-existing_env="$APP_DIR/.env"
-get_existing() {
-	local key="$1"
-	if [[ -f "$existing_env" ]]; then
-		grep "^${key}=" "$existing_env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/^"//;s/"$//' || true
-	fi
-	return 0
-}
-
 echo ""
 echo "  Заполняю переменные окружения. Enter — значение по умолчанию."
 echo "  Секреты вводятся скрытно."
 echo ""
 
-SOURCECRAFT_PAT="$(get_existing SOURCECRAFT_PAT)"
-read_secret SOURCECRAFT_PAT "SOURCECRAFT_PAT" 1 "$SOURCECRAFT_PAT"
-
-AI_BASE_URL="$(get_existing AI_BASE_URL)"
-read_secret AI_BASE_URL "AI_BASE_URL" 0 "${AI_BASE_URL:-https://routerai.ru/v1}"
-
-AI_API_KEY="$(get_existing AI_API_KEY)"
-read_secret AI_API_KEY "AI_API_KEY" 1 "$AI_API_KEY"
-
-AI_MODEL="$(get_existing AI_MODEL)"
-read_secret AI_MODEL "AI_MODEL" 0 "${AI_MODEL:-deepseek/deepseek-v3.1-flash}"
-
-AI_MONTHLY_BUDGET_RUB="$(get_existing AI_MONTHLY_BUDGET_RUB)"
-read_secret AI_MONTHLY_BUDGET_RUB "AI_MONTHLY_BUDGET_RUB (₽)" 0 "${AI_MONTHLY_BUDGET_RUB:-500}"
-
-ADMIN_LOGIN="$(get_existing ADMIN_LOGIN)"
-read_secret ADMIN_LOGIN "ADMIN_LOGIN" 0 "${ADMIN_LOGIN:-admin}"
-
-ADMIN_PASSWORD_HASH="$(get_existing ADMIN_PASSWORD_HASH)"
+DB_PASSWORD="$(get_existing DB_PASSWORD)"
+[[ -z "$DB_PASSWORD" ]] && DB_PASSWORD="$(random_hex 24)"
 
 AUTH_SECRET="$(get_existing AUTH_SECRET)"
-if [[ -z "$AUTH_SECRET" ]]; then
-	AUTH_SECRET="$(random_hex 32)"
-	info "Сгенерировал AUTH_SECRET (64 hex)."
-fi
+[[ -z "$AUTH_SECRET" ]] && AUTH_SECRET="$(random_hex 32)"
 
 CRON_SECRET="$(get_existing CRON_SECRET)"
-if [[ -z "$CRON_SECRET" ]]; then
-	CRON_SECRET="$(random_hex 32)"
-fi
+[[ -z "$CRON_SECRET" ]] && CRON_SECRET="$(random_hex 32)"
 
-cat > "$APP_DIR/.env" <<EOF
-# Автогенерирован скриптом deploy/setup.sh. Не коммитить.
+SOURCECRAFT_PAT="$(get_existing SOURCECRAFT_PAT)"
+read_var SOURCECRAFT_PAT "SOURCECRAFT_PAT" 1 "$SOURCECRAFT_PAT"
 
-DATABASE_URL="${DATABASE_URL}"
-AUTH_SECRET="${AUTH_SECRET}"
-NEXTAUTH_URL="https://${DOMAIN}"
+AI_BASE_URL="$(get_existing AI_BASE_URL)"
+read_var AI_BASE_URL "AI_BASE_URL" 0 "${AI_BASE_URL:-https://routerai.ru/v1}"
 
-SOURCECRAFT_PAT="${SOURCECRAFT_PAT}"
+AI_API_KEY="$(get_existing AI_API_KEY)"
+read_var AI_API_KEY "AI_API_KEY" 1 "$AI_API_KEY"
 
-AI_BASE_URL="${AI_BASE_URL}"
-AI_API_KEY="${AI_API_KEY}"
-AI_MODEL="${AI_MODEL}"
-AI_MONTHLY_BUDGET_RUB="${AI_MONTHLY_BUDGET_RUB}"
+AI_MODEL="$(get_existing AI_MODEL)"
+read_var AI_MODEL "AI_MODEL" 0 "${AI_MODEL:-deepseek/deepseek-v3.1-flash}"
 
-ADMIN_LOGIN="${ADMIN_LOGIN}"
-ADMIN_PASSWORD_HASH="${ADMIN_PASSWORD_HASH}"
+AI_MONTHLY_BUDGET_RUB="$(get_existing AI_MONTHLY_BUDGET_RUB)"
+read_var AI_MONTHLY_BUDGET_RUB "AI_MONTHLY_BUDGET_RUB" 0 "${AI_MONTHLY_BUDGET_RUB:-500}"
 
-CRON_SECRET="${CRON_SECRET}"
+ADMIN_LOGIN="$(get_existing ADMIN_LOGIN)"
+read_var ADMIN_LOGIN "ADMIN_LOGIN" 0 "${ADMIN_LOGIN:-admin}"
 
-NODE_ENV=production
-WORKER_BATCH_SIZE=5
-EOF
-chmod 600 "$APP_DIR/.env"
-chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
-
-# ---------- 8. Установка зависимостей и сборка ----------
-
-step "Устанавливаю зависимости (pnpm install)"
-sudo -u "$APP_USER" bash -lc "cd $APP_DIR && pnpm install --frozen-lockfile"
-
-# Если хеша админа не было — генерируем.
-if [[ -z "${ADMIN_PASSWORD_HASH}" ]]; then
+ADMIN_PASSWORD_HASH="$(get_existing ADMIN_PASSWORD_HASH)"
+if [[ -z "$ADMIN_PASSWORD_HASH" ]]; then
 	step "Генерирую хеш пароля админа (argon2id)"
 	echo "  Пароль от 20 символов. Ввод скрыт."
 	while :; do
-		read -r -s -p "  Придумай пароль админа: " admin_pw
+		read -r -s -p "  Пароль админа: " admin_pw || true
 		printf "\n"
 		[[ ${#admin_pw} -ge 20 ]] && break
 		warn "Слишком короткий, нужно ≥ 20 символов."
 	done
-	hash_out="$(sudo -u "$APP_USER" bash -lc "cd $APP_DIR && printf '%s\n' '$admin_pw' | pnpm --silent exec tsx src/cli/admin-hash.ts")"
+	# Одноразово подтянем аргон в маленький контейнер, посчитаем хеш и удалим.
+	info "Собираю образ Pulse (нужен один раз для argon2)…"
+	docker build -q -t pulse-app:latest "$APP_DIR" >/dev/null
+	hash_out="$(printf '%s\n' "$admin_pw" | docker run --rm -i pulse-app:latest pnpm --silent exec tsx src/cli/admin-hash.ts)"
 	unset admin_pw
 	ADMIN_PASSWORD_HASH="$(printf "%s\n" "$hash_out" | { grep '^ADMIN_PASSWORD_HASH=' || true; } | tail -1 | sed 's/^ADMIN_PASSWORD_HASH=//')"
 	[[ -n "$ADMIN_PASSWORD_HASH" ]] || die "Не удалось сгенерировать хеш пароля"
-	sed -i "s|^ADMIN_PASSWORD_HASH=.*|ADMIN_PASSWORD_HASH=\"${ADMIN_PASSWORD_HASH}\"|" "$APP_DIR/.env"
 fi
 
-step "Собираю Next.js (pnpm build)"
-sudo -u "$APP_USER" bash -lc "cd $APP_DIR && pnpm build"
+cat > "$env_file" <<EOF
+# Автогенерирован deploy/setup.sh. Секреты — не коммитить.
 
-step "Накатываю миграции Drizzle"
-sudo -u "$APP_USER" bash -lc "cd $APP_DIR && pnpm db:migrate"
+DOMAIN=${DOMAIN}
+DB_PASSWORD=${DB_PASSWORD}
+AUTH_SECRET=${AUTH_SECRET}
+CRON_SECRET=${CRON_SECRET}
 
-# ---------- 9. systemd ----------
+SOURCECRAFT_PAT=${SOURCECRAFT_PAT}
 
-step "Разворачиваю systemd-юниты"
-install -m 644 "$APP_DIR/deploy/pulse-app.service"    /etc/systemd/system/pulse-app.service
-install -m 644 "$APP_DIR/deploy/pulse-worker.service" /etc/systemd/system/pulse-worker.service
-install -m 644 "$APP_DIR/deploy/pulse-worker.timer"   /etc/systemd/system/pulse-worker.timer
-systemctl daemon-reload
-systemctl restart pulse-app.service
-systemctl enable pulse-app.service pulse-worker.timer
-systemctl restart pulse-worker.timer
-info "pulse-app: $(systemctl is-active pulse-app.service)"
-info "pulse-worker.timer: $(systemctl is-active pulse-worker.timer)"
+AI_BASE_URL=${AI_BASE_URL}
+AI_API_KEY=${AI_API_KEY}
+AI_MODEL=${AI_MODEL}
+AI_MONTHLY_BUDGET_RUB=${AI_MONTHLY_BUDGET_RUB}
 
-# ---------- 10. Caddy ----------
+ADMIN_LOGIN=${ADMIN_LOGIN}
+ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+EOF
+chmod 600 "$env_file"
 
-step "Кладу Caddyfile и перезагружаю Caddy"
-install -m 644 "$APP_DIR/deploy/Caddyfile" /etc/caddy/Caddyfile
-systemctl reload caddy
-info "caddy: $(systemctl is-active caddy)"
+# ---------- 4. compose up ----------
 
-# ---------- 11. Firewall ----------
+step "Поднимаю стек через docker compose"
+cd "$APP_DIR"
+docker compose pull --ignore-pull-failures 2>/dev/null || true
+docker compose up -d --build
+
+# ---------- 5. Firewall ----------
 
 step "Настраиваю ufw"
 ufw --force reset >/dev/null
@@ -344,13 +213,10 @@ echo "  App:      https://${DOMAIN}"
 echo "  Health:   https://${DOMAIN}/api/health"
 echo "  Admin:    https://${DOMAIN}/admin/login  (login=${ADMIN_LOGIN})"
 echo ""
-echo "БД:"
-echo "  psql \"${DATABASE_URL}\""
-echo "  Пароль БД лежит в /root/.pulse-db-pass"
-echo ""
-echo "Логи:"
-echo "  journalctl -u pulse-app.service -f"
-echo "  journalctl -u pulse-worker.service --since '10 min ago'"
-echo "  tail -f /var/log/caddy/pulse.log"
+echo "Контейнеры:"
+echo "  docker compose -f ${APP_DIR}/compose.yaml ps"
+echo "  docker compose -f ${APP_DIR}/compose.yaml logs -f app"
+echo "  docker compose -f ${APP_DIR}/compose.yaml logs -f worker"
+echo "  docker compose -f ${APP_DIR}/compose.yaml logs -f caddy"
 echo ""
 echo "TLS-сертификат Caddy получит автоматически при первом заходе на https://${DOMAIN}"
