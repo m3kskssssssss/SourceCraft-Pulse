@@ -156,8 +156,18 @@ readonly TARBALL_URL="https://codeload.github.com/m3kskssssssss/SourceCraft-Puls
 
 fetch_via_git() {
 	if [[ -d "$APP_DIR/.git" ]]; then
-		git -C "$APP_DIR" fetch --depth=1 --tags origin main
-		git -C "$APP_DIR" reset --hard origin/main
+		# Репа уже клонирована; owner — pulse. Работаем от него, чтобы git не
+		# упирался в dubious-ownership.
+		local owner
+		owner="$(stat -c '%U' "$APP_DIR/.git" 2>/dev/null || echo root)"
+		if [[ "$owner" == "$APP_USER" ]] && id "$APP_USER" &>/dev/null; then
+			sudo -u "$APP_USER" git -C "$APP_DIR" fetch --depth=1 --tags origin main
+			sudo -u "$APP_USER" git -C "$APP_DIR" reset --hard origin/main
+		else
+			git config --global --add safe.directory "$APP_DIR" || true
+			git -C "$APP_DIR" fetch --depth=1 --tags origin main
+			git -C "$APP_DIR" reset --hard origin/main
+		fi
 	else
 		git clone --depth=1 "$REPO_URL" "$APP_DIR"
 	fi
