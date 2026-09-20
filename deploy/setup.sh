@@ -5,7 +5,7 @@
 #   1. Ставит Docker и compose-plugin (если не стоят).
 #   2. Забирает код в /opt/pulse (git с фолбэком на tarball).
 #   3. Спрашивает недостающие секреты → пишет /opt/pulse/.env.
-#   4. docker compose up -d --build.
+#   4. docker compose up -d.
 #   5. ufw: 22/80/443.
 #
 # Запуск от root:
@@ -77,6 +77,22 @@ else
 		[[ -n "$local_env" ]] && printf "%s" "$local_env" > "$APP_DIR/.env"
 		rm -f /tmp/pulse.tar.gz
 	fi
+fi
+
+# ---------- 2.5. Образ ----------
+
+step "Беру образ Pulse"
+
+# Сеть этой ВМ не тянет сборку (473 пакета с npm рвутся на полпути), поэтому
+# основной путь — готовый образ из ghcr, собранный в GitHub Actions.
+readonly GHCR_IMAGE="ghcr.io/m3kskssssssss/pulse:main"
+if timeout 900 docker pull "$GHCR_IMAGE"; then
+	PULSE_IMAGE="$GHCR_IMAGE"
+	info "образ скачан из ghcr — сборка на сервере не нужна"
+else
+	warn "ghcr недоступен, собираю образ на месте (долго, нужна стабильная сеть)"
+	docker build -t pulse-app:latest "$APP_DIR" || die "Сборка образа не удалась — смотри вывод выше"
+	PULSE_IMAGE="pulse-app:latest"
 fi
 
 # ---------- 3. .env ----------
@@ -158,9 +174,7 @@ if [[ -z "$ADMIN_PASSWORD_HASH" ]]; then
 		warn "Слишком короткий, нужно ≥ 20 символов."
 	done
 	# Одноразово подтянем аргон в маленький контейнер, посчитаем хеш и удалим.
-	info "Собираю образ Pulse (нужен один раз для argon2). Это несколько минут."
-	docker build -t pulse-app:latest "$APP_DIR" || die "Сборка образа не удалась — смотри вывод выше"
-	hash_out="$(printf '%s\n' "$admin_pw" | docker run --rm -i pulse-app:latest pnpm --silent exec tsx src/cli/admin-hash.ts)"
+	hash_out="$(printf '%s\n' "$admin_pw" | docker run --rm -i "$PULSE_IMAGE" pnpm --silent exec tsx src/cli/admin-hash.ts)"
 	unset admin_pw
 	ADMIN_PASSWORD_HASH="$(printf "%s\n" "$hash_out" | { grep '^ADMIN_PASSWORD_HASH=' || true; } | tail -1 | sed 's/^ADMIN_PASSWORD_HASH=//')"
 	[[ -n "$ADMIN_PASSWORD_HASH" ]] || die "Не удалось сгенерировать хеш пароля"
@@ -170,6 +184,7 @@ cat > "$env_file" <<EOF
 # Автогенерирован deploy/setup.sh. Секреты — не коммитить.
 
 DOMAIN=${DOMAIN}
+PULSE_IMAGE=${PULSE_IMAGE}
 DB_PASSWORD=${DB_PASSWORD}
 AUTH_SECRET=${AUTH_SECRET}
 CRON_SECRET=${CRON_SECRET}
@@ -191,7 +206,7 @@ chmod 600 "$env_file"
 step "Поднимаю стек через docker compose"
 cd "$APP_DIR"
 docker compose pull --ignore-pull-failures 2>/dev/null || true
-docker compose up -d --build
+docker compose up -d
 
 # ---------- 5. Firewall ----------
 

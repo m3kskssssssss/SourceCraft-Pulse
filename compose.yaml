@@ -23,8 +23,10 @@ services:
       start_period: 15s
 
   migrate:
+    # PULSE_IMAGE задаётся в .env: готовый образ из ghcr (быстро) или
+    # pulse-app:latest, собранный на месте (docker compose build migrate).
+    image: ${PULSE_IMAGE:-pulse-app:latest}
     build: .
-    image: pulse-app:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,7 +36,7 @@ services:
     restart: "no"
 
   app:
-    image: pulse-app:latest
+    image: ${PULSE_IMAGE:-pulse-app:latest}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -58,7 +60,7 @@ services:
       - "3000"
 
   worker:
-    image: pulse-app:latest
+    image: ${PULSE_IMAGE:-pulse-app:latest}
     depends_on:
       migrate:
         condition: service_completed_successfully
