@@ -1,0 +1,18 @@
+[Unit]
+Description=Pulse queue worker (one-shot batch)
+After=network.target
+
+[Service]
+Type=oneshot
+User=pulse
+Group=pulse
+WorkingDirectory=/opt/pulse
+EnvironmentFile=/opt/pulse/.env
+ExecStart=/usr/bin/pnpm worker
+TimeoutStartSec=600
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+StandardOutput=append:/var/log/pulse/worker.log
+StandardError=append:/var/log/pulse/worker.err.log
