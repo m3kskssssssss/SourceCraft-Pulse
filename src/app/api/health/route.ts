@@ -13,7 +13,10 @@ export const revalidate = 0;
 export async function GET(): Promise<Response> {
   try {
     const result = await db.execute(sql`select 1 as ok`);
-    const rows = result as unknown as Array<{ ok: number }>;
+    // node-postgres отдаёт QueryResult с полем rows, а не массив строк.
+    const rows = (
+      Array.isArray(result) ? result : (result as { rows: unknown[] }).rows
+    ) as Array<{ ok: number }>;
     const first = rows[0];
     if (!first || first.ok !== 1) {
       return NextResponse.json(
