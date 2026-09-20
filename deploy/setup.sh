@@ -199,7 +199,10 @@ step "Собираю .env"
 existing_env="$APP_DIR/.env"
 get_existing() {
 	local key="$1"
-	[[ -f "$existing_env" ]] && grep "^${key}=" "$existing_env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/^"//;s/"$//'
+	if [[ -f "$existing_env" ]]; then
+		grep "^${key}=" "$existing_env" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/^"//;s/"$//' || true
+	fi
+	return 0
 }
 
 echo ""
@@ -280,7 +283,7 @@ if [[ -z "${ADMIN_PASSWORD_HASH}" ]]; then
 	done
 	hash_out="$(sudo -u "$APP_USER" bash -lc "cd $APP_DIR && printf '%s\n' '$admin_pw' | pnpm --silent exec tsx src/cli/admin-hash.ts")"
 	unset admin_pw
-	ADMIN_PASSWORD_HASH="$(printf "%s\n" "$hash_out" | grep '^ADMIN_PASSWORD_HASH=' | tail -1 | sed 's/^ADMIN_PASSWORD_HASH=//')"
+	ADMIN_PASSWORD_HASH="$(printf "%s\n" "$hash_out" | { grep '^ADMIN_PASSWORD_HASH=' || true; } | tail -1 | sed 's/^ADMIN_PASSWORD_HASH=//')"
 	[[ -n "$ADMIN_PASSWORD_HASH" ]] || die "Не удалось сгенерировать хеш пароля"
 	sed -i "s|^ADMIN_PASSWORD_HASH=.*|ADMIN_PASSWORD_HASH=\"${ADMIN_PASSWORD_HASH}\"|" "$APP_DIR/.env"
 fi
