@@ -21,7 +21,21 @@ RUN set -eu; \
 		apk add --no-cache git libc6-compat; \
 	fi
 
-RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+# pnpm корепак тянет из npm-регистри. Если registry.npmjs.org закрыт (та же
+# блокировка, что и у dl-cdn) — переключаем npm на зеркало и ставим pnpm обычным
+# npm i -g. Запись в /root/.npmrc переживает слой, поэтому pnpm install ниже
+# тоже пойдёт через зеркало.
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN set -eu; \
+	if corepack enable && corepack prepare pnpm@10.33.2 --activate; then \
+		echo "pnpm: поставлен корепаком с registry.npmjs.org"; \
+	else \
+		echo "npm: registry.npmjs.org недоступен, переключаюсь на ${NPM_REGISTRY}"; \
+		corepack disable || true; \
+		npm config set registry "${NPM_REGISTRY}"; \
+		npm install -g pnpm@10.33.2; \
+	fi; \
+	pnpm --version
 
 WORKDIR /app
 
