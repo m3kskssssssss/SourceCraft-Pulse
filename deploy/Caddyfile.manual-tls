@@ -1,0 +1,27 @@
+# Вариант с сертификатом, выпущенным вручную где-то ещё.
+#
+# Исходящие к Let's Encrypt с продовой ВМ не проходят (провайдер режет),
+# поэтому сертификат получаем с рабочей машины через DNS-проверку, а сюда
+# кладём два готовых файла: deploy/certs/fullchain.pem и privkey.pem.
+#
+# Включается через CADDYFILE=Caddyfile.manual-tls в .env.
+# Продлевать раз в 90 дней тем же способом.
+
+source-craft-pulse.tech, www.source-craft-pulse.tech {
+	tls /certs/fullchain.pem /certs/privkey.pem
+
+	encode zstd gzip
+
+	# app — имя сервиса в compose. Docker DNS резолвит по имени.
+	reverse_proxy app:3000
+
+	@badge path_regexp badge ^/api/badge/.+\.svg$
+	header @badge Cache-Control "public, max-age=300, stale-while-revalidate=86400"
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+	}
+}
