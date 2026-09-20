@@ -37,7 +37,6 @@ RUN set -eu; \
 		https://registry.npmjs.org \
 		https://registry.yarnpkg.com \
 		https://mirrors.cloud.tencent.com/npm \
-		https://repo.huaweicloud.com/repository/npm \
 		https://registry.npmmirror.com; do \
 		echo "npm: пробую ${r}"; \
 		npm config set registry "$r"; \
@@ -52,15 +51,36 @@ RUN set -eu; \
 		echo "Ни одна npm-регистри недоступна с этой машины."; \
 		exit 1; \
 	fi; \
-	npm config set fetch-timeout 120000; \
-	npm config set fetch-retries 3; \
 	pnpm --version
+
+# Канал до регистри рвётся на 16 параллельных загрузках (дефолт pnpm): 472
+# пакета из 473 приезжают, а на паре мелких — ETIMEDOUT. Сбавляем параллелизм
+# и даём длинные ретраи. Файл общий с npm, регистри в нём уже записана.
+RUN printf '%s\n' \
+	'network-concurrency=4' \
+	'child-concurrency=2' \
+	'fetch-retries=5' \
+	'fetch-retry-mintimeout=5000' \
+	'fetch-retry-maxtimeout=120000' \
+	'fetch-timeout=120000' >> /root/.npmrc
 
 WORKDIR /app
 
 # 1) зависимости отдельным слоем, чтобы кешировались между сборками
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+# Повторяем установку целиком: уже скачанное лежит в сторе, так что повтор
+# добирает только недостающее.
+RUN set -eu; \
+	n=1; \
+	until pnpm install --frozen-lockfile; do \
+		if [ "$n" -ge 4 ]; then \
+			echo "pnpm install не удался за $n попыток"; \
+			exit 1; \
+		fi; \
+		n=$((n + 1)); \
+		echo "pnpm install оборвался, попытка $n через 15 с"; \
+		sleep 15; \
+	done
 
 # 2) исходники и сборка Next.js
 COPY . .
