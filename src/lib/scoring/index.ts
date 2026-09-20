@@ -27,12 +27,34 @@ import type {
   MetricScore,
 } from './types';
 
-export function scoreRepo(facts: RepoFacts): AnalysisResult {
+export type ScoreRepoOptions = {
+  /**
+   * Если задан — категория `docs` целиком заменяется этим баллом от AI-рубрики.
+   * Метрики документации при этом свёрнутся в одну виртуальную «docs.ai_rubric»
+   * с весом 1.0 внутри категории.
+   */
+  aiDocsScore?: { value: number; summary?: string } | null;
+};
+
+export function scoreRepo(facts: RepoFacts, options: ScoreRepoOptions = {}): AnalysisResult {
+  const docsMetrics: MetricScore[] =
+    options.aiDocsScore !== undefined && options.aiDocsScore !== null
+      ? [
+          {
+            key: 'docs.ai_rubric',
+            category: 'docs',
+            weight: 1,
+            value: clamp(options.aiDocsScore.value),
+            hint: options.aiDocsScore.summary ?? 'Оценка документации по AI-рубрике',
+          },
+        ]
+      : computeDocsMetrics(facts);
+
   const metrics: MetricScore[] = [
     ...computeActivityMetrics(facts),
     ...computeCodeMetrics(facts),
     ...computeSecurityMetrics(facts),
-    ...computeDocsMetrics(facts),
+    ...docsMetrics,
   ];
 
   const categoryScores = buildCategoryScores(metrics);

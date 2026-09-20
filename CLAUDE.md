@@ -12,7 +12,7 @@
 - **Валидация:** Zod для всего, что приходит извне
 - **Тесты:** Vitest, только на движке оценки и парсерах
 - **Авторизация:** Auth.js (next-auth) v5 с адаптером Drizzle
-- **ИИ:** DeepSeek или YandexGPT, переключается переменной окружения `AI_PROVIDER`
+- **ИИ:** через OpenAI-совместимый роутер (RouterAI, `AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL`); usage.cost роутер возвращает сам
 - **Хостинг:** Vercel Hobby
 
 ## Ограничения Vercel Hobby
@@ -44,7 +44,8 @@
 - `pnpm lint` — ESLint (flat config через FlatCompat)
 - `pnpm test` / `pnpm test:watch` — Vitest, только движок оценки и парсеры
 - `pnpm gen:api` — скачать/сконвертировать OpenAPI SourceCraft и обновить `types.gen.ts`
-- `pnpm collect <org> <repo> [--score]` — сбор фактов; с `--score` также печатает AnalysisResult
+- `pnpm collect <org> <repo> [--score] [--ai]` — сбор фактов; `--score` печатает AnalysisResult; `--ai` также прогоняет три AI-задачи через RouterAI
+- `pnpm ai:ping` — проверка RouterAI: маленький запрос + повтор из кэша
 - `pnpm worker` — прогон воркера очереди `analysis_jobs`
 - `pnpm seed:repos [--auto] [--count=N]` — поставить репозитории в очередь
 - `pnpm db:generate` — сгенерировать SQL-миграции из `src/db/schema.ts`
@@ -74,8 +75,16 @@ src/
 │   └── seed-repos.ts             # pnpm seed:repos
 ├── lib/
 │   ├── collect.ts                # collectRepoFacts(org, repo) → RepoFacts
+│   ├── ai/
+│   │   ├── provider.ts           # интерфейс AiProvider
+│   │   ├── router.ts             # реализация поверх OpenAI-compat роутера
+│   │   ├── cache.ts              # InMemoryAiCache + SHA-256 hashKey
+│   │   ├── telemetry.ts          # ConsoleAiTelemetry, usdToRub
+│   │   ├── budget.ts             # assertUnderMonthlyBudget
+│   │   ├── runner.ts             # runAiTask: cache + budget + zod + retry + fallback
+│   │   └── tasks/                # readme-rubric.ts, pr-issues-digest.ts, recommendation-copy.ts
 │   ├── scoring/
-│   │   ├── index.ts              # scoreRepo(facts) → AnalysisResult
+│   │   ├── index.ts              # scoreRepo(facts, {aiDocsScore?}) → AnalysisResult
 │   │   ├── config.ts             # веса, пороги, штрафы, effort
 │   │   ├── types.ts              # MetricScore, CategoryScore, AnalysisResult, Recommendation
 │   │   ├── normalize.ts          # linearScore/logScore/boolScore/clamp
@@ -117,7 +126,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 1 — каркас, схема БД, health-эндпоинт, деплой
 - [x] Этап 2 — SourceCraft-клиент, сбор фактов, воркер
 - [x] Этап 3 — движок оценки + Vitest (seed по реальным данным отложен до подключения Neon)
-- [ ] Этап 4 — слой ИИ, кэш, учёт затрат, лимит бюджета
+- [x] Этап 4 — слой ИИ через RouterAI, кэш, учёт затрат, лимит бюджета (Drizzle-версии кэша/телеметрии отложены до Neon)
 - [ ] Этап 5 — авторизация Auth.js, гостевой доступ, лимиты
 - [ ] Этап 6 — публичный рейтинг, публичный API, SVG-бейдж
 - [ ] Этап 7 — админка (сводка, расходы, очередь, настройки)

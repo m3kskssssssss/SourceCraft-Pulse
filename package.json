@@ -17,7 +17,8 @@
     "gen:api": "tsx scripts/gen-api.ts",
     "collect": "tsx src/cli/collect.ts",
     "worker": "tsx src/worker/run.ts",
-    "seed:repos": "tsx src/db/seed-repos.ts"
+    "seed:repos": "tsx src/db/seed-repos.ts",
+    "ai:ping": "tsx src/cli/ai-ping.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",

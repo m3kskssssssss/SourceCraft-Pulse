@@ -18,6 +18,12 @@ import { getWorkerDb, getWorkerPool, shutdownWorkerDb } from '../db/worker-clien
 import { analyses, analysisJobs, repositories, events } from '../db/schema';
 import { collectRepoFacts } from '../lib/collect';
 import { scoreRepo } from '../lib/scoring';
+import { InMemoryAiCache } from '../lib/ai/cache';
+import { ConsoleAiTelemetry } from '../lib/ai/telemetry';
+import { getAiProvider } from '../lib/ai/router';
+import { runReadmeRubric } from '../lib/ai/tasks/readme-rubric';
+import { runPrIssuesDigest } from '../lib/ai/tasks/pr-issues-digest';
+import { runRecommendationCopy } from '../lib/ai/tasks/recommendation-copy';
 
 const DEFAULT_BATCH_SIZE = 5;
 const MAX_ATTEMPTS = 3;
@@ -110,7 +116,57 @@ async function processJob(job: LockedJob): Promise<void> {
       `job_timeout_${JOB_TIMEOUT_MS}ms`,
     );
 
-    const result = scoreRepo(facts);
+    // AI-часть. Кэш и телеметрия — in-memory на процесс воркера. Три задачи
+    // независимы — падение одной не должно ронять остальные.
+    let aiDocsScore: { value: number; summary?: string } | null = null;
+    let aiOutputs: Record<string, unknown> = {};
+
+    const runSafely = async <T>(name: string, fn: () => Promise<T>): Promise<T | { error: string }> => {
+      try {
+        return await fn();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[worker ${workerId}] AI task ${name} упала: ${message.slice(0, 200)}`);
+        return { error: message };
+      }
+    };
+
+    try {
+      const provider = getAiProvider();
+      const cache = new InMemoryAiCache();
+      const telemetry = new ConsoleAiTelemetry();
+
+      const rubric = await runSafely('readme_rubric', () =>
+        runReadmeRubric({ provider, cache, telemetry, facts }),
+      );
+      if ('value' in rubric) {
+        aiDocsScore = { value: rubric.value.score, summary: rubric.value.summary };
+      }
+
+      const digest = await runSafely('pr_issues_digest', () =>
+        runPrIssuesDigest({ provider, cache, telemetry, facts }),
+      );
+
+      const preliminary = scoreRepo(facts, aiDocsScore ? { aiDocsScore } : {});
+      const copy = await runSafely('recommendation_copy', () =>
+        runRecommendationCopy({
+          provider,
+          cache,
+          telemetry,
+          orgRepo: `${repo.orgSlug}/${repo.repoSlug}`,
+          language: facts.language,
+          recommendations: preliminary.recommendations,
+        }),
+      );
+
+      aiOutputs = { readmeRubric: rubric, prIssuesDigest: digest, recommendationCopy: copy };
+    } catch (aiErr) {
+      const message = aiErr instanceof Error ? aiErr.message : String(aiErr);
+      console.warn(`[worker ${workerId}] AI не сконфигурирован: ${message}`);
+      aiOutputs = { error: message };
+    }
+
+    const result = scoreRepo(facts, aiDocsScore ? { aiDocsScore } : {});
 
     await db
       .update(analyses)
@@ -122,6 +178,7 @@ async function processJob(job: LockedJob): Promise<void> {
           facts: facts as unknown as Record<string, unknown>,
           penalties: result.penalties,
           scoreBeforePenalties: result.scoreBeforePenalties,
+          ai: aiOutputs,
         },
         recommendations: result.recommendations as unknown as Record<string, unknown>,
         missing: result.missing as unknown as Record<string, unknown>,
