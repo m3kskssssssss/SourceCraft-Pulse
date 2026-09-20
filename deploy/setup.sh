@@ -47,6 +47,23 @@ fi
 info "docker $(docker --version | awk '{print $3}' | tr -d ,)"
 info "compose $(docker compose version --short)"
 
+# ---------- 1.5. DNS для контейнеров ----------
+
+# На Ubuntu /etc/resolv.conf указывает на systemd-resolved (127.0.0.53).
+# Контейнер наследует этот адрес, но внутри него резолвера нет — любые
+# обращения наружу падают с «connection refused». Прописываем демону
+# настоящие апстримы хоста.
+if [[ ! -f /etc/docker/daemon.json ]] && grep -q '127\.0\.0\.53' /etc/resolv.conf 2>/dev/null; then
+	step "Прописываю DNS для контейнеров"
+	upstream="$(grep -h '^nameserver' /run/systemd/resolve/resolv.conf 2>/dev/null | awk '{print $2}' | grep -v '^127\.' | head -2 || true)"
+	[[ -z "$upstream" ]] && upstream="77.88.8.8
+8.8.8.8"
+	servers="$(printf '%s\n' "$upstream" | awk 'NR>1{printf ", "} {printf "\"%s\"", $0}')"
+	printf '{\n  "dns": [%s]\n}\n' "$servers" > /etc/docker/daemon.json
+	info "/etc/docker/daemon.json → dns [$servers]"
+	systemctl restart docker
+fi
+
 # ---------- 2. Код ----------
 
 step "Забираю код"
@@ -180,6 +197,10 @@ if [[ -z "$ADMIN_PASSWORD_HASH" ]]; then
 	[[ -n "$ADMIN_PASSWORD_HASH" ]] || die "Не удалось сгенерировать хеш пароля"
 fi
 
+# Docker Compose интерполирует ${...} в значениях .env, а argon2-хеш состоит
+# из долларов. Удваиваем их: compose схлопнет обратно в одинарные.
+ADMIN_PASSWORD_HASH_ESCAPED="${ADMIN_PASSWORD_HASH//'$'/'$$'}"
+
 cat > "$env_file" <<EOF
 # Автогенерирован deploy/setup.sh. Секреты — не коммитить.
 
@@ -197,7 +218,7 @@ AI_MODEL=${AI_MODEL}
 AI_MONTHLY_BUDGET_RUB=${AI_MONTHLY_BUDGET_RUB}
 
 ADMIN_LOGIN=${ADMIN_LOGIN}
-ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH_ESCAPED}
 EOF
 chmod 600 "$env_file"
 
