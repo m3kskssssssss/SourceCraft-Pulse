@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { SessionProvider } from 'next-auth/react';
 import { UserBar } from './components/UserBar';
 import './globals.css';
 
@@ -23,13 +22,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru" className="h-full antialiased">
       <body className="min-h-full bg-[color:var(--paper)] text-[color:var(--ink)] font-sans">
-        <SessionProvider>
-          <div className="flex min-h-screen flex-col">
-            <UserBar />
-            <div className="flex-1">{children}</div>
-            <SiteFooter />
-          </div>
-        </SessionProvider>
+        <div className="flex min-h-screen flex-col">
+          <UserBar />
+          <div className="flex-1">{children}</div>
+          <SiteFooter />
+        </div>
       </body>
     </html>
   );

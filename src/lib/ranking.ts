@@ -47,7 +47,9 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     params.language ? eq(repositories.language, params.language) : undefined,
   );
 
-  const rows = await db
+  // Строки и счётчик — независимые запросы, отправляем их одновременно:
+  // последовательно они складывались в двойной round-trip на каждый рендер.
+  const rowsPromise = db
     .select({
       id: analyses.id,
       org: repositories.orgSlug,
@@ -68,11 +70,13 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     .limit(limit)
     .offset(offset);
 
-  const totalRows = await db
+  const totalPromise = db
     .select({ count: sql<number>`count(*)::int` })
     .from(analyses)
     .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
     .where(where);
+
+  const [rows, totalRows] = await Promise.all([rowsPromise, totalPromise]);
   const total = totalRows[0]?.count ?? 0;
 
   const items: LeaderboardItem[] = rows.map((r) => ({
