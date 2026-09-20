@@ -158,8 +158,8 @@ if [[ -z "$ADMIN_PASSWORD_HASH" ]]; then
 		warn "Слишком короткий, нужно ≥ 20 символов."
 	done
 	# Одноразово подтянем аргон в маленький контейнер, посчитаем хеш и удалим.
-	info "Собираю образ Pulse (нужен один раз для argon2)…"
-	docker build -q -t pulse-app:latest "$APP_DIR" >/dev/null
+	info "Собираю образ Pulse (нужен один раз для argon2). Это несколько минут."
+	docker build -t pulse-app:latest "$APP_DIR" || die "Сборка образа не удалась — смотри вывод выше"
 	hash_out="$(printf '%s\n' "$admin_pw" | docker run --rm -i pulse-app:latest pnpm --silent exec tsx src/cli/admin-hash.ts)"
 	unset admin_pw
 	ADMIN_PASSWORD_HASH="$(printf "%s\n" "$hash_out" | { grep '^ADMIN_PASSWORD_HASH=' || true; } | tail -1 | sed 's/^ADMIN_PASSWORD_HASH=//')"

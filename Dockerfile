@@ -1,20 +1,32 @@
 # Общий образ для приложения и воркера. Не мучаем multi-stage —
-# для хакатона проще держать один тяжёлый образ, но с рабочим tsx для миграций
-# и argon2 native-модулями.
+# для хакатона проще держать один тяжёлый образ, но с рабочим tsx для миграций.
 
 FROM node:22-alpine
 
 # git — для клонирования репозиториев в воркере;
-# python/make/g++ — для сборки native-модулей argon2;
-# libc6-compat — прекомпилированные бинарники Node любят glibc.
-RUN apk add --no-cache git python3 make g++ libc6-compat curl
+# libc6-compat — прекомпилированные бинарники Node (swc) любят glibc.
+# Компилятор не нужен: argon2 0.45 кладёт в prebuilds/ готовый musl-бинарник.
+#
+# Если dl-cdn.alpinelinux.org недоступен (типично для серверов в РФ: apk тогда
+# падает с кодом, равным числу запрошенных пакетов) — переключаемся на зеркало.
+ARG ALPINE_MIRROR=https://mirror.yandex.ru/mirrors/alpine
+RUN set -eu; \
+	if ! apk add --no-cache git libc6-compat; then \
+		echo "apk: dl-cdn недоступен, переключаюсь на ${ALPINE_MIRROR}"; \
+		for f in /etc/apk/repositories /etc/apk/repositories.d/*; do \
+			if [ -f "$f" ]; then \
+				sed -i "s|https\?://dl-cdn\.alpinelinux\.org/alpine|${ALPINE_MIRROR}|g" "$f"; \
+			fi; \
+		done; \
+		apk add --no-cache git libc6-compat; \
+	fi
 
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
 
 WORKDIR /app
 
 # 1) зависимости отдельным слоем, чтобы кешировались между сборками
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # 2) исходники и сборка Next.js
