@@ -21,20 +21,39 @@ RUN set -eu; \
 		apk add --no-cache git libc6-compat; \
 	fi
 
-# pnpm корепак тянет из npm-регистри. Если registry.npmjs.org закрыт (та же
-# блокировка, что и у dl-cdn) — переключаем npm на зеркало и ставим pnpm обычным
-# npm i -g. Запись в /root/.npmrc переживает слой, поэтому pnpm install ниже
-# тоже пойдёт через зеркало.
-ARG NPM_REGISTRY=https://registry.npmmirror.com
+# Ставим pnpm, перебирая регистри, пока какая-нибудь реально не отдаст тарболл.
+# Проверка «по факту скачивания» важнее пинга: registry.npmmirror.com, например,
+# отдаёт метаданные, но тарболлы уводит на cdn.npmmirror.com, который из РФ
+# может не открыться. Победившая регистри остаётся в /root/.npmrc — pnpm install
+# ниже пойдёт через неё же. Своя регистри задаётся --build-arg NPM_REGISTRY=…
+ARG NPM_REGISTRY=
+ARG PNPM_VERSION=10.33.2
 RUN set -eu; \
-	if corepack enable && corepack prepare pnpm@10.33.2 --activate; then \
-		echo "pnpm: поставлен корепаком с registry.npmjs.org"; \
-	else \
-		echo "npm: registry.npmjs.org недоступен, переключаюсь на ${NPM_REGISTRY}"; \
-		corepack disable || true; \
-		npm config set registry "${NPM_REGISTRY}"; \
-		npm install -g pnpm@10.33.2; \
+	corepack disable >/dev/null 2>&1 || true; \
+	npm config set fetch-timeout 20000; \
+	npm config set fetch-retries 1; \
+	ok=0; \
+	for r in ${NPM_REGISTRY} \
+		https://registry.npmjs.org \
+		https://registry.yarnpkg.com \
+		https://mirrors.cloud.tencent.com/npm \
+		https://repo.huaweicloud.com/repository/npm \
+		https://registry.npmmirror.com; do \
+		echo "npm: пробую ${r}"; \
+		npm config set registry "$r"; \
+		if npm install -g "pnpm@${PNPM_VERSION}"; then \
+			echo "npm: работает ${r}"; \
+			ok=1; \
+			break; \
+		fi; \
+		echo "npm: ${r} не отдала пакет, пробую следующую"; \
+	done; \
+	if [ "$ok" != 1 ]; then \
+		echo "Ни одна npm-регистри недоступна с этой машины."; \
+		exit 1; \
 	fi; \
+	npm config set fetch-timeout 120000; \
+	npm config set fetch-retries 3; \
 	pnpm --version
 
 WORKDIR /app
