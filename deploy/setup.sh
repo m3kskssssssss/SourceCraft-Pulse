@@ -204,6 +204,21 @@ chmod 600 "$env_file"
 # ---------- 4. compose up ----------
 
 step "Поднимаю стек через docker compose"
+
+# Прошлая, не-докерная версия деплоя ставила Caddy системным сервисом:
+# он держит 80/443, и контейнер caddy не стартует.
+if systemctl is-active --quiet caddy 2>/dev/null; then
+	warn "Останавливаю системный caddy.service — 80/443 займёт контейнер"
+	systemctl disable --now caddy || true
+fi
+
+# docker-proxy в выводе игнорируем: это наши же контейнеры с прошлого запуска.
+busy="$(ss -lptnH 'sport = :80 or sport = :443' 2>/dev/null | grep -v docker-proxy || true)"
+if [[ -n "$busy" ]]; then
+	echo "$busy" >&2
+	die "Порты 80/443 заняты процессом выше. Остановите его и запустите скрипт снова."
+fi
+
 cd "$APP_DIR"
 docker compose pull --ignore-pull-failures 2>/dev/null || true
 docker compose up -d
