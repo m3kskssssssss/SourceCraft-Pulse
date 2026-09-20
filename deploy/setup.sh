@@ -148,13 +148,48 @@ chown -R "$APP_USER:$APP_USER" "$LOG_DIR"
 
 # ---------- 6. Репозиторий ----------
 
-step "Клонирую/обновляю репозиторий"
-if [[ -d "$APP_DIR/.git" ]]; then
-	git -C "$APP_DIR" fetch --depth=1 origin main
-	git -C "$APP_DIR" reset --hard origin/main
+step "Забираю код репозитория"
+
+# Сначала пробуем git clone. Если github.com недоступен по 443 (частая
+# история для российских провайдеров), падаем на tarball через codeload/Fastly.
+readonly TARBALL_URL="https://codeload.github.com/m3kskssssssss/SourceCraft-Pulse/tar.gz/refs/heads/main"
+
+fetch_via_git() {
+	if [[ -d "$APP_DIR/.git" ]]; then
+		git -C "$APP_DIR" fetch --depth=1 --tags origin main
+		git -C "$APP_DIR" reset --hard origin/main
+	else
+		git clone --depth=1 "$REPO_URL" "$APP_DIR"
+	fi
+}
+
+fetch_via_tarball() {
+	local tmp
+	tmp="$(mktemp -d)"
+	trap 'rm -rf "$tmp"' RETURN
+	warn "Пробую tarball через codeload.github.com (Fastly CDN)."
+	curl -fsSL --connect-timeout 15 --max-time 120 "$TARBALL_URL" -o "$tmp/repo.tar.gz"
+	# Сохраняем .env, если он уже был.
+	local saved_env=""
+	if [[ -f "$APP_DIR/.env" ]]; then
+		saved_env="$tmp/.env.saved"
+		cp "$APP_DIR/.env" "$saved_env"
+	fi
+	rm -rf "$APP_DIR"
+	mkdir -p "$APP_DIR"
+	tar -xzf "$tmp/repo.tar.gz" --strip-components=1 -C "$APP_DIR"
+	if [[ -n "$saved_env" ]]; then
+		cp "$saved_env" "$APP_DIR/.env"
+	fi
+}
+
+if timeout 30 git ls-remote --exit-code "$REPO_URL" HEAD >/dev/null 2>&1; then
+	fetch_via_git
 else
-	git clone --depth=1 "$REPO_URL" "$APP_DIR"
+	warn "github.com недоступен по 443 (git ls-remote тайм-аут). Переключаюсь на tarball."
+	fetch_via_tarball
 fi
+
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 # ---------- 7. Env ----------
