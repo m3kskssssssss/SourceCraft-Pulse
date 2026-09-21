@@ -35,10 +35,13 @@ const METRIC_LABELS: Record<string, string> = {
   'activity.active_authors': 'Активных авторов',
   'activity.freshness': 'Свежесть последнего коммита',
   'activity.bus_factor': 'Bus factor',
-  'code.pr_review_share': 'Доля PR с ревью',
-  'code.first_review_median_hours': 'Медиана времени до ревью',
-  'code.has_tests': 'Автотесты',
+  'code.tests': 'Автотесты',
+  'code.file_size': 'Размер файлов',
+  'code.comments': 'Пояснения в коде',
+  'code.todo_debt': 'Незакрытые TODO',
   'code.has_linter': 'Линтер',
+  'code.has_ci': 'Непрерывная интеграция',
+  'code.ai_review': 'Ревью кода моделью',
   'security.critical_vulns': 'Critical-уязвимости',
   'security.high_vulns': 'High-уязвимости',
   'security.lockfiles_present': 'Lock-файлы',
@@ -49,6 +52,7 @@ const METRIC_LABELS: Record<string, string> = {
   'docs.contributing': 'CONTRIBUTING',
   'docs.changelog': 'CHANGELOG',
   'docs.usage_examples': 'Примеры использования',
+  'docs.ai_rubric': 'Документация по рубрике модели',
 };
 
 /** Сколько работы потребует рекомендация. */
@@ -136,6 +140,12 @@ export default async function AnalysisPage({ params }: PageProps) {
   const recommendations = (analysis.recommendations ?? []) as Recommendation[];
   const missing = (analysis.missing ?? []) as string[];
   const missingNotes = describeMissingList(missing);
+
+  // Находки ревьюера кода: их кладёт пайплайн ИИ рядом с сырыми выходами задач.
+  const aiMeta = (analysis.metrics as { ai?: { codeFindings?: unknown } } | null)?.ai;
+  const codeFindings = Array.isArray(aiMeta?.codeFindings)
+    ? aiMeta.codeFindings.filter((item): item is string => typeof item === 'string')
+    : [];
 
   const sortedCategories = [...categoryScores].sort(
     (a, b) => categoryOrder(a.key) - categoryOrder(b.key),
@@ -247,7 +257,12 @@ export default async function AnalysisPage({ params }: PageProps) {
         />
         <div className="mt-6 grid gap-4">
           {sortedCategories.map((cat, idx) => (
-            <CategoryBlock key={cat.key} category={cat} rank={idx + 1} />
+            <CategoryBlock
+              key={cat.key}
+              category={cat}
+              rank={idx + 1}
+              findings={cat.key === 'code' ? codeFindings : []}
+            />
           ))}
           {sortedCategories.length === 0 && (
             <EmptyState
@@ -407,7 +422,16 @@ function SectionHead({
   );
 }
 
-function CategoryBlock({ category, rank }: { category: CategoryScore; rank: number }) {
+function CategoryBlock({
+  category,
+  rank,
+  findings = [],
+}: {
+  category: CategoryScore;
+  rank: number;
+  /** Наблюдения модели по этой категории — сейчас приходят только для кода. */
+  findings?: string[];
+}) {
   const title = CATEGORY_TITLES[category.key] ?? category.key;
   const blurb = CATEGORY_BLURBS[category.key];
   const accentClass = CATEGORY_ACCENT_CLASS[category.key] ?? '';
@@ -495,6 +519,25 @@ function CategoryBlock({ category, rank }: { category: CategoryScore; rank: numb
             <li className="py-3 text-sm text-[color:var(--muted)]">Метрик пока нет.</li>
           )}
         </ul>
+
+        {findings.length > 0 && (
+          <div className="mt-6 border-t border-[color:var(--line)] pt-6">
+            <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
+              Что увидел ревьюер
+            </div>
+            <ul className="mt-3 grid gap-2.5 text-sm leading-relaxed text-[color:var(--ink-2)]">
+              {findings.map((finding) => (
+                <li key={finding} className="flex gap-3">
+                  <span
+                    className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ background: 'var(--accent, var(--ink))' }}
+                  />
+                  <span>{finding}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </CardDiv>
   );

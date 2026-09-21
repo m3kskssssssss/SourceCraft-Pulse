@@ -2,6 +2,7 @@
 // Ссылки на схемы SourceCraft приведены к минимально необходимым полям.
 
 import type { RepoFacts } from '../../collect';
+import { emptyCodeFacts } from '../../git/code-facts';
 
 /** Базовый «пустой но полностью известный» RepoFacts. */
 function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
@@ -49,6 +50,9 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
       secretsScannedFiles: 0,
       errors: [],
     },
+    // По умолчанию исходники не прочитаны: метрики по коду уходят в unknown,
+    // а тесты считаются по галочке из дерева файлов.
+    code: emptyCodeFacts(['code_files_not_found']),
     security: {
       provider: 'osv_dev',
       available: true,
@@ -92,6 +96,20 @@ export function makePerfectFacts(): RepoFacts {
         supportedLockfiles: ['package-lock.json'],
         unsupportedLockfilesPresent: [],
       },
+    },
+    code: {
+      available: true,
+      sourceFiles: 40,
+      testFiles: 12,
+      testsPer100SourceFiles: 30,
+      totalLines: 4_000,
+      medianFileLines: 120,
+      longFileSharePercent: 0,
+      commentSharePercent: 15,
+      todoPerKiloLines: 0,
+      scannedFiles: 40,
+      sample: [],
+      errors: [],
     },
     gitHistory: {
       available: true,
@@ -191,5 +209,32 @@ export function makeFactsWithPenalties(): RepoFacts {
         hasLicense: false, // ещё один штраф
       },
     },
+  };
+}
+
+/** Идеальный по процессам репозиторий, но сам код плох: категория «Код» проседает. */
+export function makeWeakCodeFacts(): RepoFacts {
+  const facts = makePerfectFacts();
+  return {
+    ...facts,
+    code: {
+      ...facts.code,
+      testFiles: 0,
+      testsPer100SourceFiles: 0,
+      medianFileLines: 640,
+      longFileSharePercent: 60,
+      commentSharePercent: 1,
+      todoPerKiloLines: 12,
+    },
+  };
+}
+
+/** Клон не получился: код оценивать не по чему. */
+export function makeNoCloneFacts(): RepoFacts {
+  const facts = makePerfectFacts();
+  return {
+    ...facts,
+    code: emptyCodeFacts(['code_files_unreadable']),
+    missing: [...facts.missing, 'git_clone_failed:mock'],
   };
 }

@@ -27,32 +27,34 @@ import type {
   MetricScore,
 } from './types';
 
+export type AiCategoryScore = { value: number; summary?: string };
+
 export type ScoreRepoOptions = {
   /**
    * Если задан — категория `docs` целиком заменяется этим баллом от AI-рубрики.
    * Метрики документации при этом свёрнутся в одну виртуальную «docs.ai_rubric»
    * с весом 1.0 внутри категории.
    */
-  aiDocsScore?: { value: number; summary?: string } | null;
+  aiDocsScore?: AiCategoryScore | null;
+  /**
+   * То же для категории `code`: балл AI-ревью по выборке исходников заменяет
+   * измеримые метрики виртуальной «code.ai_review». Если ревью не прошло,
+   * категория считается по code-facts как обычно.
+   */
+  aiCodeScore?: AiCategoryScore | null;
 };
 
 export function scoreRepo(facts: RepoFacts, options: ScoreRepoOptions = {}): AnalysisResult {
-  const docsMetrics: MetricScore[] =
-    options.aiDocsScore !== undefined && options.aiDocsScore !== null
-      ? [
-          {
-            key: 'docs.ai_rubric',
-            category: 'docs',
-            weight: 1,
-            value: clamp(options.aiDocsScore.value),
-            hint: options.aiDocsScore.summary ?? 'Оценка документации по AI-рубрике',
-          },
-        ]
-      : computeDocsMetrics(facts);
+  const docsMetrics = aiOverride('docs', 'docs.ai_rubric', options.aiDocsScore, () =>
+    computeDocsMetrics(facts),
+  );
+  const codeMetrics = aiOverride('code', 'code.ai_review', options.aiCodeScore, () =>
+    computeCodeMetrics(facts),
+  );
 
   const metrics: MetricScore[] = [
     ...computeActivityMetrics(facts),
-    ...computeCodeMetrics(facts),
+    ...codeMetrics,
     ...computeSecurityMetrics(facts),
     ...docsMetrics,
   ];
@@ -77,6 +79,30 @@ export function scoreRepo(facts: RepoFacts, options: ScoreRepoOptions = {}): Ana
     recommendations,
     missing: [...facts.missing],
   };
+}
+
+/**
+ * Балл категории от ИИ вместо набора метрик. Виртуальная метрика получает
+ * вес 1.0, то есть внутри категории она одна и определяет её целиком.
+ * Рекомендаций у неё нет: править «оценку модели» пользователю некуда,
+ * конкретика приходит отдельным списком находок.
+ */
+function aiOverride(
+  category: CategoryKey,
+  key: string,
+  ai: AiCategoryScore | null | undefined,
+  fallback: () => MetricScore[],
+): MetricScore[] {
+  if (ai === undefined || ai === null) return fallback();
+  return [
+    {
+      key,
+      category,
+      weight: 1,
+      value: clamp(ai.value),
+      hint: ai.summary ?? 'Оценка от ИИ',
+    },
+  ];
 }
 
 // ---------- Категории ----------

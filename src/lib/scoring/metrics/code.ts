@@ -1,13 +1,23 @@
 // Метрики категории «Работа с кодом».
 //
-// prReviewShare и firstReviewMedianHours требуют per-PR запросов к
-// /pulls/{id}/reviewers и /pulls/{id}/comments. В текущем сборщике мы
-// эти данные не тянем (чтобы не выжигать API на больших репо), поэтому
-// метрики помечаются как unknown. Их можно включить, добавив enrich-шаг
-// в collect на будущих этапах.
+// Считаем по самому коду: сколько тестов, насколько крупные файлы, много ли
+// пояснений, сколько незакрытых TODO. Источник — git/code-facts.ts, то есть
+// файлы из клона, а не признаки вокруг репозитория.
+//
+// Если клон не получился, факты по коду недоступны: метрики по исходникам
+// честно уходят в unknown, а тесты подхватываются запасным признаком из
+// дерева файлов («есть каталог с тестами»), чтобы категория не обнулялась.
 
 import type { RepoFacts } from '../../collect';
-import { CODE_WEIGHTS, PR_REVIEW_SHARE_TARGET, REVIEW_MEDIAN_HOURS_BEST, REVIEW_MEDIAN_HOURS_WORST } from '../config';
+import {
+  CODE_WEIGHTS,
+  COMMENT_SHARE_TARGET,
+  LONG_FILE_SHARE_BEST,
+  LONG_FILE_SHARE_WORST,
+  TESTS_PER_100_FILES_TARGET,
+  TODO_PER_KLOC_BEST,
+  TODO_PER_KLOC_WORST,
+} from '../config';
 import { boolScore, invertedLinearScore, linearScore } from '../normalize';
 import { isUnknown } from '../facts-helpers';
 import type { MetricScore } from '../types';
@@ -16,78 +26,114 @@ const CATEGORY = 'code' as const;
 
 export function computeCodeMetrics(facts: RepoFacts): MetricScore[] {
   return [
-    prReviewShareMetric(facts),
-    firstReviewMedianMetric(facts),
-    hasTestsMetric(facts),
+    testsMetric(facts),
+    fileSizeMetric(facts),
+    commentsMetric(facts),
+    todoDebtMetric(facts),
     hasLinterMetric(facts),
+    hasCiMetric(facts),
   ];
 }
 
-function prReviewShareMetric(facts: RepoFacts): MetricScore {
-  // Данные о ревью по каждому PR не собирали — честно unknown.
-  // См. комментарий в шапке файла.
-  void facts;
-  void PR_REVIEW_SHARE_TARGET;
-  void linearScore;
-  return {
-    key: 'code.pr_review_share',
+function testsMetric(facts: RepoFacts): MetricScore {
+  const base = {
+    key: 'code.tests',
     category: CATEGORY,
-    weight: CODE_WEIGHTS.prReviewShare,
-    value: null,
-    unknown: true,
-    hint: 'Данные о ревьюерах PR не собирались',
+    weight: CODE_WEIGHTS.tests,
+    effort: 'medium' as const,
+    recommendationKind: 'add_tests',
   };
-}
 
-function firstReviewMedianMetric(facts: RepoFacts): MetricScore {
-  void facts;
-  void invertedLinearScore;
-  void REVIEW_MEDIAN_HOURS_BEST;
-  void REVIEW_MEDIAN_HOURS_WORST;
-  return {
-    key: 'code.first_review_median_hours',
-    category: CATEGORY,
-    weight: CODE_WEIGHTS.firstReviewMedianHours,
-    value: null,
-    unknown: true,
-    hint: 'Данные о времени до первого ревью не собирались',
-  };
-}
-
-function hasTestsMetric(facts: RepoFacts): MetricScore {
-  if (isUnknown(facts, 'tree_fetch_failed')) {
+  const ratio = facts.code.testsPer100SourceFiles;
+  if (facts.code.available && ratio !== null) {
     return {
-      key: 'code.has_tests',
-      category: CATEGORY,
-      weight: CODE_WEIGHTS.hasTests,
-      value: null,
-      unknown: true,
-      hint: 'Дерево файлов недоступно',
+      ...base,
+      // Цель — не «сто процентов», а заметная доля тестов: до идеала по этой
+      // шкале не дотягивает почти никто, и рекомендация висела бы всегда.
+      target: 60,
+      value: linearScore(ratio, { min: 0, max: TESTS_PER_100_FILES_TARGET }),
+      hint:
+        facts.code.testFiles > 0
+          ? `${facts.code.testFiles} файлов тестов на ${facts.code.sourceFiles} файлов кода`
+          : `Тестов не нашли среди ${facts.code.sourceFiles} файлов кода`,
     };
   }
-  const hasTests = facts.tree.flags.hasTestsDir;
+
+  // Клон не прочитался — остаётся только галочка из дерева файлов.
+  if (isUnknown(facts, 'tree_fetch_failed')) {
+    return {
+      key: base.key,
+      category: CATEGORY,
+      weight: base.weight,
+      value: null,
+      unknown: true,
+      hint: 'Ни клон, ни дерево файлов недоступны',
+    };
+  }
+  const hasTestsDir = facts.tree.flags.hasTestsDir;
   return {
-    key: 'code.has_tests',
-    category: CATEGORY,
-    weight: CODE_WEIGHTS.hasTests,
-    value: boolScore(hasTests),
-    hint: hasTests ? 'Обнаружена директория тестов' : 'Тесты не найдены',
+    ...base,
+    // Запасной признак двоичный, поэтому и цель здесь — «тесты просто есть».
     target: 100,
-    effort: 'medium',
-    recommendationKind: 'add_tests',
+    value: boolScore(hasTestsDir),
+    hint: hasTestsDir
+      ? 'Код прочитать не удалось; в дереве есть каталог тестов'
+      : 'Код прочитать не удалось; каталога тестов в дереве нет',
+  };
+}
+
+function fileSizeMetric(facts: RepoFacts): MetricScore {
+  const share = facts.code.longFileSharePercent;
+  if (!facts.code.available || share === null) return unknownCodeMetric('code.file_size', CODE_WEIGHTS.fileSize);
+
+  const median = facts.code.medianFileLines;
+  return {
+    key: 'code.file_size',
+    category: CATEGORY,
+    weight: CODE_WEIGHTS.fileSize,
+    value: invertedLinearScore(share, { best: LONG_FILE_SHARE_BEST, worst: LONG_FILE_SHARE_WORST }),
+    hint: `${share}% файлов длиннее 500 строк, медиана — ${median ?? '?'} строк`,
+    target: 70,
+    effort: 'large',
+    recommendationKind: 'split_long_files',
+  };
+}
+
+function commentsMetric(facts: RepoFacts): MetricScore {
+  const share = facts.code.commentSharePercent;
+  if (!facts.code.available || share === null) return unknownCodeMetric('code.comments', CODE_WEIGHTS.comments);
+
+  return {
+    key: 'code.comments',
+    category: CATEGORY,
+    weight: CODE_WEIGHTS.comments,
+    value: linearScore(share, { min: 0, max: COMMENT_SHARE_TARGET }),
+    hint: `${share}% строк — комментарии`,
+    target: 60,
+    effort: 'small',
+    recommendationKind: 'explain_code',
+  };
+}
+
+function todoDebtMetric(facts: RepoFacts): MetricScore {
+  const perKilo = facts.code.todoPerKiloLines;
+  if (!facts.code.available || perKilo === null) return unknownCodeMetric('code.todo_debt', CODE_WEIGHTS.todoDebt);
+
+  return {
+    key: 'code.todo_debt',
+    category: CATEGORY,
+    weight: CODE_WEIGHTS.todoDebt,
+    value: invertedLinearScore(perKilo, { best: TODO_PER_KLOC_BEST, worst: TODO_PER_KLOC_WORST }),
+    hint: `${perKilo} пометок TODO/FIXME на 1000 строк`,
+    target: 70,
+    effort: 'small',
+    recommendationKind: 'close_todo',
   };
 }
 
 function hasLinterMetric(facts: RepoFacts): MetricScore {
   if (isUnknown(facts, 'tree_fetch_failed')) {
-    return {
-      key: 'code.has_linter',
-      category: CATEGORY,
-      weight: CODE_WEIGHTS.hasLinter,
-      value: null,
-      unknown: true,
-      hint: 'Дерево файлов недоступно',
-    };
+    return unknownTreeMetric('code.has_linter', CODE_WEIGHTS.hasLinter);
   }
   const hasLinter = facts.tree.flags.hasLinterConfig;
   return {
@@ -99,5 +145,46 @@ function hasLinterMetric(facts: RepoFacts): MetricScore {
     target: 100,
     effort: 'small',
     recommendationKind: 'add_linter',
+  };
+}
+
+function hasCiMetric(facts: RepoFacts): MetricScore {
+  if (isUnknown(facts, 'tree_fetch_failed')) {
+    return unknownTreeMetric('code.has_ci', CODE_WEIGHTS.hasCi);
+  }
+  const hasCi = facts.tree.flags.hasCiConfig;
+  return {
+    key: 'code.has_ci',
+    category: CATEGORY,
+    weight: CODE_WEIGHTS.hasCi,
+    value: boolScore(hasCi),
+    hint: hasCi ? 'Обнаружен конфиг CI' : 'Конфиг CI не найден',
+    target: 100,
+    effort: 'medium',
+    recommendationKind: 'add_ci',
+  };
+}
+
+// ---------- helpers ----------
+
+function unknownCodeMetric(key: string, weight: number): MetricScore {
+  return {
+    key,
+    category: CATEGORY,
+    weight,
+    value: null,
+    unknown: true,
+    hint: 'Исходники прочитать не удалось',
+  };
+}
+
+function unknownTreeMetric(key: string, weight: number): MetricScore {
+  return {
+    key,
+    category: CATEGORY,
+    weight,
+    value: null,
+    unknown: true,
+    hint: 'Дерево файлов недоступно',
   };
 }

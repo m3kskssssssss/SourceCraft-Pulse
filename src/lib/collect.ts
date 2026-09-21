@@ -28,6 +28,7 @@ import {
   type GitHistoryFacts,
 } from './git/history';
 import { detectLanguages, type LanguageShare } from './git/languages';
+import { collectCodeFacts, emptyCodeFacts, type CodeFacts } from './git/code-facts';
 import {
   getSourcecraftClient,
   type Branch,
@@ -90,6 +91,8 @@ export type RepoFacts = {
   pullRequests: PullRequest[];
   issues: Issue[];
   gitHistory: GitHistoryFacts;
+  /** Измерения по самим исходникам. */
+  code: CodeFacts;
   security: SecurityScanResult;
   /** Полный текст README.md (если найден в git-клоне). */
   readme: string | null;
@@ -248,6 +251,7 @@ export async function collectRepoFacts(
   let lockfileContents: { packageLockJson?: string; pnpmLockYaml?: string } = {};
   let readme: string | null = null;
   let languages: LanguageShare[] = [];
+  let code: CodeFacts = emptyCodeFacts();
 
   if ((options.runGitAnalysis ?? true) && cloneUrlHttps) {
     try {
@@ -258,13 +262,15 @@ export async function collectRepoFacts(
           const files = await listFilesInClone(repo);
           languages = detectLanguages(files);
 
-          const [history, packageLockJson, pnpmLockYaml, readmeText] = await Promise.all([
+          const [history, codeFacts, packageLockJson, pnpmLockYaml, readmeText] = await Promise.all([
             analyzeGitHistoryInClone(repo, { files }),
+            collectCodeFacts(repo, files),
             readFileFromClone(repo, 'package-lock.json'),
             readFileFromClone(repo, 'pnpm-lock.yaml'),
             readReadme(repo, files),
           ]);
           gitHistory = history;
+          code = codeFacts;
           lockfileContents = {
             packageLockJson: packageLockJson ?? undefined,
             pnpmLockYaml: pnpmLockYaml ?? undefined,
@@ -277,12 +283,19 @@ export async function collectRepoFacts(
     }
   } else if (!cloneUrlHttps) {
     missing.push('clone_url_missing');
+  } else {
+    // Клон отключили опцией — исходников мы не видели, и код оценивать нечем.
+    missing.push('clone_unavailable');
   }
 
   // Язык из API приходит не всегда — тогда берём самый частый по файлам.
   const apiLanguage = repository?.language?.name ?? null;
   const language = apiLanguage ?? languages[0]?.name ?? null;
   if (!language) missing.push('language_unknown');
+
+  // Причины, по которым код остался непрочитанным, объясняются пользователю
+  // так же, как остальные пробелы в данных.
+  for (const error of code.errors) missing.push(error);
 
   // 4. security scan
   const parsedLocks = parseLockfiles({
@@ -324,6 +337,7 @@ export async function collectRepoFacts(
     pullRequests,
     issues,
     gitHistory,
+    code,
     security: scanResult,
     readme,
     missing: dedupeStrings(missing),

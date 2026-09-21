@@ -18,7 +18,7 @@ import { scoreRepo } from '../scoring';
 import { DrizzleAiCache } from '../ai/cache';
 import { DrizzleAiTelemetry } from '../ai/telemetry';
 import { getAiProvider } from '../ai/router';
-import { runAiAnalysis, type AiDocsScore } from '../ai/pipeline';
+import { runAiAnalysis, type AiCodeScore, type AiDocsScore } from '../ai/pipeline';
 
 export type AnalysisDb = NodePgDatabase<typeof schema>;
 
@@ -97,8 +97,9 @@ export async function processAnalysis(
     // «язык не определён» и пустая сортировка по популярности.
     await syncRepositoryFromFacts(db, repo.id, facts);
 
-    // AI: три задачи параллельно, падение любой не роняет анализ.
+    // AI: четыре задачи параллельно, падение любой не роняет анализ.
     let aiDocsScore: AiDocsScore | null = null;
+    let aiCodeScore: AiCodeScore | null = null;
     let aiOutputs: Record<string, unknown> = {};
     try {
       const provider = getAiProvider();
@@ -111,7 +112,10 @@ export async function processAnalysis(
         recommendations: scoreRepo(facts).recommendations,
       });
       aiDocsScore = ai.aiDocsScore;
-      aiOutputs = ai.outputs;
+      aiCodeScore = ai.aiCodeScore;
+      // Находки ревьюера кладём отдельным ключом: страница анализа берёт их
+      // оттуда, не разбирая сырой ответ задачи.
+      aiOutputs = { ...ai.outputs, codeFindings: ai.codeFindings };
       log(runnerId, `AI: ${ai.elapsedMs} мс`);
     } catch (aiErr) {
       const message = describe(aiErr);
@@ -119,7 +123,7 @@ export async function processAnalysis(
       aiOutputs = { unavailable: true, reason: message };
     }
 
-    const result = scoreRepo(facts, aiDocsScore ? { aiDocsScore } : {});
+    const result = scoreRepo(facts, { aiDocsScore, aiCodeScore });
 
     await db
       .update(analyses)

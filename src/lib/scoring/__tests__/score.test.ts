@@ -6,7 +6,9 @@ import {
   makeEmptyFacts,
   makeFactsWithPenalties,
   makeMissingActivityFacts,
+  makeNoCloneFacts,
   makePerfectFacts,
+  makeWeakCodeFacts,
 } from './fixtures';
 
 describe('scoreRepo — идеальный репозиторий', () => {
@@ -75,6 +77,40 @@ describe('scoreRepo — штрафы', () => {
   });
 });
 
+describe('scoreRepo — категория «Код»', () => {
+  it('плохой код роняет категорию, хотя линтер и CI на месте', () => {
+    const code = scoreRepo(makeWeakCodeFacts()).categoryScores.find((c) => c.key === 'code');
+    expect(code?.value).not.toBeNull();
+    expect(code?.value ?? 100).toBeLessThan(50);
+  });
+
+  it('без клона метрики по исходникам уходят в unknown, категория живёт на дереве', () => {
+    const code = scoreRepo(makeNoCloneFacts()).categoryScores.find((c) => c.key === 'code');
+    const unknownKeys = code!.metrics.filter((m) => m.unknown).map((m) => m.key).sort();
+    expect(unknownKeys).toEqual(['code.comments', 'code.file_size', 'code.todo_debt']);
+    expect(code?.value).not.toBeNull();
+  });
+
+  it('AI-ревью заменяет категорию целиком', () => {
+    const result = scoreRepo(makePerfectFacts(), {
+      aiCodeScore: { value: 42, summary: 'Выборка так себе' },
+    });
+    const code = result.categoryScores.find((c) => c.key === 'code');
+    expect(code?.value).toBe(42);
+    expect(code?.metrics.map((m) => m.key)).toEqual(['code.ai_review']);
+  });
+
+  it('AI-ревью не трогает остальные категории', () => {
+    const base = scoreRepo(makePerfectFacts());
+    const withAi = scoreRepo(makePerfectFacts(), { aiCodeScore: { value: 42 } });
+    for (const key of ['activity', 'security', 'docs'] as const) {
+      const before = base.categoryScores.find((c) => c.key === key)?.value;
+      const after = withAi.categoryScores.find((c) => c.key === key)?.value;
+      expect(after).toBe(before);
+    }
+  });
+});
+
 describe('scoreRepo — рекомендации', () => {
   it('пустой репо получает три рекомендации', () => {
     const result = scoreRepo(makeEmptyFacts());
@@ -131,9 +167,13 @@ function applyRecommendationsToFacts(
       case 'docs.usage_examples':
         entries.push({ path: 'examples/quickstart.md' } as never);
         break;
-      case 'code.has_tests':
+      case 'code.tests':
         flags.hasTestsDir = true;
         entries.push({ path: 'tests/foo.test.ts' } as never);
+        break;
+      case 'code.has_ci':
+        flags.hasCiConfig = true;
+        entries.push({ path: '.sourcecraft/ci.yaml' } as never);
         break;
       case 'code.has_linter':
         flags.hasLinterConfig = true;

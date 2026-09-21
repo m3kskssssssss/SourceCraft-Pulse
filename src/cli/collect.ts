@@ -1,9 +1,10 @@
 // CLI-обёртка над collectRepoFacts. Служит проверкой этапов:
 //   - без флагов: печатает краткое резюме RepoFacts
 //   - --score: прогоняет scoreRepo и печатает AnalysisResult (детерминированно)
-//   - --score --ai: дополнительно вызывает AI-рубрику, digest и красивые
-//                    формулировки рекомендаций через RouterAI. Все вызовы
-//                    идут через in-memory кэш и печатают телеметрию в stdout.
+//   - --score --ai: дополнительно вызывает четыре AI-задачи через RouterAI —
+//                    рубрику README, ревью кода, digest по PR/issue и красивые
+//                    формулировки рекомендаций. Все вызовы идут через
+//                    in-memory кэш и печатают телеметрию в stdout.
 //   - PULSE_COLLECT_FULL=1: полный RepoFacts в конце
 //
 // Требует SOURCECRAFT_PAT в .env для сбора; AI_* — только при --ai.
@@ -78,6 +79,18 @@ async function main(): Promise<void> {
       secretHits: facts.gitHistory.secretHits.map((s) => s.name),
       errors: facts.gitHistory.errors,
     },
+    code: {
+      available: facts.code.available,
+      sourceFiles: facts.code.sourceFiles,
+      testFiles: facts.code.testFiles,
+      scannedFiles: facts.code.scannedFiles,
+      medianFileLines: facts.code.medianFileLines,
+      longFileSharePercent: facts.code.longFileSharePercent,
+      commentSharePercent: facts.code.commentSharePercent,
+      todoPerKiloLines: facts.code.todoPerKiloLines,
+      sample: facts.code.sample.map((f) => `${f.path} (${f.lines})`),
+      errors: facts.code.errors,
+    },
     security: {
       provider: facts.security.provider,
       available: facts.security.available,
@@ -94,6 +107,7 @@ async function main(): Promise<void> {
 
   // ---- AI-часть (опциональная) ----
   let aiDocsScore: { value: number; summary?: string } | null = null;
+  let aiCodeScore: { value: number; summary?: string } | null = null;
   let aiOutputs: Record<string, unknown> | null = null;
 
   if (ai) {
@@ -111,14 +125,16 @@ async function main(): Promise<void> {
     });
 
     aiDocsScore = outcome.aiDocsScore;
+    aiCodeScore = outcome.aiCodeScore;
     aiOutputs = {
       ...outcome.outputs,
+      codeFindings: outcome.codeFindings,
       elapsedMs: outcome.elapsedMs,
       monthlySpendRub: await telemetry.monthlySpendRub(),
     };
   }
 
-  const result = scoreRepo(facts, aiDocsScore ? { aiDocsScore } : {});
+  const result = scoreRepo(facts, { aiDocsScore, aiCodeScore });
   const scoreSummary = {
     score: result.score,
     scoreBeforePenalties: result.scoreBeforePenalties,

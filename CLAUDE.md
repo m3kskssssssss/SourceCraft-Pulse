@@ -46,7 +46,7 @@
 - `pnpm lint` — ESLint (flat config через FlatCompat)
 - `pnpm test` / `pnpm test:watch` — Vitest, только движок оценки и парсеры
 - `pnpm gen:api` — скачать/сконвертировать OpenAPI SourceCraft и обновить `types.gen.ts`
-- `pnpm collect <org> <repo> [--score] [--ai]` — сбор фактов; `--score` печатает AnalysisResult; `--ai` также прогоняет три AI-задачи через RouterAI
+- `pnpm collect <org> <repo> [--score] [--ai]` — сбор фактов; `--score` печатает AnalysisResult; `--ai` также прогоняет четыре AI-задачи через RouterAI
 - `pnpm ai:ping` — проверка RouterAI: маленький запрос + повтор из кэша
 - `pnpm admin:hash` — печатает `ADMIN_PASSWORD_HASH=…` для .env (пароль от 20 символов)
 - `pnpm worker` — прогон очереди `analysis_jobs` вручную (локально и для добора брошенных задач; в проде считает сам запрос)
@@ -106,9 +106,10 @@ src/
 │   │   ├── telemetry.ts          # ConsoleAiTelemetry, usdToRub
 │   │   ├── budget.ts             # assertUnderMonthlyBudget
 │   │   ├── runner.ts             # runAiTask: cache + budget + zod + retry + fallback
-│   │   └── tasks/                # readme-rubric.ts, pr-issues-digest.ts, recommendation-copy.ts
+│   │   ├── pipeline.ts           # runAiAnalysis: четыре задачи параллельно
+│   │   └── tasks/                # readme-rubric.ts, code-review.ts, pr-issues-digest.ts, recommendation-copy.ts
 │   ├── scoring/
-│   │   ├── index.ts              # scoreRepo(facts, {aiDocsScore?}) → AnalysisResult
+│   │   ├── index.ts              # scoreRepo(facts, {aiDocsScore?, aiCodeScore?}) → AnalysisResult
 │   │   ├── config.ts             # веса, пороги, штрафы, effort
 │   │   ├── types.ts              # MetricScore, CategoryScore, AnalysisResult, Recommendation
 │   │   ├── normalize.ts          # linearScore/logScore/boolScore/clamp
@@ -117,7 +118,9 @@ src/
 │   │   └── metrics/              # activity.ts, code.ts, security.ts, docs.ts
 │   │   └── __tests__/            # Vitest фикстуры + тесты
 │   ├── git/
-│   │   ├── clone.ts              # withBareClone() + readFileFromClone() (только воркер)
+│   │   ├── clone.ts              # withRepoClone() + readFileFromClone() + listFilesInClone()
+│   │   ├── code-facts.ts         # измерения по исходникам: тесты, длина файлов, TODO, выборка
+│   │   ├── languages.ts          # состав языков по расширениям файлов
 │   │   ├── history.ts            # analyzeGitHistory / analyzeGitHistoryInClone
 │   │   ├── log-parser.ts         # чистый парсер git log --numstat
 │   │   └── secrets.ts            # regex-детектор секретов в диффах
@@ -156,3 +159,6 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 7 — админка: отдельный вход /admin/login (HMAC-cookie, argon2id, rate-limit 5/15мин), 6 разделов (сводка/ai/очередь/пользователи/репозитории/настройки), таблица settings, pnpm admin:hash
 - [x] Этап 8 — ЧБ-тема, набор примитивов (ScoreDial/Bar/Chip/Card/Stat), раскрыта страница /a/[id] с категориями/метриками/рекомендациями, обновлены главная/карточка репо/auth/админка, favicon SVG, not-found
 - [x] Этап 9 — возврат на Vercel: анализ в запросе (300 с), isomorphic-git вместо бинарника, три AI-задачи параллельно, кэш и телеметрия ИИ в Postgres
+- [x] Этап 10 — категория «Код» по самим исходникам (тесты, длина файлов, комментарии, TODO) + четвёртая AI-задача `code_review`, чей балл заменяет категорию
+- [ ] Этап 11 — гит-путь создания репозитория интерактивным деревом
+- [ ] Этап 12 — логотип-пингвин, анимации, чистка разговорных формулировок

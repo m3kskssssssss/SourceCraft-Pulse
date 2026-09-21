@@ -1,15 +1,22 @@
-// Оркестрация трёх AI-задач одного анализа.
+// Оркестрация AI-задач одного анализа.
 //
 // Единственное место, где они запускаются: им пользуются и воркер, и
 // серверный маршрут на Vercel, и CLI. Раньше каждый вызывал задачи сам,
 // последовательно — три круга ожидания вместо одного.
 //
-// Задачи независимы и идут параллельно. Задача «красивые рекомендации»
-// раньше ждала рубрику (через предварительный scoreRepo), теперь получает
-// рекомендации, посчитанные без ИИ: AI-оценка документации сдвигает только
-// категорию docs, а совпадение по ключу всё равно проверяется на выходе.
+// Задач четыре, они независимы и идут параллельно:
+//   readme_rubric       — балл документации вместо эвристик;
+//   code_review         — балл категории «Код» по выборке исходников;
+//   pr_issues_digest    — выжимка по PR и issue;
+//   recommendation_copy — человеческие формулировки рекомендаций.
 //
-// Падение одной задачи не трогает остальные и не роняет анализ.
+// Задача «красивые рекомендации» раньше ждала рубрику (через предварительный
+// scoreRepo), теперь получает рекомендации, посчитанные без ИИ: AI-оценки
+// сдвигают только свои категории, а совпадение по ключу всё равно
+// проверяется на выходе.
+//
+// Падение одной задачи не трогает остальные и не роняет анализ: категория
+// тогда считается по измеримым метрикам.
 
 import type { RepoFacts } from '../collect';
 import type { Recommendation } from '../scoring/types';
@@ -17,14 +24,20 @@ import type { AiCache } from './cache';
 import type { AiProvider } from './provider';
 import type { AiTelemetry } from './telemetry';
 import { runReadmeRubric } from './tasks/readme-rubric';
+import { runCodeReview } from './tasks/code-review';
 import { runPrIssuesDigest } from './tasks/pr-issues-digest';
 import { runRecommendationCopy } from './tasks/recommendation-copy';
 
 export type AiDocsScore = { value: number; summary?: string };
+export type AiCodeScore = { value: number; summary?: string };
 
 export type AiAnalysisResult = {
   /** Оценка документации от модели. null — задача не прошла, docs считаем эвристикой. */
   aiDocsScore: AiDocsScore | null;
+  /** Оценка кода от модели. null — задача не прошла, code считаем по code-facts. */
+  aiCodeScore: AiCodeScore | null;
+  /** Находки ревьюера — показываем рядом с категорией «Код». */
+  codeFindings: string[];
   /** Сырые выходы всех задач — уходят в analyses.metrics.ai. */
   outputs: Record<string, unknown>;
   /** Сколько заняли AI-задачи целиком, мс. */
@@ -36,7 +49,7 @@ export type RunAiAnalysisArgs = {
   cache: AiCache;
   telemetry: AiTelemetry;
   facts: RepoFacts;
-  /** Рекомендации из scoreRepo без AI-оценки документации. */
+  /** Рекомендации из scoreRepo без AI-оценок категорий. */
   recommendations: Recommendation[];
 };
 
@@ -45,8 +58,9 @@ export async function runAiAnalysis(args: RunAiAnalysisArgs): Promise<AiAnalysis
   const orgRepo = `${facts.org}/${facts.repo}`;
   const started = Date.now();
 
-  const [rubric, digest, copy] = await Promise.all([
+  const [rubric, review, digest, copy] = await Promise.all([
     guard('readme_rubric', () => runReadmeRubric({ provider, cache, telemetry, facts })),
+    guard('code_review', () => runCodeReview({ provider, cache, telemetry, facts })),
     guard('pr_issues_digest', () => runPrIssuesDigest({ provider, cache, telemetry, facts })),
     guard('recommendation_copy', () =>
       runRecommendationCopy({
@@ -62,10 +76,20 @@ export async function runAiAnalysis(args: RunAiAnalysisArgs): Promise<AiAnalysis
 
   const aiDocsScore =
     'value' in rubric ? { value: rubric.value.score, summary: rubric.value.summary } : null;
+  const aiCodeScore =
+    'value' in review ? { value: review.value.score, summary: review.value.summary } : null;
+  const codeFindings = 'value' in review ? review.value.findings : [];
 
   return {
     aiDocsScore,
-    outputs: { readmeRubric: rubric, prIssuesDigest: digest, recommendationCopy: copy },
+    aiCodeScore,
+    codeFindings,
+    outputs: {
+      readmeRubric: rubric,
+      codeReview: review,
+      prIssuesDigest: digest,
+      recommendationCopy: copy,
+    },
     elapsedMs: Date.now() - started,
   };
 }

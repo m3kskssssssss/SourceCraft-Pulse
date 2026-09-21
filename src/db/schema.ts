@@ -182,7 +182,7 @@ export const aiCalls = pgTable(
     }),
     provider: text('provider').notNull(),
     model: text('model').notNull(),
-    task: text('task').notNull(), // 'readme_rubric' | 'prs_issues' | 'recommendations'
+    task: text('task').notNull(), // 'readme_rubric' | 'code_review' | 'pr_issues_digest' | 'recommendation_copy'
     promptTokens: integer('prompt_tokens').notNull().default(0),
     completionTokens: integer('completion_tokens').notNull().default(0),
     costRub: numeric('cost_rub', { precision: 12, scale: 6 }).notNull().default('0'),
