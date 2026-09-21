@@ -3,7 +3,7 @@
 // README на GitHub кэширует картинки, чтобы страничка не тормозила.
 
 import { NextResponse } from 'next/server';
-import { getLatestPublicAnalysis, hasUnpublishedAnalysis } from '@/lib/ranking';
+import { describeBadgeLookup, getLatestPublicAnalysis, hasUnpublishedAnalysis } from '@/lib/ranking';
 import { renderBadgeSvg } from '@/lib/badge';
 import { InvalidSlugError, parseSlug } from '@/lib/slug';
 import { clientIp, rateLimit } from '@/lib/rate-limit';
@@ -35,6 +35,14 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       return svgResponse(renderBadgeSvg({ score: null, note: 'неверный адрес' }), 400);
     }
     throw err;
+  }
+
+  // `?debug=1` отвечает JSON-ом: что нашлось по этому адресу в базе. Бейдж
+  // без оценки ни о чём не говорит, а тут видно, чего именно не хватает.
+  if (new URL(request.url).searchParams.get('debug') === '1') {
+    return NextResponse.json(await describeBadgeLookup(org, repo), {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   }
 
   const latest = await getLatestPublicAnalysis(org, repo);

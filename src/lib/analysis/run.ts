@@ -18,6 +18,7 @@ import { scoreRepo } from '../scoring';
 import { DrizzleAiCache } from '../ai/cache';
 import { DrizzleAiTelemetry } from '../ai/telemetry';
 import { getAiProvider } from '../ai/router';
+import { getSetting } from '../settings';
 import { runAiAnalysis, type AiCodeScore, type AiDocsScore } from '../ai/pipeline';
 import { runFileSelection } from '../ai/tasks/file-selection';
 import type { AiCache } from '../ai/cache';
@@ -94,7 +95,7 @@ export async function processAnalysis(
   // Слой ИИ поднимаем до сбора: выбор файлов для ревью делается по структуре
   // проекта, пока клон ещё открыт. Если ИИ не настроен — сбор просто идёт без
   // него, а выборку соберёт эвристика по размеру.
-  const ai = openAi(db, job.analysisId);
+  const ai = await openAi(db, job.analysisId);
 
   try {
     const facts = await withTimeout(
@@ -206,12 +207,14 @@ export async function processAnalysis(
 }
 
 /** Провайдер, кэш и телеметрия одним куском. null — ИИ не сконфигурирован. */
-function openAi(
+async function openAi(
   db: AnalysisDb,
   analysisId: string,
-): { provider: AiProvider; cache: AiCache; telemetry: AiTelemetry } | null {
+): Promise<{ provider: AiProvider; cache: AiCache; telemetry: AiTelemetry } | null> {
   try {
-    const provider = getAiProvider();
+    // Модель берём из настроек админки, ключи — из окружения.
+    const model = await getSetting('ai.model', process.env.AI_MODEL ?? '');
+    const provider = getAiProvider({ model: model || undefined });
     return {
       provider,
       cache: new DrizzleAiCache(db, { provider: provider.name, model: provider.model }),

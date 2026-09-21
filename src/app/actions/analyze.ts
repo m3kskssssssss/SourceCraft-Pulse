@@ -19,8 +19,7 @@ import { auth } from '@/auth';
 import { parseSlug, InvalidSlugError } from '@/lib/slug';
 import {
   LIMIT_MESSAGES,
-  USER_CONCURRENT_ANALYSIS_LIMIT,
-  USER_DAILY_ANALYSIS_LIMIT,
+  getUserLimits,
 } from '@/lib/limits';
 import { getSourcecraftClient } from '@/lib/sourcecraft/client';
 import { SourcecraftApiError, SourcecraftNotFoundError } from '@/lib/sourcecraft/errors';
@@ -72,15 +71,16 @@ export async function analyzeRepo(target: string): Promise<AnalyzeState> {
     return { ok: false, error: 'Не удалось связаться с SourceCraft.' };
   }
 
-  // Лимиты пользователя.
+  // Лимиты пользователя: значения берём из настроек админки.
+  const limits = await getUserLimits();
   const dayAgo = new Date(Date.now() - 24 * 3600 * 1000);
   const dailyRows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(analyses)
     .where(and(eq(analyses.requestedBy, userId), gte(analyses.createdAt, dayAgo)));
   const dailyCount = dailyRows[0]?.count ?? 0;
-  if (dailyCount >= USER_DAILY_ANALYSIS_LIMIT) {
-    return { ok: false, error: LIMIT_MESSAGES.daily };
+  if (dailyCount >= limits.daily) {
+    return { ok: false, error: LIMIT_MESSAGES.daily(limits.daily) };
   }
 
   const concurrentRows = await db
@@ -93,8 +93,8 @@ export async function analyzeRepo(target: string): Promise<AnalyzeState> {
       ),
     );
   const concurrentCount = concurrentRows[0]?.count ?? 0;
-  if (concurrentCount >= USER_CONCURRENT_ANALYSIS_LIMIT) {
-    return { ok: false, error: LIMIT_MESSAGES.concurrent };
+  if (concurrentCount >= limits.concurrent) {
+    return { ok: false, error: LIMIT_MESSAGES.concurrent(limits.concurrent) };
   }
 
   // Upsert репозитория.

@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { z } from 'zod';
 import { requireAdmin } from './admin';
 import { setSetting } from '@/lib/settings';
@@ -53,4 +53,22 @@ function valueOrUndef(v: FormDataEntryValue | null): string | undefined {
   if (v === null) return undefined;
   const s = String(v).trim();
   return s === '' ? undefined : s;
+}
+
+/**
+ * Обнуляет счётчик расходов на ИИ: журнал вызовов остаётся, но суммы считаются
+ * с этого момента. Так лимит бюджета можно снять, не теряя историю.
+ */
+export async function adminResetAiSpendAction(): Promise<void> {
+  const admin = await requireAdmin();
+  const at = new Date().toISOString();
+  await setSetting('ai.spend_reset_at', at);
+  await db.insert(events).values({
+    kind: 'admin.ai.spend_reset',
+    payload: { by: admin.login, at },
+  });
+  revalidateTag('ai-spend');
+  revalidatePath('/admin/ai');
+  revalidatePath('/admin/settings');
+  revalidatePath('/admin');
 }

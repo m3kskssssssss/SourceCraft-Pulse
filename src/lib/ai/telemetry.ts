@@ -9,6 +9,7 @@
 import { gte, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { aiCalls } from '../../db/schema';
+import { getSpendResetAt } from '../settings';
 import type * as schema from '../../db/schema';
 import type { AiCompleteResult } from './provider';
 
@@ -144,10 +145,12 @@ export class DrizzleAiTelemetry implements AiTelemetry {
 
   async monthlySpendRub(): Promise<number> {
     try {
+      // Счётчик считается с начала месяца или с момента, когда администратор
+      // нажал «обнулить расходы» — смотря что позже.
       const rows = await this.db
         .select({ total: sql<string>`coalesce(sum(${aiCalls.costRub}), 0)::text` })
         .from(aiCalls)
-        .where(gte(aiCalls.createdAt, startOfUtcMonth(new Date())));
+        .where(gte(aiCalls.createdAt, await spendCutoff()));
       return Number.parseFloat(rows[0]?.total ?? '0') || 0;
     } catch (err) {
       // Не смогли прочитать расход — считаем, что лимит не достигнут,
@@ -160,6 +163,13 @@ export class DrizzleAiTelemetry implements AiTelemetry {
 
 function startOfUtcMonth(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+
+/** Начало месяца или момент сброса — что позже. */
+export async function spendCutoff(): Promise<Date> {
+  const monthStart = startOfUtcMonth(new Date());
+  const reset = await getSpendResetAt();
+  return reset && reset > monthStart ? reset : monthStart;
 }
 
 function describeError(err: unknown): string {

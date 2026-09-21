@@ -200,3 +200,56 @@ export async function hasUnpublishedAnalysis(org: string, repo: string): Promise
     .limit(1);
   return rows.length > 0;
 }
+
+/**
+ * Что видит бейдж по этому слагу. Нужен для `?debug=1`: когда бейдж говорит
+ * «нет оценки», а на странице анализ опубликован, вопрос ровно один — какие
+ * строки в базе под этот адрес вообще попадают.
+ */
+export async function describeBadgeLookup(
+  org: string,
+  repo: string,
+): Promise<{
+  slug: string;
+  repositories: Array<{ org: string; repo: string; analyses: number }>;
+  done: number;
+  published: number;
+  latestPublicScore: number | null;
+}> {
+  const repos = await db
+    .select({
+      id: repositories.id,
+      org: repositories.orgSlug,
+      repo: repositories.repoSlug,
+    })
+    .from(repositories)
+    .where(and(ilike(repositories.orgSlug, org), ilike(repositories.repoSlug, repo)));
+
+  const ids = repos.map((r) => r.id);
+  const counts = ids.length
+    ? await db
+        .select({
+          repositoryId: analyses.repositoryId,
+          total: sql<number>`count(*)::int`,
+          done: sql<number>`sum(case when ${analyses.status} = 'done' then 1 else 0 end)::int`,
+          published: sql<number>`sum(case when ${analyses.isPublic} then 1 else 0 end)::int`,
+        })
+        .from(analyses)
+        .where(inArray(analyses.repositoryId, ids))
+        .groupBy(analyses.repositoryId)
+    : [];
+
+  const latest = await getLatestPublicAnalysis(org, repo);
+
+  return {
+    slug: `${org}/${repo}`,
+    repositories: repos.map((r) => ({
+      org: r.org,
+      repo: r.repo,
+      analyses: counts.find((c) => c.repositoryId === r.id)?.total ?? 0,
+    })),
+    done: counts.reduce((sum, c) => sum + (c.done ?? 0), 0),
+    published: counts.reduce((sum, c) => sum + (c.published ?? 0), 0),
+    latestPublicScore: latest?.score ?? null,
+  };
+}

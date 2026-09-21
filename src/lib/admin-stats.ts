@@ -4,6 +4,7 @@
 import { unstable_cache } from 'next/cache';
 import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
+import { getSpendResetAt } from '@/lib/settings';
 import { aiCalls, analyses, analysisJobs, events, repositories, users } from '@/db/schema';
 
 // ---------- Общая сводка ----------
@@ -89,13 +90,19 @@ export type AiSpendStats = {
   byProviderModel: Array<{ provider: string; model: string; callsN: number; costRub: number }>;
   cachedRatio: number;
   savedRub: number;
+  /** С какого момента считаются расходы, если счётчик обнуляли. */
+  resetAt: string | null;
 };
 
 export const getAiSpend = unstable_cache(
   async (): Promise<AiSpendStats> => {
     const now = Date.now();
-    const dayAgo = new Date(now - 24 * 3600 * 1000);
-    const monthAgo = new Date(now - 30 * 24 * 3600 * 1000);
+    // Обнуление счётчика в админке не стирает журнал вызовов: просто сдвигает
+    // точку, с которой считаются суммы.
+    const resetAt = await getSpendResetAt();
+    const since = (from: Date): Date => (resetAt && resetAt > from ? resetAt : from);
+    const dayAgo = since(new Date(now - 24 * 3600 * 1000));
+    const monthAgo = since(new Date(now - 30 * 24 * 3600 * 1000));
 
     const [today, month, allTime, groups, cache] = await Promise.all([
       db
@@ -106,7 +113,12 @@ export const getAiSpend = unstable_cache(
         .select({ s: sql<string>`coalesce(sum(${aiCalls.costRub}),0)::text` })
         .from(aiCalls)
         .where(gte(aiCalls.createdAt, monthAgo)),
-      db.select({ s: sql<string>`coalesce(sum(${aiCalls.costRub}),0)::text` }).from(aiCalls),
+      resetAt
+        ? db
+            .select({ s: sql<string>`coalesce(sum(${aiCalls.costRub}),0)::text` })
+            .from(aiCalls)
+            .where(gte(aiCalls.createdAt, resetAt))
+        : db.select({ s: sql<string>`coalesce(sum(${aiCalls.costRub}),0)::text` }).from(aiCalls),
       db
         .select({
           provider: aiCalls.provider,
@@ -149,10 +161,11 @@ export const getAiSpend = unstable_cache(
       })),
       cachedRatio,
       savedRub,
+      resetAt: resetAt ? resetAt.toISOString() : null,
     };
   },
   ['admin-ai-spend'],
-  { revalidate: 60 },
+  { revalidate: 60, tags: ['ai-spend'] },
 );
 
 // ---------- Очередь ----------

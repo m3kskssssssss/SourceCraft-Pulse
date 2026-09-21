@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { UserBar } from './components/UserBar';
+import { Planet } from './components/Planet';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -37,9 +38,7 @@ function SiteFooter() {
     <footer className="mt-24 border-t border-[color:var(--line)]">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-10 text-sm text-[color:var(--muted)] sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--ink)] text-[10px] font-semibold text-[color:var(--paper)]">
-            P
-          </span>
+          <Planet size={22} />
           <span>Pulse · оценка здоровья репозиториев SourceCraft</span>
         </div>
         {/* Шапку здесь не повторяем: в подвале только то, чего нет выше. */}

@@ -185,16 +185,21 @@ function backoffMs(attempt: number): number {
 
 let cached: AiProvider | null = null;
 
-export function getAiProvider(): AiProvider {
-  if (cached) return cached;
+/**
+ * Провайдер RouterAI. Модель можно переопределить — её задаёт админка через
+ * настройку `ai.model`; ключи и адрес остаются в окружении. Кэш держим по
+ * модели: смена модели в настройках не должна отдавать старый провайдер.
+ */
+export function getAiProvider(options: { model?: string } = {}): AiProvider {
   const baseUrl = process.env.AI_BASE_URL;
   const apiKey = process.env.AI_API_KEY;
-  const model = process.env.AI_MODEL;
+  const model = options.model || process.env.AI_MODEL;
   if (!baseUrl || !apiKey || !model) {
     throw new Error(
       'AI_BASE_URL / AI_API_KEY / AI_MODEL не заданы. Проверьте .env.',
     );
   }
+  if (cached && cached.model === model) return cached;
   cached = new RouterAiProvider({ baseUrl, apiKey, model });
   return cached;
 }
