@@ -54,10 +54,9 @@ export default async function HomePage({
     <main className="mx-auto w-full max-w-6xl px-6">
       {/* Hero */}
       <section className="relative pt-14 pb-16 sm:pt-20 sm:pb-20">
-        <div className="grid-bg pointer-events-none absolute inset-0 -z-10 opacity-40" aria-hidden />
-        {/* Планета — единственная крупная картинка на главной. */}
-        <div className="float pointer-events-none absolute right-0 top-12 hidden xl:block">
-          <Planet size={220} />
+        {/* Планета уходит за текст: она полутоновая и читать не мешает. */}
+        <div className="float pointer-events-none absolute -right-24 -top-24 -z-10 hidden opacity-90 sm:block">
+          <Planet size={520} variant="backdrop" />
         </div>
         <div className="max-w-3xl">
           <h1 className="rise text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">

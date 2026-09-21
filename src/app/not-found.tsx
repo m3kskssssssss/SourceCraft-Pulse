@@ -4,9 +4,11 @@ import { Planet } from './components/Planet';
 
 export default function NotFound() {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-6 px-6 py-24 text-center">
-      <div className="mx-auto flex flex-col items-center gap-4">
-        <Planet size={120} />
+    <main className="relative mx-auto flex w-full max-w-md flex-col gap-6 px-6 py-24 text-center">
+      <div className="pointer-events-none absolute left-1/2 top-10 -z-10 -translate-x-1/2">
+        <Planet size={340} variant="backdrop" />
+      </div>
+      <div className="mx-auto">
         <Chip tone="outline">404</Chip>
       </div>
       <h1 className="text-4xl font-semibold tracking-tight">Здесь ничего нет</h1>

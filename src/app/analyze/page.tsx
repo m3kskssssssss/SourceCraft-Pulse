@@ -4,6 +4,7 @@
 // запускаем действие; если без параметра — показываем форму.
 
 import { AnalyzeForm } from '@/app/components/AnalyzeForm';
+import { Planet } from '@/app/components/Planet';
 import { analyzeRepo } from '@/app/actions/analyze';
 
 type PageProps = {
@@ -31,7 +32,10 @@ export default async function AnalyzePage({ searchParams }: PageProps) {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-16">
+    <main className="relative mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-16">
+      <div className="pointer-events-none absolute -right-40 -top-24 -z-10 hidden sm:block">
+        <Planet size={420} variant="backdrop" />
+      </div>
       <div className="rise">
         <h1 className="text-4xl font-semibold tracking-tight">Оценить репозиторий</h1>
         <p className="mt-2 text-sm text-[color:var(--muted)]">
