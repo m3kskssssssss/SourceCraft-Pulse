@@ -54,8 +54,10 @@ export default async function HomePage({
     <main className="mx-auto w-full max-w-6xl px-6">
       {/* Hero */}
       <section className="relative pt-14 pb-16 sm:pt-20 sm:pb-20">
-        {/* Планета уходит за текст: она полутоновая и читать не мешает. */}
-        <div className="float pointer-events-none absolute -right-24 -top-24 -z-10 hidden opacity-90 sm:block">
+        {/* Планета уходит за текст: она полутоновая и читать не мешает.
+            Опущена на четверть своей высоты — так она садится на строку
+            заголовка, а не висит над ней. */}
+        <div className="float pointer-events-none absolute -right-24 top-[34px] -z-10 hidden opacity-90 sm:block">
           <Planet size={520} variant="backdrop" />
         </div>
         <div className="max-w-3xl">
