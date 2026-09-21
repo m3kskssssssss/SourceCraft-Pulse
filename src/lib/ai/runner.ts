@@ -18,12 +18,15 @@ import type { AiCompleteInput, AiProvider } from './provider';
 import type { AiCache } from './cache';
 import type { AiTelemetry } from './telemetry';
 import { assertUnderMonthlyBudget, BudgetExceededError } from './budget';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { makeAiCallRecord, usdToRub } from './telemetry';
 
 /** Лимит ответа, если задача не указала свой. */
 const DEFAULT_MAX_TOKENS = 1024;
 /** Выше этого потолка не поднимаем даже на повторе — дороже, чем полезно. */
 const MAX_TOKENS_CEILING = 4096;
+/** Пауза перед повтором после сбоя провайдера. */
+const RETRY_DELAY_MS = 1_000;
 
 export type RunAiTaskArgs<TInput, TOutput> = {
   provider: AiProvider;
@@ -128,6 +131,13 @@ export async function runAiTask<TInput, TOutput>(
           inputHash,
         }),
       );
+      // Сетевой сбой или пятисотка роутера — повод попробовать ещё раз, а не
+      // сразу сдаваться: задача может быть единственным источником своей
+      // категории (ревью кода, рубрика README).
+      if (attempt < 2) {
+        await sleep(RETRY_DELAY_MS);
+        continue;
+      }
       const value = fallback?.(reason);
       if (value !== undefined && value !== null) return { value, source: 'fallback', reason };
       throw err;

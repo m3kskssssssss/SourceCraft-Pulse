@@ -148,10 +148,28 @@ export default async function AnalysisPage({ params }: PageProps) {
   const gitGraph = factsMeta?.gitGraph?.available ? factsMeta.gitGraph : null;
 
   // Находки ревьюера кода: их кладёт пайплайн ИИ рядом с сырыми выходами задач.
-  const aiMeta = (analysis.metrics as { ai?: { codeFindings?: unknown } } | null)?.ai;
+  const aiMeta = (
+    analysis.metrics as {
+      ai?: {
+        codeFindings?: unknown;
+        codeReviewStatus?: { ok?: boolean; reason?: string };
+        unavailable?: boolean;
+      };
+    } | null
+  )?.ai;
   const codeFindings = Array.isArray(aiMeta?.codeFindings)
     ? aiMeta.codeFindings.filter((item): item is string => typeof item === 'string')
     : [];
+  // Почему ревью не состоялось — говорим прямо, а не оставляем пустое место.
+  const codeReviewNote =
+    aiMeta?.codeReviewStatus?.ok === false
+      ? describeReviewFailure(aiMeta.codeReviewStatus.reason)
+      : aiMeta?.unavailable
+        ? 'Слой ИИ не был настроен на момент прогона.'
+        : null;
+  const codeMeasured = pickCodeStats(
+    (analysis.metrics as { facts?: { code?: Record<string, unknown> } } | null)?.facts?.code,
+  );
 
   const sortedCategories = [...categoryScores].sort(
     (a, b) => categoryOrder(a.key) - categoryOrder(b.key),
@@ -268,6 +286,8 @@ export default async function AnalysisPage({ params }: PageProps) {
               category={cat}
               rank={idx + 1}
               findings={cat.key === 'code' ? codeFindings : []}
+              note={cat.key === 'code' ? codeReviewNote : null}
+              stats={cat.key === 'code' ? codeMeasured : []}
             />
           ))}
           {sortedCategories.length === 0 && (
@@ -446,11 +466,17 @@ function CategoryBlock({
   category,
   rank,
   findings = [],
+  note = null,
+  stats = [],
 }: {
   category: CategoryScore;
   rank: number;
   /** Наблюдения модели по этой категории — сейчас приходят только для кода. */
   findings?: string[];
+  /** Почему ревью не состоялось. */
+  note?: string | null;
+  /** Измеренные по исходникам числа — показываем рядом с оценкой модели. */
+  stats?: Array<{ label: string; value: string }>;
 }) {
   const title = CATEGORY_TITLES[category.key] ?? category.key;
   const blurb = CATEGORY_BLURBS[category.key];
@@ -540,6 +566,28 @@ function CategoryBlock({
           )}
         </ul>
 
+        {stats.length > 0 && (
+          <div className="mt-6 border-t border-[color:var(--line)] pt-5">
+            <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
+              Измерено по исходникам
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+              {stats.map((stat) => (
+                <div key={stat.label} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-[color:var(--muted)]">{stat.label}</dt>
+                  <dd className="tabular-nums">{stat.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        {note && (
+          <div className="mt-6 border-t border-[color:var(--line)] pt-5 text-sm text-[color:var(--muted)]">
+            {note}
+          </div>
+        )}
+
         {findings.length > 0 && (
           <div className="mt-6 border-t border-[color:var(--line)] pt-6">
             <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
@@ -561,6 +609,39 @@ function CategoryBlock({
       </div>
     </CardDiv>
   );
+}
+
+/** Почему ревью кода не прошло — человеческим языком. */
+function describeReviewFailure(reason?: string): string {
+  if (!reason) return 'Ревью кода не прошло.';
+  if (reason === 'no_code_sample') {
+    return 'Ревью кода не делали: исходники прочитать не удалось.';
+  }
+  if (reason.includes('budget')) {
+    return 'Ревью кода не делали: исчерпан месячный лимит расходов на ИИ.';
+  }
+  return `Ревью кода не прошло: ${reason.slice(0, 160)}`;
+}
+
+/** Числа по исходникам из собранных фактов — в подписи для страницы. */
+function pickCodeStats(code?: Record<string, unknown>): Array<{ label: string; value: string }> {
+  if (!code || code.available !== true) return [];
+  const num = (key: string): number | null =>
+    typeof code[key] === 'number' ? (code[key] as number) : null;
+
+  const rows: Array<{ label: string; value: string }> = [];
+  const push = (label: string, value: number | null, suffix = '') => {
+    if (value !== null) rows.push({ label, value: `${value}${suffix}` });
+  };
+
+  push('Файлов кода', num('sourceFiles'));
+  push('Из них прочитано', num('scannedFiles'));
+  push('Файлов тестов', num('testFiles'));
+  push('Медиана файла', num('medianFileLines'), ' строк');
+  push('Длиннее 500 строк', num('longFileSharePercent'), '%');
+  push('Комментариев', num('commentSharePercent'), '%');
+  push('TODO на 1000 строк', num('todoPerKiloLines'));
+  return rows;
 }
 
 function Pulse() {

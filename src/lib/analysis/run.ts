@@ -138,8 +138,19 @@ export async function processAnalysis(
         aiCodeScore = outcome.aiCodeScore;
         // Находки ревьюера кладём отдельным ключом: страница анализа берёт их
         // оттуда, не разбирая сырой ответ задачи.
-        aiOutputs = { ...outcome.outputs, codeFindings: outcome.codeFindings };
-        log(runnerId, `AI: ${outcome.elapsedMs} мс, выборка — ${facts.code.sampleSource}`);
+        aiOutputs = {
+          ...outcome.outputs,
+          codeFindings: outcome.codeFindings,
+          // Отдельным ключом: `outputs.codeReview` — это сырой ответ задачи,
+          // а здесь итог «прошло/не прошло» для страницы анализа.
+          codeReviewStatus: outcome.codeReview,
+        };
+        log(
+          runnerId,
+          `AI: ${outcome.elapsedMs} мс, выборка — ${facts.code.sampleSource}, ревью — ${
+            outcome.codeReview.ok ? 'ок' : outcome.codeReview.reason
+          }`,
+        );
       } catch (aiErr) {
         const message = describe(aiErr);
         log(runnerId, `AI не отработал: ${message}`);

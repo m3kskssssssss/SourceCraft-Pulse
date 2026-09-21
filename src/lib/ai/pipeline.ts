@@ -38,6 +38,8 @@ export type AiAnalysisResult = {
   aiCodeScore: AiCodeScore | null;
   /** Находки ревьюера — показываем рядом с категорией «Код». */
   codeFindings: string[];
+  /** Прошло ли ревью кода и почему нет. Показывается на странице анализа. */
+  codeReview: { ok: true } | { ok: false; reason: string };
   /** Сырые выходы всех задач — уходят в analyses.metrics.ai. */
   outputs: Record<string, unknown>;
   /** Сколько заняли AI-задачи целиком, мс. */
@@ -58,9 +60,15 @@ export async function runAiAnalysis(args: RunAiAnalysisArgs): Promise<AiAnalysis
   const orgRepo = `${facts.org}/${facts.repo}`;
   const started = Date.now();
 
+  // Ревью без исходников — это оценка вслепую: модель поставит балл по одним
+  // метрикам, а выглядеть будет как прочитанный код. Лучше честно не звать.
+  const hasCode = facts.code.sample.length > 0;
+
   const [rubric, review, digest, copy] = await Promise.all([
     guard('readme_rubric', () => runReadmeRubric({ provider, cache, telemetry, facts })),
-    guard('code_review', () => runCodeReview({ provider, cache, telemetry, facts })),
+    hasCode
+      ? guard('code_review', () => runCodeReview({ provider, cache, telemetry, facts }))
+      : Promise.resolve<AiTaskFailure>({ unavailable: true, reason: 'no_code_sample' }),
     guard('pr_issues_digest', () => runPrIssuesDigest({ provider, cache, telemetry, facts })),
     guard('recommendation_copy', () =>
       runRecommendationCopy({
@@ -79,11 +87,14 @@ export async function runAiAnalysis(args: RunAiAnalysisArgs): Promise<AiAnalysis
   const aiCodeScore =
     'value' in review ? { value: review.value.score, summary: review.value.summary } : null;
   const codeFindings = 'value' in review ? review.value.findings : [];
+  const codeReview: AiAnalysisResult['codeReview'] =
+    'value' in review ? { ok: true } : { ok: false, reason: review.reason };
 
   return {
     aiDocsScore,
     aiCodeScore,
     codeFindings,
+    codeReview,
     outputs: {
       readmeRubric: rubric,
       codeReview: review,
