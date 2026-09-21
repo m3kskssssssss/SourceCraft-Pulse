@@ -14,7 +14,7 @@ import type { AiCache } from '../cache';
 import type { AiProvider } from '../provider';
 import type { AiTelemetry } from '../telemetry';
 import { runAiTask, type RunAiTaskResult } from '../runner';
-import type { CodeCatalogEntry } from '../../git/code-facts';
+import type { CodeCatalog, CodeCatalogEntry } from '../../git/code-facts';
 
 const selectionSchema = z.object({
   pick: z.array(z.string().max(300)).max(14),
@@ -28,6 +28,8 @@ export type FileSelectionInput = {
   language: string | null;
   /** Сколько файлов-кандидатов всего — модель должна понимать масштаб. */
   total: number;
+  /** Перепись каталогов: где что лежит и что мы не читали. */
+  directories: Array<{ dir: string; files: number; languages: string[]; skipped: boolean }>;
   files: CodeCatalogEntry[];
 };
 
@@ -37,6 +39,9 @@ const SYSTEM = `Ты выбираешь файлы для ревью кода. �
 
 Отвечай ТОЛЬКО валидным JSON без markdown-ограждений:
 {"pick": ["<путь ровно как в списке>", ...], "reason": "<одно предложение по-русски>"}
+
+В большом проекте выбирай файлы из разных каталогов: одна папка из десяти —
+это не портрет проекта. Каталоги с пометкой «не читаем» в выборе не участвуют.
 
 Что выбирать:
 - файлы с основной логикой: обработчики, движки, сервисы, алгоритмы;
@@ -60,12 +65,28 @@ function buildPrompt(input: FileSelectionInput): {
     .map((file) => `${file.path}${file.test ? '  [тест]' : ''}`)
     .join('\n');
 
+  // Перепись даёт масштаб: по одному списку путей не видно, что каталог на
+  // четыре тысячи файлов представлен в нём двумя десятками строк.
+  const census = input.directories
+    .map(
+      (dir) =>
+        `${dir.dir} — ${dir.files} ${pluralFiles(dir.files)}` +
+        (dir.languages.length > 0 ? `, ${dir.languages.join('/')}` : '') +
+        (dir.skipped ? ' — не читаем' : ''),
+    )
+    .join('\n');
+
   const user = [
     `Репозиторий: ${input.orgRepo}`,
     `Основной язык: ${input.language ?? 'неизвестно'}`,
-    `Файлов-кандидатов всего: ${input.total}${
-      input.files.length < input.total ? `, показано ${input.files.length}` : ''
+    `Файлов с кодом всего: ${input.total}${
+      input.files.length < input.total
+        ? `, ниже ${input.files.length} — по кругу из разных каталогов`
+        : ''
     }`,
+    '',
+    'КАТАЛОГИ:',
+    census || '(перепись недоступна)',
     '',
     'ПУТИ:',
     list,
@@ -74,14 +95,22 @@ function buildPrompt(input: FileSelectionInput): {
   return { system: SYSTEM, user, maxTokens: 700 };
 }
 
+function pluralFiles(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return 'файлов';
+  const mod10 = n % 10;
+  if (mod10 === 1) return 'файл';
+  if (mod10 >= 2 && mod10 <= 4) return 'файла';
+  return 'файлов';
+}
+
 export async function runFileSelection(args: {
   provider: AiProvider;
   cache: AiCache;
   telemetry: AiTelemetry;
   orgRepo: string;
   language: string | null;
-  catalog: CodeCatalogEntry[];
-  total?: number;
+  catalog: CodeCatalog;
 }): Promise<RunAiTaskResult<FileSelection>> {
   return runAiTask({
     provider: args.provider,
@@ -91,8 +120,14 @@ export async function runFileSelection(args: {
     input: {
       orgRepo: args.orgRepo,
       language: args.language,
-      total: args.total ?? args.catalog.length,
-      files: args.catalog,
+      total: args.catalog.totalFiles,
+      directories: args.catalog.directories.map((dir) => ({
+        dir: dir.dir,
+        files: dir.files,
+        languages: dir.languages,
+        skipped: dir.skipped,
+      })),
+      files: args.catalog.files,
     } satisfies FileSelectionInput,
     schema: selectionSchema,
     buildPrompt,

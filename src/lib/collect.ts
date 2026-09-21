@@ -17,17 +17,25 @@ import {
 } from './security/lockfiles';
 import { getSecurityProvider } from './security/provider';
 import type { SecurityScanResult } from './security/types';
-import { deepenClone, openIndexedClone, readFilesFromClone, withRepoClone } from './git/clone';
+import {
+  deepenClone,
+  fetchAllBranches,
+  openIndexedClone,
+  readFilesFromClone,
+  resolveBranchTip,
+  withRepoClone,
+} from './git/clone';
 import {
   analyzeGitHistoryInClone,
   emptyGitHistoryFacts,
   type GitHistoryFacts,
 } from './git/history';
 import { detectLanguages, type LanguageShare } from './git/languages';
+import { classifyRepo, type RepoKind } from './repo-kind';
 import {
   collectCodeFacts,
   emptyCodeFacts,
-  type CodeCatalogEntry,
+  type CodeCatalog,
   type CodeFacts,
 } from './git/code-facts';
 import { readCloneCommits, type RawCommit } from './git/commits';
@@ -56,6 +64,7 @@ export type RepoTreeFlags = {
   hasCiConfig: boolean; // наличие любого конфига CI (см. CI_CONFIG_MARKERS)
   hasTestsDir: boolean; // наличие директории или файлов с признаками тестов
   hasLinterConfig: boolean; // eslint/biome/prettier
+  hasBuildManifest: boolean; // package.json, go.mod, Cargo.toml и прочие
   supportedLockfiles: string[]; // те, что мы умеем парсить и они реально есть
   unsupportedLockfilesPresent: string[]; // lock-файлы, для которых у нас нет парсера
 };
@@ -96,6 +105,8 @@ export type RepoFacts = {
   gitHistory: GitHistoryFacts;
   /** Путь создания: коммиты, ветвления и слияния для дерева. */
   gitGraph: GitGraph;
+  /** Проект это или полезный материал — и почему мы так решили. */
+  kind: RepoKind;
   /** Измерения по самим исходникам. */
   code: CodeFacts;
   security: SecurityScanResult;
@@ -141,12 +152,43 @@ const CI_CONFIG_MARKERS = [
   'Jenkinsfile',
 ];
 const TESTS_MARKERS = ['tests/', 'test/', '__tests__/', 'spec/', '.test.', '.spec.'];
+/**
+ * Манифесты сборки. Их наличие — самый честный признак того, что перед нами
+ * программа, а не подборка материалов: подборку ссылок никто не собирает.
+ */
+const BUILD_MANIFESTS = [
+  'package.json',
+  'deno.json',
+  'go.mod',
+  'cargo.toml',
+  'pyproject.toml',
+  'setup.py',
+  'requirements.txt',
+  'pom.xml',
+  'build.gradle',
+  'build.gradle.kts',
+  'settings.gradle',
+  'composer.json',
+  'gemfile',
+  'cmakelists.txt',
+  'makefile',
+  'mix.exs',
+  'pubspec.yaml',
+  'package.swift',
+  'dockerfile',
+  'build.sbt',
+];
 /** Сколько коммитов читаем из клона: хватает и метрикам, и дереву. */
 const COMMIT_LIMIT = 2_000;
 /** Меньше этого остатка за добор истории даже не беремся. */
 const DEEPEN_MIN_LEFT_MS = 20_000;
 /** И дольше этого его не ждём: не добрался за полминуты — не доберётся. */
 const DEEPEN_MAX_MS = 30_000;
+/** Столько времени нужно, чтобы браться за ветки. */
+const BRANCHES_MIN_LEFT_MS = 20_000;
+const BRANCHES_MAX_MS = 30_000;
+/** Больше веток в дерево не поместится всё равно. */
+const MAX_BRANCHES = 40;
 /**
  * Добираем историю только у небольших репозиториев. У крупного и пачка тяжёлая,
  * и дерево всё равно рисуется по последним двум с половиной сотням коммитов —
@@ -172,7 +214,7 @@ export type CollectOptions = {
    * Выбор файлов для AI-ревью по структуре проекта. Вызывается, пока клон
    * открыт. Сам сборщик про ИИ ничего не знает — ему дают функцию.
    */
-  selectCodeFiles?: (catalog: CodeCatalogEntry[]) => Promise<string[]>;
+  selectCodeFiles?: (catalog: CodeCatalog) => Promise<string[]>;
 };
 
 /** Общий бюджет сбора: клон плюс чтение из него. */
@@ -369,9 +411,27 @@ export async function collectRepoFacts(
               // остаёмся с тем логом, который уже прочитали
             }
           }
+          // Ветки: клон берёт одну, остальные дотягиваем верхушками, если на
+          // это осталось время. Без них дерево показывает только основную
+          // линию, а ветки, которые не сливали, не видно вовсе.
+          let branchTips: Array<{ name: string; oid: string }> = [];
+          if (commits.length > 0 && deadline - Date.now() > BRANCHES_MIN_LEFT_MS) {
+            const names = await fetchAllBranches(repoClone, {
+              timeoutMs: Math.min(deadline - Date.now(), BRANCHES_MAX_MS),
+            });
+            const tips = await Promise.all(
+              names.slice(0, MAX_BRANCHES).map(async (name) => ({
+                name,
+                oid: await resolveBranchTip(repoClone, name),
+              })),
+            );
+            branchTips = tips.filter((t): t is { name: string; oid: string } => t.oid !== null);
+            trace(`ветки (${branchTips.length})`);
+          }
+
           // Дерева без истории не бывает — у клона-верхушки его просто нет.
           if (commits.length > 0) {
-            gitGraph = await collectGitGraph(repoClone, { commits });
+            gitGraph = await collectGitGraph(repoClone, { commits, branchTips });
             trace('дерево коммитов');
           }
 
@@ -400,6 +460,19 @@ export async function collectRepoFacts(
   for (const error of gitGraph.errors) missing.push(error);
 
   trace('клон целиком');
+
+  // 3.5. Проект или материал. Решает эвристика; модель может переголосовать
+  // позже (задача repo_kind), но что-то осмысленное должно быть и без ИИ.
+  const kind = classifyRepo({
+    name: repo,
+    description: repository?.description ?? null,
+    files: treeEntries.map(normalizePath).filter(Boolean),
+    codeFiles: code.sourceFiles + code.testFiles,
+    readme,
+    hasManifest: flags.hasBuildManifest,
+    hasTests: flags.hasTestsDir,
+    hasCi: flags.hasCiConfig,
+  });
 
   // 4. security scan
   const parsedLocks = parseLockfiles({
@@ -442,6 +515,7 @@ export async function collectRepoFacts(
     issues,
     gitHistory,
     gitGraph,
+    kind,
     code,
     security: scanResult,
     readme,
@@ -510,6 +584,10 @@ function computeTreeFlags(entries: TreeEntry[]): RepoTreeFlags {
     LINTER_MARKERS.some((m) => p === m.toLowerCase() || p.endsWith('/' + m.toLowerCase())),
   );
   const hasTestsDir = lowerPaths.some((p) => TESTS_MARKERS.some((m) => p.includes(m.toLowerCase())));
+  const hasBuildManifest = lowerPaths.some((p) => {
+    const name = p.slice(p.lastIndexOf('/') + 1);
+    return BUILD_MANIFESTS.includes(name) || name.endsWith('.csproj') || name.endsWith('.sln');
+  });
 
   const supportedLockfiles = SUPPORTED_LOCKFILES.filter((n) => lowerPaths.includes(n.toLowerCase()));
   const unsupportedLockfilesPresent = KNOWN_UNSUPPORTED_LOCKFILES.filter((n) =>
@@ -525,6 +603,7 @@ function computeTreeFlags(entries: TreeEntry[]): RepoTreeFlags {
     hasCiConfig,
     hasTestsDir,
     hasLinterConfig,
+    hasBuildManifest,
     supportedLockfiles: [...supportedLockfiles],
     unsupportedLockfilesPresent: [...unsupportedLockfilesPresent],
   };

@@ -55,6 +55,11 @@ export type GitGraph = {
 export type CollectGitGraphOptions = {
   /** Готовый лог: тот же, что считают метрики активности. */
   commits?: RawCommit[];
+  /**
+   * Верхушки остальных веток. Клон берёт одну ветку, поэтому ветки, которые
+   * никогда не сливали, иначе в дерево не попадают вовсе.
+   */
+  branchTips?: Array<{ name: string; oid: string }>;
   /** Сколько коммитов читать из клона, если лог не передали. */
   readLimit?: number;
   /** Сколько свежих коммитов оставить в фактах. */
@@ -66,6 +71,8 @@ export type CollectGitGraphOptions = {
 const DEFAULT_READ_LIMIT = 2_000;
 const DEFAULT_KEEP_RECENT = 220;
 const DEFAULT_KEEP_ROOT = 30;
+/** Сколько коммитов берём с каждой дополнительной ветки. */
+const BRANCH_LOG_LIMIT = 60;
 /** Длина короткого sha. */
 const SHORT = 7;
 
@@ -99,6 +106,26 @@ export async function collectGitGraph(
     return emptyGitGraph([`git_graph_failed:${describe(err)}`]);
   }
   if (log.length === 0) return emptyGitGraph(['git_graph_empty']);
+
+  // Ветки, которых нет в истории основной, подмешиваем отдельными логами:
+  // у каждой берём хвост до BRANCH_LOG_LIMIT коммитов.
+  const seen = new Set(log.map((entry) => entry.oid));
+  for (const tip of options.branchTips ?? []) {
+    if (seen.has(tip.oid)) continue;
+    try {
+      const branchLog = await readCloneCommits(repo, BRANCH_LOG_LIMIT, tip.oid);
+      for (const entry of branchLog) {
+        if (seen.has(entry.oid)) continue;
+        seen.add(entry.oid);
+        log.push(entry);
+      }
+    } catch {
+      // ветка не прочиталась — рисуем без неё
+    }
+  }
+
+  // От новых к старым: логи веток пришли отдельными пачками.
+  log.sort((a, b) => (a.authorDate < b.authorDate ? 1 : a.authorDate > b.authorDate ? -1 : 0));
 
   const refs = await readRefs(repo);
 

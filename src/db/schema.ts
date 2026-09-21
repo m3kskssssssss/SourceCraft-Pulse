@@ -132,6 +132,8 @@ export const analyses = pgTable(
       onDelete: 'set null',
     }),
     status: analysisStatusEnum('status').notNull().default('queued'),
+    /** 'project' | 'material' | 'unclear' — подборку ссылок не оцениваем как код. */
+    kind: text('kind'),
     score: integer('score'),
     categoryScores: jsonb('category_scores'),
     metrics: jsonb('metrics'),

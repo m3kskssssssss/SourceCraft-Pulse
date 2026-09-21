@@ -69,6 +69,8 @@ const DEFAULT_CLONE_TOTAL_TIMEOUT_MS = 150_000;
 const MAX_DEPTH = 2_000;
 /** Сколько ждём добор полной истории, если на него осталось время. */
 const DEFAULT_DEEPEN_TIMEOUT_MS = 60_000;
+/** И сколько — на добор остальных веток. */
+const DEFAULT_BRANCHES_TIMEOUT_MS = 45_000;
 /** Сколько блобов читаем одновременно при пакетном чтении. */
 const DEFAULT_READ_CONCURRENCY = 16;
 /** Файлы крупнее этого не читаем: это данные или собранные бандлы. */
@@ -86,26 +88,44 @@ export async function withRepoClone<T>(
   const dir = await mkdtemp(join(tmpdir(), 'pulse-git-'));
 
   try {
-    // На большом монорепозитории (divkit — 17 тысяч файлов, gravity-ui)
+    // План попыток. На большом монорепозитории (divkit — 17 тысяч файлов)
     // клон с историей не доезжает: даже окно в 90 дней тянет весь снимок
     // файлов, а сверху ещё и коммиты. Поэтому крупные репозитории сразу
-    // качаются верхушкой: истории не будет, зато будут файлы, без которых
-    // категория «Код» не стоит ничего.
-    let tipOnly = options.strategy === 'tip';
-    try {
-      await cloneInto(dir, options, tipOnly ? { depth: 1 } : { historyDays }, attemptMs);
-    } catch (err) {
+    // качаются верхушкой. Вторая попытка есть всегда: обрыв пачки на полпути
+    // («aborted») — это про сеть, а не про репозиторий, и повтор часто
+    // проходит.
+    const plan: Array<{ depth: number } | { historyDays: number }> =
+      options.strategy === 'tip'
+        ? [{ depth: 1 }, { depth: 1 }]
+        : [{ historyDays }, { depth: 1 }];
+
+    let tipOnly = false;
+    let lastError: unknown = null;
+    let cloned = false;
+
+    for (const [index, window] of plan.entries()) {
       const leftMs = totalDeadline - Date.now();
-      if (tipOnly || leftMs < MIN_RETRY_MS) throw err;
-      console.warn(
-        `[git] клон с историей не вышел (${describe(err)}); пробуем только верхушку`,
-      );
-      // Каталог после неудачи может быть занят половиной пачки — чистим.
-      await rm(dir, { recursive: true, force: true });
-      await mkdir(dir, { recursive: true });
-      await cloneInto(dir, options, { depth: 1 }, leftMs);
-      tipOnly = true;
+      if (index > 0 && leftMs < MIN_RETRY_MS) break;
+      if (index > 0) {
+        console.warn(
+          `[git] попытка ${index} не вышла (${describe(lastError)}); пробуем ещё раз`,
+        );
+        // Каталог после неудачи может быть занят половиной пачки — чистим.
+        await rm(dir, { recursive: true, force: true });
+        await mkdir(dir, { recursive: true });
+      }
+
+      try {
+        await cloneInto(dir, options, window, Math.min(attemptMs, Math.max(leftMs, 1)));
+        tipOnly = 'depth' in window;
+        cloned = true;
+        break;
+      } catch (err) {
+        lastError = err;
+      }
     }
+
+    if (!cloned) throw lastError ?? new Error('clone_failed');
 
     const cache = {};
     const headOid = await git.resolveRef({ fs, dir, ref: 'HEAD' });
@@ -155,6 +175,48 @@ export async function deepenClone(
   } catch (err) {
     console.warn(`[git] историю целиком добрать не удалось (${describe(err)})`);
     return false;
+  }
+}
+
+/**
+ * Дотягивает остальные ветки: клон мы делаем одной веткой ради скорости, но
+ * дерево пути интереснее, когда видно и те ветки, которые никогда не сливали.
+ * Берём только верхушки (depth 1) — это дёшево. Возвращает имена веток.
+ */
+export async function fetchAllBranches(
+  repo: RepoClone,
+  options: { timeoutMs?: number } = {},
+): Promise<string[]> {
+  try {
+    await withTimeout(
+      git.fetch({
+        fs,
+        http,
+        dir: repo.dir,
+        cache: repo.cache,
+        url: normalizeCloneUrl(repo.source.cloneUrlHttps),
+        singleBranch: false,
+        depth: 1,
+        onAuth: repo.source.token
+          ? () => ({ username: 'x-access-token', password: repo.source.token })
+          : undefined,
+      }),
+      options.timeoutMs ?? DEFAULT_BRANCHES_TIMEOUT_MS,
+      'branches_timeout',
+    );
+    return await git.listBranches({ fs, dir: repo.dir, remote: 'origin' });
+  } catch (err) {
+    console.warn(`[git] ветки целиком не дотянулись (${describe(err)})`);
+    return [];
+  }
+}
+
+/** Коммит, на который смотрит ветка. Null — ссылка не разрешилась. */
+export async function resolveBranchTip(repo: RepoClone, branch: string): Promise<string | null> {
+  try {
+    return await git.resolveRef({ fs, dir: repo.dir, ref: `refs/remotes/origin/${branch}` });
+  } catch {
+    return null;
   }
 }
 

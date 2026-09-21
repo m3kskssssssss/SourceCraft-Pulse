@@ -19,7 +19,12 @@ import { DrizzleAiCache } from '../ai/cache';
 import { DrizzleAiTelemetry } from '../ai/telemetry';
 import { getAiProvider } from '../ai/router';
 import { getSetting } from '../settings';
-import { runAiAnalysis, type AiCodeScore, type AiDocsScore } from '../ai/pipeline';
+import {
+  runAiAnalysis,
+  type AiCodeScore,
+  type AiDocsScore,
+  type RepoKindOutcome,
+} from '../ai/pipeline';
 import { runFileSelection } from '../ai/tasks/file-selection';
 import type { AiCache } from '../ai/cache';
 import type { AiProvider } from '../ai/provider';
@@ -127,6 +132,13 @@ export async function processAnalysis(
     let aiDocsScore: AiDocsScore | null = null;
     let aiCodeScore: AiCodeScore | null = null;
     let aiOutputs: Record<string, unknown> = { unavailable: true, reason: 'ai_not_configured' };
+    // Жанр репозитория: решение модели, иначе — вывод эвристики из фактов.
+    let repoKind: RepoKindOutcome = {
+      kind: facts.kind.kind,
+      by: 'heuristic',
+      summary: null,
+      topics: [],
+    };
     if (ai) {
       try {
         const outcome = await runAiAnalysis({
@@ -137,6 +149,7 @@ export async function processAnalysis(
         });
         aiDocsScore = outcome.aiDocsScore;
         aiCodeScore = outcome.aiCodeScore;
+        repoKind = outcome.repoKind;
         // Находки ревьюера кладём отдельным ключом: страница анализа берёт их
         // оттуда, не разбирая сырой ответ задачи.
         aiOutputs = {
@@ -148,9 +161,10 @@ export async function processAnalysis(
         };
         log(
           runnerId,
-          `AI: ${outcome.elapsedMs} мс, выборка — ${facts.code.sampleSource}, ревью — ${
-            outcome.codeReview.ok ? 'ок' : outcome.codeReview.reason
-          }`,
+          `AI: ${outcome.elapsedMs} мс, жанр — ${outcome.repoKind.kind} (${outcome.repoKind.by}), ` +
+            `выборка — ${facts.code.sampleSource}, ревью — ${
+              outcome.codeReview.ok ? 'ок' : outcome.codeReview.reason
+            }`,
         );
       } catch (aiErr) {
         const message = describe(aiErr);
@@ -165,9 +179,11 @@ export async function processAnalysis(
       .update(analyses)
       .set({
         status: 'done',
+        kind: repoKind.kind,
         score: result.score,
         categoryScores: result.categoryScores as unknown as Record<string, unknown>,
         metrics: {
+          kind: repoKind as unknown as Record<string, unknown>,
           facts: facts as unknown as Record<string, unknown>,
           penalties: result.penalties,
           scoreBeforePenalties: result.scoreBeforePenalties,

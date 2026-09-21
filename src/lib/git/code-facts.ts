@@ -22,6 +22,12 @@
 
 import { languageOf } from './languages';
 import { readFilesFromClone, type IndexedClone } from './clone';
+import {
+  censusDirectories,
+  spreadPick,
+  withoutSkipped,
+  type DirStat,
+} from './tree-map';
 
 export type CodeFacts = {
   /** Удалось ли прочитать хоть один файл с кодом. */
@@ -46,6 +52,8 @@ export type CodeFacts = {
   scannedFiles: number;
   /** Кто выбрал выборку для ревью. */
   sampleSource: 'model' | 'size' | 'none';
+  /** Перепись каталогов: где лежит код и что мы не читали. */
+  directories: DirStat[];
   /** Выборка файлов — вход для AI-ревью. */
   sample: CodeSampleFile[];
   errors: string[];
@@ -66,6 +74,14 @@ export type CodeCatalogEntry = {
   test: boolean;
 };
 
+/** Вход первого прохода: пути плюс перепись каталогов для масштаба. */
+export type CodeCatalog = {
+  files: CodeCatalogEntry[];
+  directories: DirStat[];
+  /** Сколько файлов с кодом всего — список показан не целиком. */
+  totalFiles: number;
+};
+
 export type CodeFactsOptions = {
   /** Сколько файлов максимум читаем ради метрик. */
   fileLimit?: number;
@@ -81,7 +97,7 @@ export type CodeFactsOptions = {
    * Выбор файлов для ревью по структуре проекта. Возвращает пути из каталога.
    * Ошибки и таймауты — забота вызывающего: здесь просто откатимся к размеру.
    */
-  selectFiles?: (catalog: CodeCatalogEntry[]) => Promise<string[]>;
+  selectFiles?: (catalog: CodeCatalog) => Promise<string[]>;
 };
 
 const DEFAULT_FILE_LIMIT = 1_500;
@@ -90,6 +106,8 @@ const DEFAULT_SAMPLE_FILES = 12;
 const DEFAULT_SAMPLE_CHARS = 4_000;
 /** Сколько путей показываем модели: больше — лишние токены без пользы. */
 const CATALOG_LIMIT = 400;
+/** Сколько строк переписи каталогов храним и показываем. */
+const CENSUS_LIMIT = 40;
 
 /** Файл длиннее — повод задуматься о разбиении. */
 export const LONG_FILE_LINES = 500;
@@ -138,6 +156,7 @@ export function emptyCodeFacts(errors: string[] = []): CodeFacts {
     todoPerKiloLines: null,
     scannedFiles: 0,
     sampleSource: 'none',
+    directories: [],
     sample: [],
     errors,
   };
@@ -153,7 +172,11 @@ export async function collectCodeFacts(
   const sampleChars = options.sampleChars ?? DEFAULT_SAMPLE_CHARS;
   const deadline = options.deadline ?? Number.POSITIVE_INFINITY;
 
-  const code = clone.files.filter((path) => languageOf(path) !== null && !isSkipped(path));
+  const candidates = clone.files.filter((path) => languageOf(path) !== null && !isSkipped(path));
+  // Перепись каталогов: большие каталоги с кодом остаются и делят лимит,
+  // заведомо не-исходники (переводы, снапшоты, данные) выбрасываются.
+  const directories = censusDirectories(candidates);
+  const code = withoutSkipped(candidates, directories);
   const tests = code.filter(isTestPath);
   const sources = code.filter((path) => !isTestPath(path));
 
@@ -167,14 +190,22 @@ export async function collectCodeFacts(
 
   // Выбор файлов моделью не зависит от чтения — пусть идут параллельно.
   const selection = options.selectFiles
-    ? options.selectFiles(buildCatalog(code)).catch(() => [] as string[])
+    ? options
+        .selectFiles({
+          files: buildCatalog(spreadPick(code, CATALOG_LIMIT)),
+          directories: directories.slice(0, CENSUS_LIMIT),
+          totalFiles: code.length,
+        })
+        .catch(() => [] as string[])
     : Promise.resolve([] as string[]);
 
   const errors: string[] = [];
+  // Читаем не первые N по алфавиту, а по кругу из каждого каталога: иначе на
+  // монорепозитории метрики считались бы по одному клиенту из пяти.
   const { files: read, complete } = await readFilesFromClone(
     clone.repo,
     clone.index,
-    sources.slice(0, fileLimit),
+    spreadPick(sources, fileLimit),
     { maxFileBytes, deadline },
   );
   if (!complete) errors.push('code_scan_partial');
@@ -225,6 +256,7 @@ export async function collectCodeFacts(
     todoPerKiloLines: round1((todoHits / totalLines) * 1000),
     scannedFiles: read.size,
     sampleSource: source,
+    directories: directories.slice(0, CENSUS_LIMIT),
     sample,
     errors,
   };
@@ -232,7 +264,7 @@ export async function collectCodeFacts(
 
 /** Структура проекта для первого прохода модели. */
 export function buildCatalog(paths: string[]): CodeCatalogEntry[] {
-  return paths.slice(0, CATALOG_LIMIT).map((path) => ({
+  return paths.map((path) => ({
     path,
     language: languageOf(path) ?? 'unknown',
     test: isTestPath(path),

@@ -31,6 +31,7 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
         hasCiConfig: false,
         hasTestsDir: false,
         hasLinterConfig: false,
+        hasBuildManifest: false,
         supportedLockfiles: [],
         unsupportedLockfilesPresent: [],
       },
@@ -56,6 +57,7 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
     code: emptyCodeFacts(['code_files_not_found']),
     // Дерево коммитов на оценку не влияет — это иллюстрация на странице анализа.
     gitGraph: emptyGitGraph(),
+    kind: { kind: 'project', confidence: 1, signals: ['фикстура'] },
     security: {
       provider: 'osv_dev',
       available: true,
@@ -96,6 +98,7 @@ export function makePerfectFacts(): RepoFacts {
         hasCiConfig: true,
         hasTestsDir: true,
         hasLinterConfig: true,
+        hasBuildManifest: true,
         supportedLockfiles: ['package-lock.json'],
         unsupportedLockfilesPresent: [],
       },
@@ -112,6 +115,7 @@ export function makePerfectFacts(): RepoFacts {
       todoPerKiloLines: 0,
       scannedFiles: 40,
       sampleSource: 'size',
+      directories: [],
       sample: [],
       errors: [],
     },

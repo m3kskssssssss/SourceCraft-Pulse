@@ -23,6 +23,7 @@ import type { Recommendation } from '../scoring/types';
 import type { AiCache } from './cache';
 import type { AiProvider } from './provider';
 import type { AiTelemetry } from './telemetry';
+import { runRepoKind, type RepoKindVerdict } from './tasks/repo-kind';
 import { runReadmeRubric } from './tasks/readme-rubric';
 import { runCodeReview } from './tasks/code-review';
 import { runPrIssuesDigest } from './tasks/pr-issues-digest';
@@ -31,7 +32,19 @@ import { runRecommendationCopy } from './tasks/recommendation-copy';
 export type AiDocsScore = { value: number; summary?: string };
 export type AiCodeScore = { value: number; summary?: string };
 
+export type RepoKindOutcome = {
+  /** Итоговый жанр: решение модели, иначе — вывод эвристики. */
+  kind: 'project' | 'material' | 'unclear';
+  /** Кто решил. */
+  by: 'model' | 'heuristic';
+  /** Описание: для материала — о чём он, для проекта — чем занимается. */
+  summary: string | null;
+  topics: string[];
+};
+
 export type AiAnalysisResult = {
+  /** Проект это или полезный материал. */
+  repoKind: RepoKindOutcome;
   /** Оценка документации от модели. null — задача не прошла, docs считаем эвристикой. */
   aiDocsScore: AiDocsScore | null;
   /** Оценка кода от модели. null — задача не прошла, code считаем по code-facts. */
@@ -60,15 +73,26 @@ export async function runAiAnalysis(args: RunAiAnalysisArgs): Promise<AiAnalysis
   const orgRepo = `${facts.org}/${facts.repo}`;
   const started = Date.now();
 
+  // Жанр решаем первым: у полезного материала ревью кода не запрашиваем
+  // вовсе — оценивать подборку ссылок по инженерным критериям нечестно, а
+  // рассказать, о чём она, куда полезнее.
+  const kindTask = await guard('repo_kind', () =>
+    runRepoKind({ provider, cache, telemetry, facts }),
+  );
+  const repoKind = resolveKind(facts.kind, 'value' in kindTask ? kindTask.value : null);
+
   // Ревью без исходников — это оценка вслепую: модель поставит балл по одним
   // метрикам, а выглядеть будет как прочитанный код. Лучше честно не звать.
-  const hasCode = facts.code.sample.length > 0;
+  const hasCode = facts.code.sample.length > 0 && repoKind.kind !== 'material';
 
   const [rubric, review, digest, copy] = await Promise.all([
     guard('readme_rubric', () => runReadmeRubric({ provider, cache, telemetry, facts })),
     hasCode
       ? guard('code_review', () => runCodeReview({ provider, cache, telemetry, facts }))
-      : Promise.resolve<AiTaskFailure>({ unavailable: true, reason: 'no_code_sample' }),
+      : Promise.resolve<AiTaskFailure>({
+          unavailable: true,
+          reason: repoKind.kind === 'material' ? 'material_not_code' : 'no_code_sample',
+        }),
     guard('pr_issues_digest', () => runPrIssuesDigest({ provider, cache, telemetry, facts })),
     guard('recommendation_copy', () =>
       runRecommendationCopy({
@@ -91,11 +115,13 @@ export async function runAiAnalysis(args: RunAiAnalysisArgs): Promise<AiAnalysis
     'value' in review ? { ok: true } : { ok: false, reason: review.reason };
 
   return {
+    repoKind,
     aiDocsScore,
     aiCodeScore,
     codeFindings,
     codeReview,
     outputs: {
+      repoKind: kindTask,
       readmeRubric: rubric,
       codeReview: review,
       prIssuesDigest: digest,
@@ -103,6 +129,20 @@ export async function runAiAnalysis(args: RunAiAnalysisArgs): Promise<AiAnalysis
     },
     elapsedMs: Date.now() - started,
   };
+}
+
+/**
+ * Итоговый жанр: у модели приоритет, эвристика — запасной вариант. Если и
+ * модель не ответила, и эвристика не уверена, так и пишем: «непонятно».
+ */
+function resolveKind(
+  guess: RepoFacts['kind'],
+  verdict: RepoKindVerdict | null,
+): RepoKindOutcome {
+  if (verdict) {
+    return { kind: verdict.kind, by: 'model', summary: verdict.summary, topics: verdict.topics };
+  }
+  return { kind: guess.kind, by: 'heuristic', summary: null, topics: [] };
 }
 
 /** Результат упавшей задачи: помечаем «нет данных», но анализ продолжаем. */
