@@ -115,6 +115,9 @@ export const repositories = pgTable(
   },
   (t) => ({
     orgRepoUnique: uniqueIndex('repositories_org_repo_unique').on(t.orgSlug, t.repoSlug),
+    // Фильтр рейтинга по языку и сортировка «по популярности».
+    byLanguage: index('repositories_language_idx').on(t.language),
+    byForks: index('repositories_forks_count_idx').on(t.forksCount.desc()),
   }),
 );
 
@@ -145,6 +148,14 @@ export const analyses = pgTable(
     byRepo: index('analyses_repository_id_idx').on(t.repositoryId),
     byRequestedBy: index('analyses_requested_by_idx').on(t.requestedBy),
     byPublic: index('analyses_is_public_idx').on(t.isPublic),
+    // Рейтинг: отбор по «опубликован и посчитан» плюс сортировка по баллу.
+    byPublicScore: index('analyses_public_score_idx').on(
+      t.isPublic,
+      t.status,
+      t.score.desc(),
+    ),
+    // История репозитория и «последний публичный прогон».
+    byRepoFinished: index('analyses_repo_finished_idx').on(t.repositoryId, t.finishedAt.desc()),
   }),
 );
 

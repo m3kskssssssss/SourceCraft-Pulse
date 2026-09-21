@@ -22,8 +22,10 @@ export function getWorkerDb() {
     pool = new Pool({
       connectionString: url,
       ssl: needsSsl(url) ? { rejectUnauthorized: false } : undefined,
-      // Воркер живёт коротко; ставим маленький пул.
-      max: 4,
+      // Воркер считает несколько анализов одновременно (WORKER_CONCURRENCY),
+      // и параллельно ходит heartbeat, продлевающий локи: пула на четыре
+      // соединения не хватало, запросы вставали в очередь друг за другом.
+      max: 10,
       idleTimeoutMillis: 10_000,
     });
   }
