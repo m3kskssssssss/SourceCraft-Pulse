@@ -235,6 +235,8 @@ export async function getUsersList(limit = 100): Promise<AdminUserRow[]> {
 
 export type AdminAnalysisRow = {
   id: string;
+  /** Нужен, чтобы удалить репозиторий целиком со всеми его прогонами. */
+  repositoryId: string;
   orgRepo: string;
   status: 'queued' | 'running' | 'done' | 'failed';
   score: number | null;
@@ -249,6 +251,7 @@ export async function getAllAnalyses(
   const rows = await db
     .select({
       id: analyses.id,
+      repositoryId: analyses.repositoryId,
       status: analyses.status,
       score: analyses.score,
       isPublic: analyses.isPublic,
@@ -263,6 +266,7 @@ export async function getAllAnalyses(
     .limit(limit);
   return rows.map((r) => ({
     id: r.id,
+    repositoryId: r.repositoryId,
     orgRepo: `${r.org}/${r.repo}`,
     status: r.status,
     score: r.score ?? null,

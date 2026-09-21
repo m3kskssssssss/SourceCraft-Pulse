@@ -1,6 +1,12 @@
 import Link from 'next/link';
-import { adminUnpublishAction, requireAdmin } from '@/app/actions/admin';
+import {
+  adminDeleteAnalysisAction,
+  adminDeleteRepositoryAction,
+  adminUnpublishAction,
+  requireAdmin,
+} from '@/app/actions/admin';
 import { Chip, EmptyState, cx } from '@/app/components/ui';
+import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
 import { getAllAnalyses } from '@/lib/admin-stats';
 
 export const dynamic = 'force-dynamic';
@@ -44,10 +50,14 @@ export default async function AdminRepositories({
         </div>
       </div>
 
+      <p className="mt-2 text-sm text-[color:var(--muted)]">
+        Строка — один прогон. «Удалить репозиторий» уносит и все остальные его прогоны.
+      </p>
+
       {rows.length === 0 ? (
         <EmptyState className="mt-8" title="Анализов нет" />
       ) : (
-        <div className="mt-8 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
+        <div className="mt-8 overflow-x-auto rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
           <table className="w-full text-sm">
             <thead className="text-left text-[color:var(--muted)]">
               <tr>
@@ -74,18 +84,37 @@ export default async function AdminRepositories({
                   </td>
                   <td className="px-5 py-3 text-right tabular-nums">{row.score ?? '—'}</td>
                   <td className="px-5 py-3">{row.isPublic ? 'да' : 'нет'}</td>
-                  <td className="px-5 py-3 text-right">
-                    {row.isPublic && (
-                      <form action={adminUnpublishAction}>
+                  <td className="px-5 py-3">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {row.isPublic && (
+                        <form action={adminUnpublishAction}>
+                          <input type="hidden" name="analysisId" value={row.id} />
+                          <button
+                            type="submit"
+                            className="whitespace-nowrap rounded-full border border-[color:var(--line)] px-3 py-1.5 text-xs transition active:scale-[0.97] hover:bg-[color:var(--panel)]"
+                          >
+                            Снять с публикации
+                          </button>
+                        </form>
+                      )}
+                      <form action={adminDeleteAnalysisAction}>
                         <input type="hidden" name="analysisId" value={row.id} />
-                        <button
-                          type="submit"
-                          className="rounded-full border border-[color:var(--line)] px-3 py-1.5 text-xs hover:bg-[color:var(--panel)]"
+                        <ConfirmSubmit
+                          question={`Удалить этот прогон ${row.orgRepo}? Отменить будет нельзя.`}
                         >
-                          Снять с публикации
-                        </button>
+                          Удалить прогон
+                        </ConfirmSubmit>
                       </form>
-                    )}
+                      <form action={adminDeleteRepositoryAction}>
+                        <input type="hidden" name="repositoryId" value={row.repositoryId} />
+                        <ConfirmSubmit
+                          tone="danger"
+                          question={`Удалить ${row.orgRepo} вместе со всеми его оценками и историей? Отменить будет нельзя.`}
+                        >
+                          Удалить репозиторий
+                        </ConfirmSubmit>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}
