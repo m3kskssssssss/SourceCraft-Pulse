@@ -107,7 +107,7 @@ src/
 │   │   ├── budget.ts             # assertUnderMonthlyBudget
 │   │   ├── runner.ts             # runAiTask: cache + budget + zod + retry + fallback
 │   │   ├── pipeline.ts           # runAiAnalysis: четыре задачи параллельно
-│   │   └── tasks/                # file-selection.ts (что читать), readme-rubric.ts, code-review.ts, pr-issues-digest.ts, recommendation-copy.ts
+│   │   └── tasks/                # repo-kind.ts (проект или материал), file-selection.ts (что читать), readme-rubric.ts, code-review.ts, pr-issues-digest.ts, recommendation-copy.ts
 │   ├── scoring/
 │   │   ├── index.ts              # scoreRepo(facts, {aiDocsScore?, aiCodeScore?}) → AnalysisResult
 │   │   ├── config.ts             # веса, пороги, штрафы, effort
@@ -122,6 +122,7 @@ src/
 │   │   ├── code-facts.ts         # измерения по исходникам: тесты, длина файлов, TODO, выборка
 │   │   ├── commits.ts            # общий лог коммитов для истории и дерева
 │   │   ├── graph.ts              # граф коммитов + раскладка по дорожкам (assignLanes)
+│   │   ├── tree-map.ts           # перепись каталогов + выбор файлов по кругу
 │   │   ├── languages.ts          # состав языков по расширениям файлов
 │   │   ├── history.ts            # analyzeGitHistory / analyzeGitHistoryInClone
 │   │   ├── log-parser.ts         # чистый парсер git log --numstat
@@ -166,6 +167,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 12 — анимации и чистка разговорных формулировок
 - [x] Этап 13 — админка: прогон задачи и всей очереди прямо в запросе, снятие задач, удаление прогонов и репозиториев со всеми оценками
 - [x] Этап 14 — логотип-планета (вращается сдвигом карты под маской) вместо пингвина
+- [x] Этап 20 — большие репозитории: чтение по кругу из всех каталогов (перепись `git/tree-map.ts`), добор всех веток в дерево, вторая попытка клона; отдельный жанр «полезный материал» — эвристика `lib/repo-kind.ts` + AI-задача `repo_kind`, для материала вместо оценки описание
 - [x] Этап 19 — настройки админки наконец работают (модель, бюджет, лимиты читаются из БД), обнуление счётчика расходов, диагностика бейджа `?debug=1`, планета в подвале
 - [x] Этап 18 — ревью кода на каждом прогоне: повтор при сбое провайдера, явная причина, когда не вышло, и измеренные числа по исходникам рядом с оценкой модели
 - [x] Этап 17 — большие репозитории читаются (общий кэш isomorphic-git, стратегия клона по размеру дерева, бюджеты фаз, PULSE_TRACE), планета перерисована в проволочный глобус и ушла полутоном на фон

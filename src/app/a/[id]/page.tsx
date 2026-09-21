@@ -171,6 +171,19 @@ export default async function AnalysisPage({ params }: PageProps) {
     (analysis.metrics as { facts?: { code?: Record<string, unknown> } } | null)?.facts?.code,
   );
 
+  // Жанр репозитория: подборку ссылок оценкой не меряем.
+  const kindMeta = (
+    analysis.metrics as {
+      kind?: { kind?: string; by?: string; summary?: string | null; topics?: unknown };
+    } | null
+  )?.kind;
+  const kind = analysis.kind ?? kindMeta?.kind ?? 'project';
+  const isMaterial = kind === 'material';
+  const kindSummary = typeof kindMeta?.summary === 'string' ? kindMeta.summary : null;
+  const kindTopics = Array.isArray(kindMeta?.topics)
+    ? kindMeta.topics.filter((t): t is string => typeof t === 'string').slice(0, 6)
+    : [];
+
   const sortedCategories = [...categoryScores].sort(
     (a, b) => categoryOrder(a.key) - categoryOrder(b.key),
   );
@@ -180,21 +193,39 @@ export default async function AnalysisPage({ params }: PageProps) {
       {/* Sunny score card */}
       <section className="rise overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
         <div className="flex flex-wrap items-center gap-8 p-8 sm:p-10">
-          <ScoreDial value={analysis.score} size={168} stroke={14} label="pulse" />
+          {!isMaterial && <ScoreDial value={analysis.score} size={168} stroke={14} label="pulse" />}
           <div className="min-w-0 flex-1">
             <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
-              Итоговая оценка
+              {isMaterial ? 'Что это' : 'Итоговая оценка'}
             </div>
-            <div className="mt-1 flex items-baseline gap-3">
-              <span className="text-5xl font-semibold tabular-nums leading-none">
-                {analysis.score ?? '—'}
-              </span>
-              <span className="text-lg text-[color:var(--muted)]">/ 100</span>
-            </div>
-            <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-[color:var(--ink-2)]">
-              {verdict(analysis.score)}
+            {isMaterial ? (
+              <div className="mt-1 text-4xl font-semibold leading-tight">Полезный материал</div>
+            ) : (
+              <div className="mt-1 flex items-baseline gap-3">
+                <span className="text-5xl font-semibold tabular-nums leading-none">
+                  {analysis.score ?? '—'}
+                </span>
+                <span className="text-lg text-[color:var(--muted)]">/ 100</span>
+              </div>
+            )}
+            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-[color:var(--ink-2)]">
+              {isMaterial
+                ? (kindSummary ??
+                  'Репозиторий похож на подборку или конспект, а не на программу: инженерная оценка к нему неприменима.')
+                : verdict(analysis.score)}
             </p>
+            {isMaterial && kindTopics.length > 0 && (
+              <ul className="mt-4 grid gap-1.5 text-sm text-[color:var(--ink-2)]">
+                {kindTopics.map((topic) => (
+                  <li key={topic} className="flex gap-2">
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[color:var(--muted-2)]" />
+                    <span>{topic}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="mt-5 flex flex-wrap gap-2 text-sm">
+              {isMaterial && <Chip tone="ink">Материал</Chip>}
               {repo?.language && <Chip tone="default">{repo.language}</Chip>}
               {analysis.finishedAt && (
                 <Chip tone="default">Готово {formatDate(analysis.finishedAt.toISOString())}</Chip>
@@ -277,7 +308,11 @@ export default async function AnalysisPage({ params }: PageProps) {
         <SectionHead
           eyebrow="Подробности"
           title="Категории и метрики"
-          hint="Каждая метрика оценивается 0–100. Метрики без данных исключаются — веса остальных нормируются."
+          hint={
+            isMaterial
+              ? 'Для материала эти числа — справка, а не оценка: они ничего не говорят о его пользе.'
+              : 'Каждая метрика оценивается 0–100. Метрики без данных исключаются — веса остальных нормируются.'
+          }
         />
         <div className="mt-6 grid gap-4">
           {sortedCategories.map((cat, idx) => (

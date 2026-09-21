@@ -13,6 +13,8 @@ export type LeaderboardItem = {
   org: string;
   repo: string;
   language: string | null;
+  /** 'project' | 'material' | 'unclear'. Материал оценкой не меряем. */
+  kind: string | null;
   score: number | null;
   forks: number | null;
   lastSyncedAt: string | null;
@@ -61,6 +63,7 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
       org: repositories.orgSlug,
       repo: repositories.repoSlug,
       language: repositories.language,
+      kind: analyses.kind,
       score: analyses.score,
       forks: repositories.forksCount,
       lastSyncedAt: repositories.lastSyncedAt,
@@ -69,7 +72,10 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     .from(analyses)
     .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
     .where(where)
+    // Материалы не конкурируют с проектами за место в рейтинге: у них нет
+    // оценки, поэтому они идут следом, своим списком.
     .orderBy(
+      sql`case when ${analyses.kind} = 'material' then 1 else 0 end`,
       sort === 'forks' ? desc(repositories.forksCount) : desc(analyses.score),
       desc(analyses.finishedAt),
     )
@@ -90,6 +96,7 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     org: r.org,
     repo: r.repo,
     language: r.language ?? null,
+    kind: r.kind ?? null,
     score: r.score ?? null,
     forks: r.forks ?? null,
     lastSyncedAt: r.lastSyncedAt ? r.lastSyncedAt.toISOString() : null,
@@ -140,6 +147,7 @@ export async function getLatestPublicAnalysis(
       org: repositories.orgSlug,
       repo: repositories.repoSlug,
       language: repositories.language,
+      kind: analyses.kind,
       score: analyses.score,
       forks: repositories.forksCount,
       lastSyncedAt: repositories.lastSyncedAt,
@@ -165,6 +173,7 @@ export async function getLatestPublicAnalysis(
     org: r.org,
     repo: r.repo,
     language: r.language ?? null,
+    kind: r.kind ?? null,
     score: r.score ?? null,
     forks: r.forks ?? null,
     lastSyncedAt: r.lastSyncedAt ? r.lastSyncedAt.toISOString() : null,

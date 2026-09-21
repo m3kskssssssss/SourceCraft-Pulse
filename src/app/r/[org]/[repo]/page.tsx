@@ -61,15 +61,22 @@ export default async function RepositoryPage({ params }: PageProps) {
       {latest ? (
         <section className="rise mt-10 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
           <div className="flex flex-wrap items-center gap-8 p-8 sm:p-10">
-            <ScoreDial value={latest.score} size={144} stroke={12} label="pulse" />
+            {latest.kind !== 'material' && (
+              <ScoreDial value={latest.score} size={144} stroke={12} label="pulse" />
+            )}
             <div className="min-w-0 flex-1">
               <div className="text-sm uppercase tracking-widest text-[color:var(--muted)]">
                 Последний публичный анализ
               </div>
               <div className="mt-1 text-2xl font-semibold tracking-tight">
-                {latest.score != null ? `${latest.score} из 100` : 'Нет данных'}
+                {latest.kind === 'material'
+                  ? 'Полезный материал'
+                  : latest.score != null
+                    ? `${latest.score} из 100`
+                    : 'Нет данных'}
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-sm text-[color:var(--muted)]">
+                {latest.kind === 'material' && <Chip tone="ink">Материал</Chip>}
                 <Chip tone="default">{latest.language ?? 'Язык не определён'}</Chip>
                 {latest.publishedAt && (
                   <Chip tone="default">Опубликовано {formatDate(latest.publishedAt)}</Chip>

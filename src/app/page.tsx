@@ -107,7 +107,7 @@ export default async function HomePage({
           <div>
             <h2 className="text-3xl font-semibold tracking-tight">Рейтинг</h2>
             <p className="mt-1 text-sm text-[color:var(--muted)]">
-              Опубликованные анализы. Имя автора не показывается.
+              Опубликованные анализы. Полезные материалы идут после проектов — их не оцениваем.
             </p>
           </div>
           <div className="flex items-center gap-1 rounded-full bg-[color:var(--panel)] p-1 text-sm">
@@ -166,6 +166,11 @@ export default async function HomePage({
                       </span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[color:var(--muted)]">
+                      {item.kind === 'material' && (
+                        <span className="rounded-full border border-[color:var(--line)] px-2 py-0.5">
+                          материал
+                        </span>
+                      )}
                       <span>{item.language ?? 'Язык не определён'}</span>
                       {item.forks != null && (
                         <span className="inline-flex items-center gap-1">
@@ -176,10 +181,16 @@ export default async function HomePage({
                     </div>
                   </div>
                   <div className="hidden w-40 sm:block">
-                    <Bar value={item.score} />
+                    {item.kind !== 'material' && <Bar value={item.score} />}
                   </div>
                   <div className="w-14 text-right text-2xl font-semibold tabular-nums">
-                    {item.score ?? '—'}
+                    {item.kind === 'material' ? (
+                      <span className="text-xs font-normal uppercase tracking-widest text-[color:var(--muted-2)]">
+                        мат.
+                      </span>
+                    ) : (
+                      (item.score ?? '—')
+                    )}
                   </div>
                 </Link>
               </li>
