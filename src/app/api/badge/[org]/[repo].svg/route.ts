@@ -5,7 +5,7 @@
 import { NextResponse } from 'next/server';
 import { describeBadgeLookup, getLatestPublicAnalysis, hasUnpublishedAnalysis } from '@/lib/ranking';
 import { renderBadgeSvg } from '@/lib/badge';
-import { InvalidSlugError, parseSlug } from '@/lib/slug';
+import { InvalidSlugError, parseSlug, stripSvgSuffix } from '@/lib/slug';
 import { clientIp, rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -22,9 +22,9 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   }
 
   const { org: rawOrg, repo: rawRepo } = await params;
-  // Suffix `.svg` уже отрезан роутингом (dir name `[repo].svg`).
-  // Но входящий repo может нести суффикс, если запросили что-то нестандартное.
-  const repoClean = rawRepo.endsWith('.svg') ? rawRepo.slice(0, -4) : rawRepo;
+  // Next отдаёт сегмент вместе с расширением: «bem-method.svg». Снимаем его,
+  // иначе слаг не совпадёт ни с одной строкой в базе.
+  const repoClean = stripSvgSuffix(rawRepo);
 
   let org: string;
   let repo: string;
@@ -40,9 +40,16 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   // `?debug=1` отвечает JSON-ом: что нашлось по этому адресу в базе. Бейдж
   // без оценки ни о чём не говорит, а тут видно, чего именно не хватает.
   if (new URL(request.url).searchParams.get('debug') === '1') {
-    return NextResponse.json(await describeBadgeLookup(org, repo), {
-      headers: { 'Cache-Control': 'no-store' },
-    });
+    let lookup: unknown;
+    try {
+      lookup = await describeBadgeLookup(org, repo);
+    } catch (err) {
+      lookup = { error: err instanceof Error ? err.message : String(err) };
+    }
+    return NextResponse.json(
+      { params: { rawOrg, rawRepo }, resolved: { org, repo }, lookup },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 
   const latest = await getLatestPublicAnalysis(org, repo);

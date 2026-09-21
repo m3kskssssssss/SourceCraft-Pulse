@@ -54,3 +54,19 @@ export function tryParseSlug(target: string): OrgRepo | null {
     return null;
   }
 }
+
+/**
+ * Снимает расширение `.svg` с сегмента пути.
+ *
+ * Маршрут бейджа лежит в каталоге `[repo].svg`, и Next отдаёт сегмент вместе
+ * с расширением: параметр приходит как «bem-method.svg». Со слагом, у которого
+ * на конце `.svg`, в базе не найдётся ничего — и бейдж молча оставался пустым.
+ * Снимаем столько раз, сколько встретится: адрес могли скопировать с хвостом.
+ */
+export function stripSvgSuffix(segment: string): string {
+  let value = segment;
+  while (value.toLowerCase().endsWith('.svg')) {
+    value = value.slice(0, -4);
+  }
+  return value;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidSlugError, parseSlug, tryParseSlug } from '../slug';
+import { InvalidSlugError, parseSlug, stripSvgSuffix, tryParseSlug } from '../slug';
 
 describe('parseSlug', () => {
   it('простой org/repo', () => {
@@ -44,5 +44,23 @@ describe('parseSlug', () => {
   it('tryParseSlug возвращает null для мусора', () => {
     expect(tryParseSlug('!!!')).toBeNull();
     expect(tryParseSlug('a/b')).toEqual({ org: 'a', repo: 'b' });
+  });
+});
+
+describe('stripSvgSuffix', () => {
+  it('снимает расширение, которое отдаёт роутинг', () => {
+    expect(stripSvgSuffix('bem-method.svg')).toBe('bem-method');
+  });
+
+  it('снимает повторяющийся хвост', () => {
+    expect(stripSvgSuffix('bem-method.svg.svg')).toBe('bem-method');
+  });
+
+  it('не трогает имя без расширения', () => {
+    expect(stripSvgSuffix('bem-method')).toBe('bem-method');
+  });
+
+  it('не съедает точку внутри имени', () => {
+    expect(stripSvgSuffix('vue.config')).toBe('vue.config');
   });
 });
