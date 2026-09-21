@@ -72,8 +72,8 @@ export async function signOutAction(): Promise<void> {
 }
 
 function safeReturnTo(input: string | undefined): string {
-  if (!input) return '/';
+  if (!input) return '/analyze';
   // Разрешаем только относительные пути внутри проекта.
-  if (!input.startsWith('/') || input.startsWith('//')) return '/';
+  if (!input.startsWith('/') || input.startsWith('//')) return '/analyze';
   return input;
 }

@@ -22,7 +22,7 @@ export default async function AdminOverview() {
 
   return (
     <section>
-      <Chip tone="outline">админ</Chip>
+      <Chip tone="outline">Админка</Chip>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">Сводка</h1>
       <p className="mt-2 text-sm text-[color:var(--muted)]">Ключевые числа по системе.</p>
 

@@ -12,6 +12,7 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
     repository: null,
     counters: { forks: 0, pullRequests: 0, issues: 0, tags: 0, branches: 0 },
     language: null,
+    languages: [],
     defaultBranch: 'main',
     cloneUrl: { https: 'https://example.test/x.git', ssh: null },
     webUrl: null,

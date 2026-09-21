@@ -1,5 +1,7 @@
 // Публичный API рейтинга. Возвращает только опубликованные анализы.
-// GET /api/public/leaderboard?sort=score|forks&q=...&lang=Python&limit=20&offset=0
+// GET /api/public/leaderboard?sort=score|forks&q=...&lang=Python,Go&limit=20&offset=0
+//
+// lang принимает несколько языков через запятую — как и фильтр на главной.
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -12,7 +14,7 @@ export const revalidate = 60;
 const querySchema = z.object({
   sort: z.enum(['score', 'forks']).optional(),
   q: z.string().max(120).optional(),
-  lang: z.string().max(80).optional(),
+  lang: z.string().max(400).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).max(10_000).optional(),
 });
@@ -41,7 +43,7 @@ export async function GET(request: Request): Promise<Response> {
   const { items, total } = await getLeaderboard({
     sort: parsed.data.sort as LeaderboardSort | undefined,
     query: parsed.data.q,
-    language: parsed.data.lang,
+    languages: parseLanguages(parsed.data.lang),
     limit: parsed.data.limit,
     offset: parsed.data.offset,
   });
@@ -50,4 +52,15 @@ export async function GET(request: Request): Promise<Response> {
     { items, total, limit: parsed.data.limit ?? 20, offset: parsed.data.offset ?? 0 },
     { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' } },
   );
+}
+
+/** «Python, Go» → ['Python', 'Go']. Пустота и лишние запятые отбрасываются. */
+function parseLanguages(raw: string | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  const list = raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+  return list.length > 0 ? list : undefined;
 }

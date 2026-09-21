@@ -42,23 +42,18 @@ function SiteFooter() {
           </span>
           <span>Pulse · оценка здоровья репозиториев SourceCraft</span>
         </div>
+        {/* Шапку здесь не повторяем: в подвале только то, чего нет выше. */}
         <nav className="flex flex-wrap gap-x-5 gap-y-2">
-          <Link className="hover:text-[color:var(--ink)]" href="/">
-            Главная
-          </Link>
-          <Link className="hover:text-[color:var(--ink)]" href="/analyze">
-            Оценить
-          </Link>
           <Link
-            className="hover:text-[color:var(--ink)]"
+            className="transition hover:text-[color:var(--ink)]"
             href="/api/public/leaderboard"
             prefetch={false}
           >
             Публичный API
           </Link>
           <a
-            className="hover:text-[color:var(--ink)]"
-            href="https://sourcecraft.tech"
+            className="transition hover:text-[color:var(--ink)]"
+            href="https://sourcecraft.dev"
             target="_blank"
             rel="noreferrer noopener"
           >

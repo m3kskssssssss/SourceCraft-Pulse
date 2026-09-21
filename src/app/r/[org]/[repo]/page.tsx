@@ -2,19 +2,30 @@
 // Если публичной записи нет — приглашение оценить.
 
 import Link from 'next/link';
+import { auth } from '@/auth';
 import { getLatestPublicAnalysis } from '@/lib/ranking';
+import { getRepoHistory } from '@/lib/history';
 import { Chip, EmptyState, ScoreDial } from '@/app/components/ui';
+import { AnalysisHistory } from '@/app/components/AnalysisHistory';
 import { BadgeMarkdown } from '@/app/components/BadgeMarkdown';
 
 type PageProps = { params: Promise<{ org: string; repo: string }> };
 
-export const revalidate = 60;
+// Страница знает про сессию (в истории владелец видит и свои непубличные
+// прогоны), поэтому кэшировать её нельзя.
+export const dynamic = 'force-dynamic';
 
 export default async function RepositoryPage({ params }: PageProps) {
   const { org, repo } = await params;
 
-  const latest = await getLatestPublicAnalysis(org, repo);
-  const scUrl = `https://sourcecraft.tech/${org}/${repo}`;
+  const session = await auth();
+  const viewerId = (session?.user as { id?: string } | undefined)?.id ?? null;
+
+  const [latest, history] = await Promise.all([
+    getLatestPublicAnalysis(org, repo),
+    getRepoHistory({ org, repo, viewerId }),
+  ]);
+  const scUrl = `https://sourcecraft.dev/${org}/${repo}`;
 
   return (
     <main className="mx-auto w-full max-w-4xl px-6 py-14">
@@ -28,7 +39,7 @@ export default async function RepositoryPage({ params }: PageProps) {
 
       <header className="flex flex-wrap items-start justify-between gap-6">
         <div>
-          <Chip tone="outline">карточка репозитория</Chip>
+          <Chip tone="outline">Карточка репозитория</Chip>
           <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight">
             {org}
             <span className="text-[color:var(--muted-2)]">/</span>
@@ -41,7 +52,7 @@ export default async function RepositoryPage({ params }: PageProps) {
               rel="noreferrer noopener"
               className="hover:text-[color:var(--ink)] hover:underline"
             >
-              открыть на SourceCraft ↗
+              Открыть на SourceCraft ↗
             </a>
           </div>
         </div>
@@ -59,12 +70,12 @@ export default async function RepositoryPage({ params }: PageProps) {
                 {latest.score != null ? `${latest.score} из 100` : 'Нет данных'}
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-sm text-[color:var(--muted)]">
-                <Chip tone="default">{latest.language ?? 'язык не определён'}</Chip>
+                <Chip tone="default">{latest.language ?? 'Язык не определён'}</Chip>
                 {latest.publishedAt && (
-                  <Chip tone="default">опубликовано {formatDate(latest.publishedAt)}</Chip>
+                  <Chip tone="default">Опубликовано {formatDate(latest.publishedAt)}</Chip>
                 )}
                 {latest.forks != null && (
-                  <Chip tone="default">форков: {latest.forks.toLocaleString('ru-RU')}</Chip>
+                  <Chip tone="default">Форков: {latest.forks.toLocaleString('ru-RU')}</Chip>
                 )}
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
@@ -120,6 +131,17 @@ export default async function RepositoryPage({ params }: PageProps) {
             }
           />
         </div>
+      )}
+      {history.length > 1 && (
+        <section className="mt-12">
+          <h2 className="text-2xl font-semibold tracking-tight">История оценок</h2>
+          <p className="mt-1 text-sm text-[color:var(--muted)]">
+            Как менялась оценка от прогона к прогону.
+          </p>
+          <div className="mt-6">
+            <AnalysisHistory items={history} />
+          </div>
+        </section>
       )}
     </main>
   );

@@ -25,7 +25,7 @@ export default async function AdminSettings() {
 
   return (
     <section>
-      <Chip tone="outline">админ</Chip>
+      <Chip tone="outline">Админка</Chip>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">Настройки</h1>
       <p className="mt-2 max-w-xl text-sm text-[color:var(--muted)]">
         Значения переопределяют переменные окружения. Ключи API здесь не показываются и не

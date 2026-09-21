@@ -27,6 +27,7 @@ import {
   emptyGitHistoryFacts,
   type GitHistoryFacts,
 } from './git/history';
+import { detectLanguages, type LanguageShare } from './git/languages';
 import {
   getSourcecraftClient,
   type Branch,
@@ -69,7 +70,10 @@ export type RepoFacts = {
   collectedAt: string; // ISO
   repository: Repository | null;
   counters: NormalizedCounters;
+  /** Основной язык: из API, а если там пусто — самый частый по файлам клона. */
   language: string | null;
+  /** Раскладка по языкам по составу файлов. */
+  languages: LanguageShare[];
   defaultBranch: string | null;
   cloneUrl: { https: string | null; ssh: string | null };
   webUrl: string | null;
@@ -239,21 +243,26 @@ export async function collectRepoFacts(
   if (!flags.hasReadme) missing.push('readme_missing');
   if (!flags.hasLicense) missing.push('license_missing');
 
-  // 3. shallow-клон: история, lock-файлы, README, признаки секретов
+  // 3. shallow-клон: история, lock-файлы, README, языки, признаки секретов
   let gitHistory: GitHistoryFacts = emptyGitHistoryFacts();
   let lockfileContents: { packageLockJson?: string; pnpmLockYaml?: string } = {};
   let readme: string | null = null;
+  let languages: LanguageShare[] = [];
 
   if ((options.runGitAnalysis ?? true) && cloneUrlHttps) {
     try {
       await withRepoClone(
         { cloneUrlHttps, token: process.env.SOURCECRAFT_PAT ?? undefined },
         async (repo) => {
+          // Список файлов нужен трём потребителям — читаем его один раз.
+          const files = await listFilesInClone(repo);
+          languages = detectLanguages(files);
+
           const [history, packageLockJson, pnpmLockYaml, readmeText] = await Promise.all([
-            analyzeGitHistoryInClone(repo),
+            analyzeGitHistoryInClone(repo, { files }),
             readFileFromClone(repo, 'package-lock.json'),
             readFileFromClone(repo, 'pnpm-lock.yaml'),
-            readReadme(repo),
+            readReadme(repo, files),
           ]);
           gitHistory = history;
           lockfileContents = {
@@ -269,6 +278,11 @@ export async function collectRepoFacts(
   } else if (!cloneUrlHttps) {
     missing.push('clone_url_missing');
   }
+
+  // Язык из API приходит не всегда — тогда берём самый частый по файлам.
+  const apiLanguage = repository?.language?.name ?? null;
+  const language = apiLanguage ?? languages[0]?.name ?? null;
+  if (!language) missing.push('language_unknown');
 
   // 4. security scan
   const parsedLocks = parseLockfiles({
@@ -292,7 +306,8 @@ export async function collectRepoFacts(
     collectedAt: now,
     repository,
     counters,
-    language: repository?.language?.name ?? null,
+    language,
+    languages,
     defaultBranch: repository?.default_branch ?? null,
     cloneUrl: { https: cloneUrlHttps, ssh: cloneUrlSsh },
     webUrl: repository?.web_url ?? null,
@@ -321,8 +336,8 @@ export async function collectRepoFacts(
  * (README.md, readme.MD, Readme.rst), а промахнуться нельзя — это главный
  * вход для AI-оценки документации.
  */
-async function readReadme(repo: RepoClone): Promise<string | null> {
-  const path = (await listFilesInClone(repo)).find((p) => README_FILE_RE.test(p));
+async function readReadme(repo: RepoClone, files: string[]): Promise<string | null> {
+  const path = files.find((p) => README_FILE_RE.test(p));
   return path ? readFileFromClone(repo, path) : null;
 }
 

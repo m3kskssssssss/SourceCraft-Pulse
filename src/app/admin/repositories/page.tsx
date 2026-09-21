@@ -28,7 +28,7 @@ export default async function AdminRepositories({
 
   return (
     <section>
-      <Chip tone="outline">админ</Chip>
+      <Chip tone="outline">Админка</Chip>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
         <h1 className="text-3xl font-semibold tracking-tight">Репозитории</h1>
         <div className="flex flex-wrap items-center gap-1 rounded-full bg-[color:var(--panel)] p-1 text-sm">

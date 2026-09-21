@@ -23,14 +23,19 @@ export async function UserBar() {
         <nav className="hidden items-center gap-1 text-sm sm:flex">
           <NavLink href="/">Рейтинг</NavLink>
           <NavLink href="/analyze">Оценить</NavLink>
+          {user && <NavLink href="/my">Мои оценки</NavLink>}
         </nav>
 
         <div className="flex items-center gap-2">
           {user ? (
             <>
-              <span className="hidden max-w-[180px] truncate text-sm text-[color:var(--muted)] sm:inline">
+              {/* Имя ведёт в личную историю — иначе оно просто висит в шапке. */}
+              <Link
+                href="/my"
+                className="hidden max-w-[180px] truncate rounded-full px-3 py-1.5 text-sm text-[color:var(--muted)] transition hover:bg-[color:var(--panel)] hover:text-[color:var(--ink)] sm:inline-block"
+              >
                 {user.name ?? user.email}
-              </span>
+              </Link>
               <form action={signOutAction}>
                 <Button type="submit" variant="ghost" size="sm">
                   Выйти

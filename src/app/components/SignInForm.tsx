@@ -12,7 +12,8 @@ import { Button, Field, Input } from './ui';
 export function SignInForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const returnTo = params.get('returnTo') ?? '/';
+  // После входа логично оказаться на «Оценить»: вход нужен ровно для этого.
+  const returnTo = params.get('returnTo') ?? '/analyze';
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 

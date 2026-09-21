@@ -17,7 +17,7 @@ export default async function AdminAiPage() {
 
   return (
     <section>
-      <Chip tone="outline">админ</Chip>
+      <Chip tone="outline">Админка</Chip>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">ИИ и расходы</h1>
 
       <div className="mt-8 grid gap-3 sm:grid-cols-3">

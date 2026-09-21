@@ -21,7 +21,7 @@ export function AnalyzeForm({ defaultValue }: { defaultValue?: string }) {
           name="target"
           required
           defaultValue={defaultValue}
-          placeholder="org/repo или https://sourcecraft.tech/org/repo"
+          placeholder="org/repo или https://sourcecraft.dev/org/repo"
           className="sm:flex-1"
           aria-label="Адрес репозитория"
         />

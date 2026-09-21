@@ -2,7 +2,7 @@
 // и в /api/public/leaderboard. Возвращает уже подготовленные для UI/JSON
 // сущности без внутренних полей вроде requestedBy.
 
-import { and, desc, eq, ilike, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { analyses, repositories } from '@/db/schema';
 
@@ -22,10 +22,14 @@ export type LeaderboardItem = {
 export type LeaderboardParams = {
   sort?: LeaderboardSort;
   query?: string;
-  language?: string;
+  /** Фильтр по языкам: показываем строки с любым из них. */
+  languages?: string[];
   limit?: number;
   offset?: number;
 };
+
+/** Язык и сколько за ним публичных анализов — для списка фильтра. */
+export type LanguageFacet = { name: string; count: number };
 
 export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
   items: LeaderboardItem[];
@@ -44,7 +48,9 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
           `%${params.query}%`,
         )})`
       : undefined,
-    params.language ? eq(repositories.language, params.language) : undefined,
+    params.languages && params.languages.length > 0
+      ? inArray(repositories.language, params.languages)
+      : undefined,
   );
 
   // Строки и счётчик — независимые запросы, отправляем их одновременно:
@@ -91,6 +97,34 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
   }));
 
   return { items, total };
+}
+
+/**
+ * Языки, которые реально есть в рейтинге, от частого к редкому.
+ * Нужны для выпадающего списка: предлагать язык, по которому ничего не найдётся, незачем.
+ */
+export async function getLanguageFacets(limit = 40): Promise<LanguageFacet[]> {
+  const rows = await db
+    .select({
+      name: repositories.language,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(analyses)
+    .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
+    .where(
+      and(
+        eq(analyses.isPublic, true),
+        eq(analyses.status, 'done'),
+        isNotNull(repositories.language),
+      ),
+    )
+    .groupBy(repositories.language)
+    .orderBy(desc(sql`count(*)`))
+    .limit(limit);
+
+  return rows
+    .filter((r): r is { name: string; count: number } => Boolean(r.name))
+    .map((r) => ({ name: r.name, count: r.count }));
 }
 
 /** Последний опубликованный анализ для конкретной пары org/repo. */

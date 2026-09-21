@@ -13,7 +13,7 @@ import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../../db/schema';
 import { analyses, analysisJobs, events, repositories } from '../../db/schema';
-import { collectRepoFacts } from '../collect';
+import { collectRepoFacts, type RepoFacts } from '../collect';
 import { scoreRepo } from '../scoring';
 import { DrizzleAiCache } from '../ai/cache';
 import { DrizzleAiTelemetry } from '../ai/telemetry';
@@ -91,6 +91,11 @@ export async function processAnalysis(
       COLLECT_TIMEOUT_MS,
       `collect_timeout_${COLLECT_TIMEOUT_MS}ms`,
     );
+
+    // Карточку репозитория подтягиваем из фактов: без этого в таблице
+    // repositories навсегда оставались бы одни слаги, а в рейтинге —
+    // «язык не определён» и пустая сортировка по популярности.
+    await syncRepositoryFromFacts(db, repo.id, facts);
 
     // AI: три задачи параллельно, падение любой не роняет анализ.
     let aiDocsScore: AiDocsScore | null = null;
@@ -195,6 +200,26 @@ async function failJob(
     .where(eq(analysisJobs.id, job.jobId));
   await db.update(analyses).set({ status: 'queued' }).where(eq(analyses.id, job.analysisId));
   return 'requeued';
+}
+
+/**
+ * Переносит в таблицу repositories то, что узнали при сборе фактов.
+ * Пустые значения не пишем: сбой API не должен затирать уже известное.
+ */
+async function syncRepositoryFromFacts(
+  db: AnalysisDb,
+  repositoryId: string,
+  facts: RepoFacts,
+): Promise<void> {
+  const patch: Record<string, unknown> = { lastSyncedAt: new Date() };
+  if (facts.language) patch.language = facts.language;
+  if (facts.repository?.description) patch.description = facts.repository.description;
+  if (facts.defaultBranch) patch.defaultBranch = facts.defaultBranch;
+  if (facts.cloneUrl.https) patch.cloneUrl = facts.cloneUrl.https;
+  if (facts.webUrl) patch.webUrl = facts.webUrl;
+  if (facts.counters.forks !== null) patch.forksCount = facts.counters.forks;
+
+  await db.update(repositories).set(patch).where(eq(repositories.id, repositoryId));
 }
 
 function log(runnerId: string, message: string): void {

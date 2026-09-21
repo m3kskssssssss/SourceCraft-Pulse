@@ -15,6 +15,13 @@
   --ink-2: #404040;
   --ink: #0a0a0a;
 
+  /* Акценты категорий. Основа остаётся ЧБ — цвет живёт только на
+     индикаторах той самой категории: шкалы, точки, кольца. */
+  --accent-activity: #b4472a;
+  --accent-code: #2b4c8c;
+  --accent-security: #2f6f4f;
+  --accent-docs: #8a6320;
+
   --radius-sm: 10px;
   --radius: 18px;
   --radius-lg: 28px;
@@ -42,6 +49,10 @@
   --color-muted-2: var(--muted-2);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
+  --color-accent-activity: var(--accent-activity);
+  --color-accent-code: var(--accent-code);
+  --color-accent-security: var(--accent-security);
+  --color-accent-docs: var(--accent-docs);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
@@ -114,4 +125,51 @@ body {
 
 .dial-anim {
   animation: dial-fill 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Категория задаёт свой акцент детям через --accent.
+   Так шкала, точка и кольцо внутри блока не знают, какая они категория. */
+.accent-activity {
+  --accent: var(--accent-activity);
+}
+.accent-code {
+  --accent: var(--accent-code);
+}
+.accent-security {
+  --accent: var(--accent-security);
+}
+.accent-docs {
+  --accent: var(--accent-docs);
+}
+
+:where(.accent-activity, .accent-code, .accent-security, .accent-docs) {
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--paper));
+  --accent-line: color-mix(in srgb, var(--accent) 28%, var(--paper));
+}
+
+/* Линия истории оценок «рисуется» при появлении. */
+@keyframes spark-draw {
+  from {
+    stroke-dasharray: 1 1200;
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dasharray: 1200 1200;
+    stroke-dashoffset: 0;
+  }
+}
+
+.spark-draw {
+  animation: spark-draw 900ms ease-out both;
+}
+
+/* Уважение к системной настройке: никакого движения, если его не просили. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

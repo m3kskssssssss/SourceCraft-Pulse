@@ -30,6 +30,8 @@ export type AnalyzeGitHistoryOptions = {
   commitLimit?: number;
   /** Максимум файлов, которые просматриваем на секреты. */
   secretsFileLimit?: number;
+  /** Готовый список файлов на HEAD, если вызывающий уже его читал. */
+  files?: string[];
 };
 
 const DEFAULT_COMMIT_LIMIT = 2_000;
@@ -77,7 +79,11 @@ export async function analyzeGitHistoryInClone(
   let secretHits: SecretHit[] = [];
   let secretsScannedFiles = 0;
   try {
-    const scan = await scanCloneForSecrets(repo, options.secretsFileLimit ?? DEFAULT_SECRETS_FILE_LIMIT);
+    const scan = await scanCloneForSecrets(
+      repo,
+      options.secretsFileLimit ?? DEFAULT_SECRETS_FILE_LIMIT,
+      options.files,
+    );
     secretHits = scan.hits;
     secretsScannedFiles = scan.scannedFiles;
   } catch (err) {
@@ -111,8 +117,10 @@ async function readCommits(repo: RepoClone, limit: number): Promise<CommitRecord
 async function scanCloneForSecrets(
   repo: RepoClone,
   fileLimit: number,
+  knownFiles?: string[],
 ): Promise<{ hits: SecretHit[]; scannedFiles: number }> {
-  const paths = (await listFilesInClone(repo)).filter(isScannable).slice(0, fileLimit);
+  const all = knownFiles ?? (await listFilesInClone(repo));
+  const paths = all.filter(isScannable).slice(0, fileLimit);
 
   const hits: SecretHit[] = [];
   let scannedFiles = 0;

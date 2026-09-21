@@ -146,13 +146,16 @@ export function Chip({
   className,
 }: {
   children: ReactNode;
-  tone?: 'default' | 'ink' | 'outline';
+  tone?: 'default' | 'ink' | 'outline' | 'accent';
   className?: string;
 }) {
   const tones: Record<string, string> = {
     default: 'bg-[color:var(--panel)] text-[color:var(--ink-2)]',
     ink: 'bg-[color:var(--ink)] text-[color:var(--paper)]',
     outline: 'border border-[color:var(--line-2)] text-[color:var(--ink-2)]',
+    // Цвет берём из --accent блока категории.
+    accent:
+      'bg-[color:var(--accent-soft,var(--panel))] text-[color:var(--accent,var(--ink-2))]',
   };
   return (
     <span
@@ -251,13 +254,17 @@ export function Bar({
   className,
   height = 6,
   muted = false,
+  accent = false,
 }: {
   value: number | null | undefined;
   className?: string;
   height?: number;
   muted?: boolean;
+  /** Красить в --accent родителя (класс accent-*), а не в чёрный. */
+  accent?: boolean;
 }) {
   const clamped = value == null ? 0 : Math.max(0, Math.min(100, value));
+  const empty = value == null || muted;
   return (
     <div
       className={cx('w-full overflow-hidden rounded-full bg-[color:var(--line)]', className)}
@@ -266,9 +273,16 @@ export function Bar({
       <div
         className={cx(
           'h-full rounded-full transition-[width] duration-700 ease-out',
-          value == null || muted ? 'bg-[color:var(--line-2)]' : 'bg-[color:var(--ink)]',
+          empty && 'bg-[color:var(--line-2)]',
         )}
-        style={{ width: `${clamped}%` }}
+        style={{
+          width: `${clamped}%`,
+          background: empty
+            ? undefined
+            : accent
+              ? 'var(--accent, var(--ink))'
+              : 'var(--ink)',
+        }}
       />
     </div>
   );

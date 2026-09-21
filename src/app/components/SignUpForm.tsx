@@ -9,7 +9,8 @@ const initial: SignUpState = { ok: false };
 
 export function SignUpForm() {
   const params = useSearchParams();
-  const returnTo = params.get('returnTo') ?? '/';
+  // Тот же маршрут по умолчанию, что и при входе.
+  const returnTo = params.get('returnTo') ?? '/analyze';
   const [state, formAction, pending] = useActionState(signUpAction, initial);
 
   return (

@@ -11,43 +11,24 @@ import { db } from '@/db/client';
 import { analyses, repositories } from '@/db/schema';
 import { auth } from '@/auth';
 import { toggleVisibilityAction } from '@/app/actions/visibility';
+import { AnalysisHistory } from '@/app/components/AnalysisHistory';
 import { AnalysisRunner } from '@/app/components/AnalysisRunner';
 import { BadgeMarkdown } from '@/app/components/BadgeMarkdown';
 import { Bar, CardDiv, Chip, EmptyState, ScoreDial } from '@/app/components/ui';
-import type {
-  CategoryKey,
-  CategoryScore,
-  MetricScore,
-  Recommendation,
-} from '@/lib/scoring/types';
+import type { CategoryScore, MetricScore, Recommendation } from '@/lib/scoring/types';
 import type { Effort } from '@/lib/scoring/config';
+import {
+  CATEGORY_ACCENT_CLASS,
+  CATEGORY_BLURBS,
+  CATEGORY_TITLES,
+  categoryOrder,
+} from '@/lib/category-meta';
+import { describeMissingList } from '@/lib/missing-labels';
+import { getRepoHistory } from '@/lib/history';
 
 type PageProps = { params: Promise<{ id: string }> };
 
 export const dynamic = 'force-dynamic';
-
-const CATEGORY_META: Record<CategoryKey, { title: string; blurb: string; order: number }> = {
-  activity: {
-    title: 'Активность',
-    blurb: 'Как часто пишут код, сколько людей вовлечено, свежий ли проект.',
-    order: 1,
-  },
-  code: {
-    title: 'Код',
-    blurb: 'Ревью, тесты, линтер — практики, из-за которых код не гниёт.',
-    order: 2,
-  },
-  security: {
-    title: 'Безопасность',
-    blurb: 'Уязвимости в зависимостях, lock-файлы, SECURITY.md.',
-    order: 3,
-  },
-  docs: {
-    title: 'Документация',
-    blurb: 'README, LICENSE, примеры — насколько легко в проект въехать.',
-    order: 4,
-  },
-};
 
 const METRIC_LABELS: Record<string, string> = {
   'activity.commits_90d': 'Коммитов за 90 дней',
@@ -70,11 +51,12 @@ const METRIC_LABELS: Record<string, string> = {
   'docs.usage_examples': 'Примеры использования',
 };
 
+/** Сколько работы потребует рекомендация. */
 const EFFORT_LABELS: Record<Effort, string> = {
-  trivial: 'пустяк',
-  small: 'мелочь',
-  medium: 'средне',
-  large: 'большая работа',
+  trivial: 'минуты',
+  small: 'час',
+  medium: 'день',
+  large: 'неделя и больше',
 };
 
 export default async function AnalysisPage({ params }: PageProps) {
@@ -95,6 +77,11 @@ export default async function AnalysisPage({ params }: PageProps) {
     where: eq(repositories.id, analysis.repositoryId),
   });
   const title = repo ? `${repo.orgSlug}/${repo.repoSlug}` : 'Анализ';
+
+  // Прошлые прогоны этого же репозитория: свои видны любые, чужие — публичные.
+  const history = repo
+    ? await getRepoHistory({ org: repo.orgSlug, repo: repo.repoSlug, viewerId: userId ?? null })
+    : [];
 
   const status = analysis.status;
 
@@ -148,9 +135,10 @@ export default async function AnalysisPage({ params }: PageProps) {
   const categoryScores = (analysis.categoryScores ?? []) as CategoryScore[];
   const recommendations = (analysis.recommendations ?? []) as Recommendation[];
   const missing = (analysis.missing ?? []) as string[];
+  const missingNotes = describeMissingList(missing);
 
   const sortedCategories = [...categoryScores].sort(
-    (a, b) => (CATEGORY_META[a.key]?.order ?? 9) - (CATEGORY_META[b.key]?.order ?? 9),
+    (a, b) => categoryOrder(a.key) - categoryOrder(b.key),
   );
 
   return (
@@ -175,10 +163,10 @@ export default async function AnalysisPage({ params }: PageProps) {
             <div className="mt-5 flex flex-wrap gap-2 text-sm">
               {repo?.language && <Chip tone="default">{repo.language}</Chip>}
               {analysis.finishedAt && (
-                <Chip tone="default">готово {formatDate(analysis.finishedAt.toISOString())}</Chip>
+                <Chip tone="default">Готово {formatDate(analysis.finishedAt.toISOString())}</Chip>
               )}
               <Chip tone={analysis.isPublic ? 'ink' : 'outline'}>
-                {analysis.isPublic ? 'публично' : 'приватно'}
+                {analysis.isPublic ? 'В рейтинге' : 'Приватно'}
               </Chip>
             </div>
           </div>
@@ -188,9 +176,12 @@ export default async function AnalysisPage({ params }: PageProps) {
         {sortedCategories.length > 0 && (
           <div className="grid gap-px border-t border-[color:var(--line)] bg-[color:var(--line)] sm:grid-cols-4">
             {sortedCategories.map((c) => (
-              <div key={c.key} className="bg-[color:var(--paper-2)] px-5 py-4">
+              <div
+                key={c.key}
+                className={`${CATEGORY_ACCENT_CLASS[c.key] ?? ''} bg-[color:var(--paper-2)] px-5 py-4`}
+              >
                 <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
-                  {CATEGORY_META[c.key]?.title ?? c.key}
+                  {CATEGORY_TITLES[c.key] ?? c.key}
                 </div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className="text-2xl font-semibold tabular-nums">
@@ -202,7 +193,7 @@ export default async function AnalysisPage({ params }: PageProps) {
                     </span>
                   )}
                 </div>
-                <Bar value={c.value} className="mt-2" height={4} />
+                <Bar value={c.value} className="mt-2" height={4} accent />
               </div>
             ))}
           </div>
@@ -228,10 +219,10 @@ export default async function AnalysisPage({ params }: PageProps) {
                     <div className="text-[15px] font-medium">{r.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted)]">
                       <Chip tone="default">
-                        {CATEGORY_META[r.category]?.title ?? r.category}
+                        {CATEGORY_TITLES[r.category] ?? r.category}
                       </Chip>
-                      <Chip tone="outline">усилия: {EFFORT_LABELS[r.effort]}</Chip>
-                      <span>метрика {METRIC_LABELS[r.key] ?? r.key}</span>
+                      <Chip tone="outline">Трудозатраты: {EFFORT_LABELS[r.effort]}</Chip>
+                      <span>Метрика: {METRIC_LABELS[r.key] ?? r.key}</span>
                     </div>
                   </div>
                   <div className="text-right">
@@ -252,7 +243,7 @@ export default async function AnalysisPage({ params }: PageProps) {
         <SectionHead
           eyebrow="Подробности"
           title="Категории и метрики"
-          hint="Каждая метрика оценивается 0–100. Unknown исключается — веса остальных нормируются."
+          hint="Каждая метрика оценивается 0–100. Метрики без данных исключаются — веса остальных нормируются."
         />
         <div className="mt-6 grid gap-4">
           {sortedCategories.map((cat, idx) => (
@@ -267,27 +258,48 @@ export default async function AnalysisPage({ params }: PageProps) {
         </div>
       </section>
 
-      {/* Missing */}
-      {missing.length > 0 && (
+      {/* История прогонов */}
+      {history.length > 1 && (
         <section className="mt-12">
-          <SectionHead eyebrow="Нет данных" title="Что не удалось собрать" />
-          <CardDiv tone="paper" className="mt-6">
-            <p className="text-sm text-[color:var(--muted)]">
-              Эти поля не пришли из API SourceCraft или их нельзя было получить из репозитория.
-              Метрики, зависящие от этих данных, помечены «нет данных».
+          <SectionHead
+            eyebrow="Динамика"
+            title="История оценок"
+            hint="Все прогоны этого репозитория, которые вы вправе видеть."
+          />
+          <div className="mt-6">
+            <AnalysisHistory items={history} currentId={analysis.id} />
+          </div>
+        </section>
+      )}
+
+      {/* Что не удалось собрать */}
+      <section className="mt-12">
+        <SectionHead
+          eyebrow="Пробелы"
+          title="Что не удалось собрать"
+          hint="Метрики, зависящие от этих данных, помечены «н/д» и не влияют на балл."
+        />
+        <CardDiv tone="paper" className="mt-6">
+          {missingNotes.length === 0 ? (
+            <p className="text-sm text-[color:var(--ink-2)]">
+              Собрали всё, что умеем: пробелов нет.
             </p>
-            <ul className="mt-4 flex flex-wrap gap-2 text-xs">
-              {missing.map((m) => (
-                <li key={m}>
-                  <Chip tone="outline" className="font-mono">
-                    {m}
-                  </Chip>
+          ) : (
+            <ul className="grid gap-2 text-sm">
+              {missingNotes.map((note) => (
+                <li key={note.raw} className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-[color:var(--ink-2)]">{note.text}</span>
+                  {note.detail && (
+                    <span className="font-mono text-xs text-[color:var(--muted-2)]">
+                      {note.detail}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
-          </CardDiv>
-        </section>
-      )}
+          )}
+        </CardDiv>
+      </section>
 
       {/* Публикация (только владелец) */}
       {isOwner && (
@@ -309,7 +321,7 @@ export default async function AnalysisPage({ params }: PageProps) {
               </button>
               <span className="text-sm text-[color:var(--muted)]">
                 Сейчас: <strong className="text-[color:var(--ink)]">
-                  {analysis.isPublic ? 'публично' : 'приватно'}
+                  {analysis.isPublic ? 'В рейтинге' : 'Приватно'}
                 </strong>
               </span>
             </form>
@@ -396,7 +408,9 @@ function SectionHead({
 }
 
 function CategoryBlock({ category, rank }: { category: CategoryScore; rank: number }) {
-  const meta = CATEGORY_META[category.key];
+  const title = CATEGORY_TITLES[category.key] ?? category.key;
+  const blurb = CATEGORY_BLURBS[category.key];
+  const accentClass = CATEGORY_ACCENT_CLASS[category.key] ?? '';
   const known = category.metrics.filter((m) => !m.unknown) as Array<
     Extract<MetricScore, { unknown?: false }>
   >;
@@ -405,16 +419,20 @@ function CategoryBlock({ category, rank }: { category: CategoryScore; rank: numb
   );
 
   return (
-    <CardDiv tone="outline" className="p-0">
+    <CardDiv tone="outline" className={`${accentClass} p-0`}>
       <div className="flex flex-wrap items-center gap-4 border-b border-[color:var(--line)] p-6">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--panel)] text-sm font-semibold text-[color:var(--ink)]">
+        <span
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold"
+          style={{
+            background: 'var(--accent-soft, var(--panel))',
+            color: 'var(--accent, var(--ink))',
+          }}
+        >
           {String(rank).padStart(2, '0')}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-lg font-medium">{meta?.title ?? category.key}</div>
-          {meta?.blurb && (
-            <div className="text-xs text-[color:var(--muted)]">{meta.blurb}</div>
-          )}
+          <div className="text-lg font-medium">{title}</div>
+          {blurb && <div className="text-xs text-[color:var(--muted)]">{blurb}</div>}
         </div>
         <div className="text-right">
           <div className="text-3xl font-semibold tabular-nums leading-none">
@@ -426,36 +444,48 @@ function CategoryBlock({ category, rank }: { category: CategoryScore; rank: numb
         </div>
       </div>
       <div className="p-6">
-        <Bar value={category.value} className="mb-6" height={6} />
+        <Bar value={category.value} className="mb-6" height={6} accent />
 
         <ul className="divide-y divide-[color:var(--line)]">
           {known.map((m) => (
-            <li key={m.key} className="grid grid-cols-[1fr_120px_56px] items-center gap-4 py-3">
+            <li
+              key={m.key}
+              className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[1fr_120px_56px]"
+            >
               <div className="min-w-0">
-                <div className="truncate text-[15px]">{METRIC_LABELS[m.key] ?? m.key}</div>
+                <div className="text-[15px] leading-snug">{METRIC_LABELS[m.key] ?? m.key}</div>
                 {m.hint && (
-                  <div className="mt-0.5 truncate text-xs text-[color:var(--muted)]">{m.hint}</div>
+                  <div className="mt-0.5 text-xs leading-snug text-[color:var(--muted)]">
+                    {m.hint}
+                  </div>
                 )}
               </div>
-              <Bar value={m.value} height={4} />
+              <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
+                <Bar value={m.value} height={4} accent />
+              </div>
               <div className="text-right text-sm font-semibold tabular-nums">
                 {Math.round(m.value)}
               </div>
             </li>
           ))}
           {unknown.map((m) => (
-            <li key={m.key} className="grid grid-cols-[1fr_120px_56px] items-center gap-4 py-3">
+            <li
+              key={m.key}
+              className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[1fr_120px_56px]"
+            >
               <div className="min-w-0">
-                <div className="truncate text-[15px] text-[color:var(--muted)]">
+                <div className="text-[15px] leading-snug text-[color:var(--muted)]">
                   {METRIC_LABELS[m.key] ?? m.key}
                 </div>
                 {m.hint && (
-                  <div className="mt-0.5 truncate text-xs text-[color:var(--muted-2)]">
+                  <div className="mt-0.5 text-xs leading-snug text-[color:var(--muted-2)]">
                     {m.hint}
                   </div>
                 )}
               </div>
-              <Bar value={null} height={4} muted />
+              <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
+                <Bar value={null} height={4} muted />
+              </div>
               <div className="text-right text-xs uppercase tracking-widest text-[color:var(--muted-2)]">
                 н/д
               </div>

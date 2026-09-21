@@ -10,7 +10,7 @@ export default async function AdminUsers() {
 
   return (
     <section>
-      <Chip tone="outline">админ</Chip>
+      <Chip tone="outline">Админка</Chip>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">Пользователи</h1>
 
       {rows.length === 0 ? (

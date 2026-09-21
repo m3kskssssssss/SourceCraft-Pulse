@@ -17,7 +17,7 @@ export default async function AdminQueue() {
 
   return (
     <section>
-      <Chip tone="outline">админ</Chip>
+      <Chip tone="outline">Админка</Chip>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">Очередь</h1>
 
       {rows.length === 0 ? (
