@@ -87,7 +87,7 @@ src/
 │   ├── a/[id]/page.tsx
 │   ├── not-found.tsx             # общий 404
 │   ├── icon.svg                  # ЧБ-логотип-favicon
-│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Penguin, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState)
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, ConfirmSubmit, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
@@ -162,4 +162,6 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 9 — возврат на Vercel: анализ в запросе (300 с), isomorphic-git вместо бинарника, три AI-задачи параллельно, кэш и телеметрия ИИ в Postgres
 - [x] Этап 10 — категория «Код» по самим исходникам (тесты, длина файлов, комментарии, TODO) + четвёртая AI-задача `code_review`, чей балл заменяет категорию
 - [x] Этап 11 — гит-путь создания репозитория интерактивным деревом на странице анализа
-- [x] Этап 12 — логотип-пингвин (следит за курсором, моргает, машет крыльями), анимации, чистка разговорных формулировок
+- [x] Этап 12 — анимации и чистка разговорных формулировок
+- [x] Этап 13 — админка: прогон задачи и всей очереди прямо в запросе, снятие задач, удаление прогонов и репозиториев со всеми оценками
+- [x] Этап 14 — логотип-планета (вращается сдвигом карты под маской) вместо пингвина

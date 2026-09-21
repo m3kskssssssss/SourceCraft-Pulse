@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { AnalyzeForm } from './components/AnalyzeForm';
-import { Penguin } from './components/Penguin';
+import { Planet } from './components/Planet';
 import { Bar, Chip, EmptyState } from './components/ui';
 import { getLanguageFacets, getLeaderboard, type LeaderboardSort } from '@/lib/ranking';
 import { CATEGORY_ACCENT_CLASS, CATEGORY_TITLES } from '@/lib/category-meta';
@@ -55,9 +55,9 @@ export default async function HomePage({
       {/* Hero */}
       <section className="relative pt-14 pb-16 sm:pt-20 sm:pb-20">
         <div className="grid-bg pointer-events-none absolute inset-0 -z-10 opacity-40" aria-hidden />
-        {/* Пингвин — единственная крупная картинка на главной. */}
-        <div className="float absolute right-2 top-10 hidden xl:block">
-          <Penguin size={190} />
+        {/* Планета — единственная крупная картинка на главной. */}
+        <div className="float pointer-events-none absolute right-0 top-12 hidden xl:block">
+          <Planet size={220} />
         </div>
         <div className="max-w-3xl">
           <h1 className="rise text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">

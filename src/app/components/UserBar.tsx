@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { signOutAction } from '@/app/actions/auth';
 import { Button } from './ui';
-import { Penguin } from './Penguin';
+import { Planet } from './Planet';
 
 export async function UserBar() {
   const session = await auth();
@@ -14,7 +14,7 @@ export async function UserBar() {
     <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--paper)]/85 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
         <Link href="/" className="group inline-flex items-center gap-2.5">
-          <Penguin size={30} />
+          <Planet size={30} />
           <span className="text-base font-semibold tracking-tight transition group-hover:tracking-normal">
             Pulse
           </span>

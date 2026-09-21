@@ -22,8 +22,6 @@
   --accent-security: #2f6f4f;
   --accent-docs: #8a6320;
 
-  /* Клюв и лапы логотипа. Единственный цвет вне четырёх акцентов. */
-  --beak: #e08a1e;
 
   --radius-sm: 10px;
   --radius: 18px;
@@ -56,7 +54,6 @@
   --color-accent-code: var(--accent-code);
   --color-accent-security: var(--accent-security);
   --color-accent-docs: var(--accent-docs);
-  --color-beak: var(--beak);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
@@ -200,7 +197,7 @@ body {
   transition: r 140ms ease-out;
 }
 
-/* ---------- Пингвин-логотип ---------- */
+/* ---------- Планета-логотип ---------- */
 
 @keyframes float {
   0%,
@@ -216,73 +213,80 @@ body {
   animation: float 7s ease-in-out infinite;
 }
 
-
-.penguin {
+.planet {
   overflow: visible;
-  cursor: pointer;
 }
 
-.penguin-wing {
+.planet-disc {
   fill: var(--ink);
-  transform-box: fill-box;
-  transform-origin: center top;
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0.08;
 }
 
-.penguin:hover .penguin-wing-left,
-.penguin:focus-visible .penguin-wing-left {
-  transform: rotate(18deg);
+.planet-rim {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  opacity: 0.85;
 }
 
-.penguin:hover .penguin-wing-right,
-.penguin:focus-visible .penguin-wing-right {
-  transform: rotate(-18deg);
+.planet-orbit {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1;
+  opacity: 0.28;
+  transition: opacity 400ms ease;
 }
 
-.penguin-feet {
-  fill: var(--beak);
+.planet-parallel {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.9;
+  opacity: 0.3;
 }
 
-/* Веки лежат поднятыми и опускаются на пару кадров. */
-.penguin-lids {
-  transform-box: fill-box;
-  transform-origin: center;
-  transform: scaleY(0);
-  animation: penguin-blink 6.5s ease-in-out infinite;
+.planet-meridian {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.9;
+  opacity: 0.22;
 }
 
-@keyframes penguin-blink {
-  0%,
-  92%,
-  100% {
-    transform: scaleY(0);
-  }
-  94%,
-  96% {
-    transform: scaleY(1);
-  }
+.planet-land {
+  fill: var(--ink);
+  opacity: 0.4;
 }
 
-@keyframes penguin-hop {
-  0% {
-    transform: translateY(0);
+/* Тень у края — от прозрачного к чернилам, чтобы диск читался шаром. */
+.planet-shade {
+  fill: var(--ink);
+  opacity: 0.1;
+}
+
+.planet-glare {
+  fill: var(--paper);
+  opacity: 0.5;
+}
+
+/* Вращение: карта едет ровно на свою ширину и встык повторяется. */
+@keyframes planet-spin {
+  from {
+    transform: translateX(0);
   }
-  30% {
-    transform: translateY(-14%);
-  }
-  55% {
-    transform: translateY(0);
-  }
-  72% {
-    transform: translateY(-5%);
-  }
-  100% {
-    transform: translateY(0);
+  to {
+    transform: translateX(-44px);
   }
 }
 
-.penguin-hop {
-  animation: penguin-hop 600ms cubic-bezier(0.22, 1, 0.36, 1);
+.planet-spin {
+  animation: planet-spin 18s linear infinite;
+}
+
+.planet:hover .planet-spin {
+  animation-duration: 6s;
+}
+
+.planet:hover .planet-orbit {
+  opacity: 0.5;
 }
 
 /* Уважение к системной настройке: никакого движения, если его не просили. */
