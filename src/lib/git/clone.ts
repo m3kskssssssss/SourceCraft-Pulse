@@ -19,7 +19,7 @@
 //   });
 
 import fs from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import git from 'isomorphic-git';
@@ -32,6 +32,14 @@ export type RepoClone = {
   headOid: string;
   /** Клон обрезанный: полное число коммитов по нему считать нельзя. */
   shallow: boolean;
+  /** В клоне только верхушка: истории нет совсем, есть файлы. */
+  tipOnly: boolean;
+  /**
+   * Общий кэш isomorphic-git. Без него каждый вызов заново разбирает индекс
+   * pack-файла: на репозитории в семнадцать тысяч файлов обход дерева от
+   * этого растягивался с секунд до минут.
+   */
+  cache: object;
   /** Откуда клонировали — нужно, чтобы дотянуть историю позже. */
   source: { cloneUrlHttps: string; token?: string };
 };
@@ -41,12 +49,22 @@ export type CloneOptions = {
   token?: string;
   /** Окно истории в днях. 0 или меньше — тянуть всю историю сразу. */
   historyDays?: number;
-  /** Лимит на весь клон. */
+  /**
+   * Что качаем: `window` — историю за окно (по ней считается активность),
+   * `tip` — только последний снимок файлов. Для большого репозитория окно
+   * не доедет, а файлы нужны всем метрикам кода.
+   */
+  strategy?: 'window' | 'tip';
+  /** Лимит на одну попытку клона. */
   timeoutMs?: number;
+  /** Общий лимит на все попытки: вторая не начнётся, если времени не осталось. */
+  totalTimeoutMs?: number;
 };
 
 const DEFAULT_HISTORY_DAYS = 90;
-const DEFAULT_CLONE_TIMEOUT_MS = 120_000;
+/** Лимит одной попытки. Две попытки должны уложиться в бюджет сбора. */
+const DEFAULT_CLONE_TIMEOUT_MS = 90_000;
+const DEFAULT_CLONE_TOTAL_TIMEOUT_MS = 150_000;
 /** Потолок на историю: и страховка от deepen-since, и предел глубины клона. */
 const MAX_DEPTH = 2_000;
 /** Сколько ждём добор полной истории, если на него осталось время. */
@@ -55,21 +73,48 @@ const DEFAULT_DEEPEN_TIMEOUT_MS = 60_000;
 const DEFAULT_READ_CONCURRENCY = 16;
 /** Файлы крупнее этого не читаем: это данные или собранные бандлы. */
 const DEFAULT_MAX_FILE_BYTES = 200 * 1024;
+/** Меньше этого остатка вторую попытку клона не начинаем. */
+const MIN_RETRY_MS = 25_000;
 
 export async function withRepoClone<T>(
   options: CloneOptions,
   fn: (repo: RepoClone) => Promise<T>,
 ): Promise<T> {
   const historyDays = options.historyDays ?? DEFAULT_HISTORY_DAYS;
+  const attemptMs = options.timeoutMs ?? DEFAULT_CLONE_TIMEOUT_MS;
+  const totalDeadline = Date.now() + (options.totalTimeoutMs ?? DEFAULT_CLONE_TOTAL_TIMEOUT_MS);
   const dir = await mkdtemp(join(tmpdir(), 'pulse-git-'));
 
   try {
-    await cloneInto(dir, options, { historyDays });
+    // На большом монорепозитории (divkit — 17 тысяч файлов, gravity-ui)
+    // клон с историей не доезжает: даже окно в 90 дней тянет весь снимок
+    // файлов, а сверху ещё и коммиты. Поэтому крупные репозитории сразу
+    // качаются верхушкой: истории не будет, зато будут файлы, без которых
+    // категория «Код» не стоит ничего.
+    let tipOnly = options.strategy === 'tip';
+    try {
+      await cloneInto(dir, options, tipOnly ? { depth: 1 } : { historyDays }, attemptMs);
+    } catch (err) {
+      const leftMs = totalDeadline - Date.now();
+      if (tipOnly || leftMs < MIN_RETRY_MS) throw err;
+      console.warn(
+        `[git] клон с историей не вышел (${describe(err)}); пробуем только верхушку`,
+      );
+      // Каталог после неудачи может быть занят половиной пачки — чистим.
+      await rm(dir, { recursive: true, force: true });
+      await mkdir(dir, { recursive: true });
+      await cloneInto(dir, options, { depth: 1 }, leftMs);
+      tipOnly = true;
+    }
+
+    const cache = {};
     const headOid = await git.resolveRef({ fs, dir, ref: 'HEAD' });
     return await fn({
       dir,
       headOid,
-      shallow: historyDays > 0,
+      shallow: true,
+      tipOnly,
+      cache,
       source: { cloneUrlHttps: options.cloneUrlHttps, token: options.token },
     });
   } finally {
@@ -94,6 +139,7 @@ export async function deepenClone(
         fs,
         http,
         dir: repo.dir,
+        cache: repo.cache,
         url: normalizeCloneUrl(repo.source.cloneUrlHttps),
         singleBranch: true,
         depth: options.depth ?? MAX_DEPTH,
@@ -117,6 +163,7 @@ async function cloneInto(
   dir: string,
   options: CloneOptions,
   window: { depth: number } | { historyDays: number },
+  timeoutMs?: number,
 ): Promise<void> {
   await withTimeout(
     git.clone({
@@ -134,10 +181,11 @@ async function cloneInto(
         ? () => ({ username: 'x-access-token', password: options.token })
         : undefined,
     }),
-    options.timeoutMs ?? DEFAULT_CLONE_TIMEOUT_MS,
+    timeoutMs ?? options.timeoutMs ?? DEFAULT_CLONE_TIMEOUT_MS,
     'clone_timeout',
   );
 }
+
 
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -154,6 +202,7 @@ export async function readFileFromClone(
       dir: repo.dir,
       oid: repo.headOid,
       filepath,
+      cache: repo.cache,
     });
     return Buffer.from(blob).toString('utf8');
   } catch {
@@ -164,7 +213,7 @@ export async function readFileFromClone(
 /** Пути всех файлов на HEAD. */
 export async function listFilesInClone(repo: RepoClone): Promise<string[]> {
   try {
-    return await git.listFiles({ fs, dir: repo.dir, ref: repo.headOid });
+    return await git.listFiles({ fs, dir: repo.dir, ref: repo.headOid, cache: repo.cache });
   } catch {
     return [];
   }
@@ -194,14 +243,14 @@ export type CloneFileIndex = Map<string, string>;
 export async function indexCloneFiles(repo: RepoClone): Promise<CloneFileIndex> {
   const index: CloneFileIndex = new Map();
   try {
-    const { commit } = await git.readCommit({ fs, dir: repo.dir, oid: repo.headOid });
+    const { commit } = await git.readCommit({ fs, dir: repo.dir, oid: repo.headOid, cache: repo.cache });
     // Обходим деревья сами: так мы получаем oid каждого блоба разом и дальше
     // читаем файлы напрямую, не проходя путь от коммита на каждый файл.
     const stack: Array<{ oid: string; prefix: string }> = [{ oid: commit.tree, prefix: '' }];
 
     while (stack.length > 0) {
       const node = stack.pop()!;
-      const { tree } = await git.readTree({ fs, dir: repo.dir, oid: node.oid });
+      const { tree } = await git.readTree({ fs, dir: repo.dir, oid: node.oid, cache: repo.cache });
       for (const entry of tree) {
         const path = node.prefix ? `${node.prefix}/${entry.path}` : entry.path;
         if (entry.type === 'tree') stack.push({ oid: entry.oid, prefix: path });
@@ -217,7 +266,7 @@ export async function indexCloneFiles(repo: RepoClone): Promise<CloneFileIndex> 
 /** Содержимое блоба по oid. Null — если объект не читается. */
 export async function readBlobByOid(repo: RepoClone, oid: string): Promise<Buffer | null> {
   try {
-    const { blob } = await git.readBlob({ fs, dir: repo.dir, oid });
+    const { blob } = await git.readBlob({ fs, dir: repo.dir, oid, cache: repo.cache });
     return Buffer.from(blob);
   } catch {
     return null;

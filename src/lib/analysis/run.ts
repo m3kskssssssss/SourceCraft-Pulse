@@ -36,7 +36,7 @@ export type ProcessOutcome = 'done' | 'failed' | 'requeued';
 
 export const MAX_ATTEMPTS = 3;
 /** Лимит на сбор фактов. Остаток времени функции оставляем на AI и запись. */
-const COLLECT_TIMEOUT_MS = 180_000;
+const COLLECT_TIMEOUT_MS = 240_000;
 /** Сколько ждём выбор файлов моделью: дольше — считаем, что не дождались. */
 const SELECTION_TIMEOUT_MS = 30_000;
 /**

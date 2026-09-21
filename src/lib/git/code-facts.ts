@@ -14,7 +14,9 @@
 // сработал, берём прежнюю эвристику — самые большие файлы.
 //
 // Чтение идёт пачками и по дедлайну: на репозитории уровня gravity-ui/uikit
-// последовательное чтение тысячи блобов съедало весь бюджет анализа.
+// последовательное чтение тысячи блобов съедало весь бюджет анализа. С общим
+// кэшем isomorphic-git полторы тысячи файлов читаются за секунду, поэтому
+// охват метрик взят с запасом.
 //
 // Все пороги — эмпирические, см. scoring/config.ts. Здесь только измерение.
 
@@ -82,7 +84,7 @@ export type CodeFactsOptions = {
   selectFiles?: (catalog: CodeCatalogEntry[]) => Promise<string[]>;
 };
 
-const DEFAULT_FILE_LIMIT = 600;
+const DEFAULT_FILE_LIMIT = 1_500;
 const DEFAULT_MAX_FILE_BYTES = 200 * 1024;
 const DEFAULT_SAMPLE_FILES = 12;
 const DEFAULT_SAMPLE_CHARS = 4_000;

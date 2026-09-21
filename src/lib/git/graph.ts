@@ -243,10 +243,10 @@ async function peel(repo: RepoClone, ref: string): Promise<string | null> {
   try {
     const oid = await git.resolveRef({ fs, dir: repo.dir, ref });
     try {
-      await git.readCommit({ fs, dir: repo.dir, oid });
+      await git.readCommit({ fs, dir: repo.dir, oid, cache: repo.cache });
       return oid;
     } catch {
-      const tag = await git.readTag({ fs, dir: repo.dir, oid });
+      const tag = await git.readTag({ fs, dir: repo.dir, oid, cache: repo.cache });
       return tag.tag.object;
     }
   } catch {

@@ -20,7 +20,7 @@ export type RawCommit = {
 };
 
 export async function readCloneCommits(repo: RepoClone, limit: number): Promise<RawCommit[]> {
-  const log = await git.log({ fs, dir: repo.dir, ref: repo.headOid, depth: limit });
+  const log = await git.log({ fs, dir: repo.dir, ref: repo.headOid, depth: limit, cache: repo.cache });
   return log.map((entry) => ({
     oid: entry.oid,
     parents: entry.commit.parent ?? [],

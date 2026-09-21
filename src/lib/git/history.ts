@@ -31,12 +31,17 @@ export type AnalyzeGitHistoryOptions = {
   secretsFileLimit?: number;
   /** Уже прочитанный лог: его делят метрики активности и дерево коммитов. */
   commits?: RawCommit[];
+  /**
+   * Есть ли в клоне история вообще. У клона-верхушки её нет, и тогда метрики
+   * активности должны остаться неизвестными, а не показать «ноль коммитов».
+   */
+  hasHistory?: boolean;
   /** Момент, после которого скан секретов прекращается. */
   deadline?: number;
 };
 
 const DEFAULT_COMMIT_LIMIT = 2_000;
-const DEFAULT_SECRETS_FILE_LIMIT = 300;
+const DEFAULT_SECRETS_FILE_LIMIT = 800;
 /** Файлы крупнее не смотрим: собранные бандлы и данные дают только шум. */
 const SECRETS_MAX_FILE_BYTES = 256 * 1024;
 
@@ -68,6 +73,9 @@ export async function analyzeGitHistoryInClone(
 ): Promise<GitHistoryFacts> {
   const errors: string[] = [];
 
+  const hasHistory = options.hasHistory ?? true;
+  if (!hasHistory) errors.push('history_unavailable');
+
   let commits: CommitRecord[];
   try {
     const raw = options.commits ?? (await readCloneCommits(clone.repo, options.commitLimit ?? DEFAULT_COMMIT_LIMIT));
@@ -82,7 +90,16 @@ export async function analyzeGitHistoryInClone(
     return emptyGitHistoryFacts([`git_history_failed: ${describeError(err)}`]);
   }
 
-  const stats = aggregateGitStats(commits);
+  // Без истории показатели активности неизвестны: ноль коммитов в клоне
+  // означает «мы их не качали», а не «их нет».
+  const stats = hasHistory
+    ? aggregateGitStats(commits)
+    : {
+        commitsLast90Days: null,
+        uniqueAuthorsLast90Days: null,
+        lastCommitDate: null,
+        topAuthorSharePercent: null,
+      };
 
   let secretHits: SecretHit[] = [];
   let secretsScannedFiles = 0;

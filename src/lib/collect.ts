@@ -166,7 +166,7 @@ export type CollectOptions = {
   pullsSampleLimit?: number;
   /** Максимум issue-ов, которые семплируем. */
   issuesSampleLimit?: number;
-  /** Сколько времени отводим на работу с клоном. */
+  /** Сколько времени отводим на весь сбор из клона. */
   cloneBudgetMs?: number;
   /**
    * Выбор файлов для AI-ревью по структуре проекта. Вызывается, пока клон
@@ -175,14 +175,26 @@ export type CollectOptions = {
   selectCodeFiles?: (catalog: CodeCatalogEntry[]) => Promise<string[]>;
 };
 
-/** Сколько времени по умолчанию тратим на клон и чтение из него. */
-const CLONE_BUDGET_MS = 120_000;
+/** Общий бюджет сбора: клон плюс чтение из него. */
+const COLLECT_BUDGET_MS = 200_000;
+/** Сколько времени резервируем под чтение, отдавая остаток клону. */
+const READ_RESERVE_MS = 60_000;
+/** И сколько оставляем на сборку результата после чтения. */
+const WRITE_RESERVE_MS = 5_000;
+/**
+ * Дерево упёрлось в лимит выборки — значит, репозиторий заведомо огромный
+ * (divkit: 17 тысяч файлов), и клон с историей туда не доедет. Такие качаем
+ * сразу верхушкой. Всем остальным сначала пробуем окно истории: оно нужно
+ * метрикам активности, а при неудаче откат на верхушку всё равно есть.
+ */
+const BIG_REPO_TREE_ENTRIES = TREE_ITEMS_LIMIT;
 
 export async function collectRepoFacts(
   org: string,
   repo: string,
   options: CollectOptions = {},
 ): Promise<RepoFacts> {
+  const trace = makeTrace();
   const missing: string[] = [];
   const client = getSourcecraftClient();
   const security = getSecurityProvider();
@@ -270,6 +282,8 @@ export async function collectRepoFacts(
       ),
     ]);
 
+  trace('api');
+
   const flags = computeTreeFlags(treeEntries);
   if (!flags.hasReadme) missing.push('readme_missing');
   if (!flags.hasLicense) missing.push('license_missing');
@@ -284,28 +298,41 @@ export async function collectRepoFacts(
 
   if ((options.runGitAnalysis ?? true) && cloneUrlHttps) {
     try {
+      const budgetEnd = Date.now() + (options.cloneBudgetMs ?? COLLECT_BUDGET_MS);
       await withRepoClone(
-        { cloneUrlHttps, token: process.env.SOURCECRAFT_PAT ?? undefined },
+        {
+          cloneUrlHttps,
+          token: process.env.SOURCECRAFT_PAT ?? undefined,
+          strategy: treeEntries.length >= BIG_REPO_TREE_ENTRIES ? 'tip' : 'window',
+          totalTimeoutMs: Math.max(30_000, budgetEnd - Date.now() - READ_RESERVE_MS),
+        },
         async (repoClone) => {
           // Дедлайн один на всё чтение из клона: любая часть, которая в него
           // не уложилась, отдаёт то, что успела, и помечает себя неполной.
-          const deadline = Date.now() + (options.cloneBudgetMs ?? CLONE_BUDGET_MS);
+          const deadline = budgetEnd - WRITE_RESERVE_MS;
 
           // Индекс путь→oid строится одним обходом дерева и дальше кормит
           // всех: метрики кода, скан секретов, lock-файлы, README.
+          trace(repoClone.tipOnly ? 'clone (верхушка)' : 'clone');
+
           const clone = await openIndexedClone(repoClone);
+          trace(`индекс (${clone.files.length} файлов)`);
           languages = detectLanguages(clone.files);
+
+          // Вторая попытка клона берёт только верхушку: файлы есть, истории нет.
+          if (repoClone.tipOnly) missing.push('clone_tip_only');
 
           // Лог коммитов читают двое — читаем один раз.
           let commits: RawCommit[] = [];
           try {
-            commits = await readCloneCommits(repoClone, COMMIT_LIMIT);
+            commits = repoClone.tipOnly ? [] : await readCloneCommits(repoClone, COMMIT_LIMIT);
           } catch (err) {
             missing.push(`git_history_failed:${describe(err)}`);
           }
+          trace(`лог (${commits.length} коммитов)`);
 
           const [history, codeFacts, extras] = await Promise.all([
-            analyzeGitHistoryInClone(clone, { commits, deadline }),
+            analyzeGitHistoryInClone(clone, { commits, deadline, hasHistory: !repoClone.tipOnly }),
             collectCodeFacts(clone, { deadline, selectFiles: options.selectCodeFiles }),
             readFilesFromClone(
               clone.repo,
@@ -318,6 +345,8 @@ export async function collectRepoFacts(
               { deadline },
             ),
           ]);
+
+          trace(`чтение файлов (${codeFacts.scannedFiles})`);
 
           gitHistory = history;
           code = codeFacts;
@@ -340,7 +369,11 @@ export async function collectRepoFacts(
               // остаёмся с тем логом, который уже прочитали
             }
           }
-          gitGraph = await collectGitGraph(repoClone, { commits });
+          // Дерева без истории не бывает — у клона-верхушки его просто нет.
+          if (commits.length > 0) {
+            gitGraph = await collectGitGraph(repoClone, { commits });
+            trace('дерево коммитов');
+          }
 
           const readmePath = clone.files.find((path) => README_FILE_RE.test(path));
           readme = readmePath ? (extras.files.get(readmePath) ?? null) : null;
@@ -365,6 +398,8 @@ export async function collectRepoFacts(
   // так же, как остальные пробелы в данных.
   for (const error of code.errors) missing.push(error);
   for (const error of gitGraph.errors) missing.push(error);
+
+  trace('клон целиком');
 
   // 4. security scan
   const parsedLocks = parseLockfiles({
@@ -421,6 +456,23 @@ export async function collectRepoFacts(
  * вход для AI-оценки документации.
  */
 // ---------- helpers ----------
+
+/**
+ * Отметки времени по фазам сбора. Включается PULSE_TRACE=1 — без него
+ * ничего не пишет: это диагностика «почему на этом репозитории долго».
+ */
+function makeTrace(): (label: string) => void {
+  if (process.env.PULSE_TRACE !== '1') return () => {};
+  const started = Date.now();
+  let last = started;
+  return (label: string) => {
+    const now = Date.now();
+    console.log(
+      `[collect] ${label}: +${((now - last) / 1000).toFixed(1)}с (всего ${((now - started) / 1000).toFixed(1)}с)`,
+    );
+    last = now;
+  };
+}
 
 function normalizeCounters(repo: Repository | null): NormalizedCounters {
   const c = repo?.counters;
