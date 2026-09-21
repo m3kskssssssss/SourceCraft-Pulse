@@ -7,9 +7,8 @@
 // без рабочей копии diff-статистики не даёт, а считать дифф на каждый коммит —
 // это обход дерева на каждый коммит. Поэтому «секрет в коде», а не «в истории».
 
-import git from 'isomorphic-git';
-import fs from 'node:fs';
-import { listFilesInClone, readFileFromClone, type RepoClone } from './clone';
+import { readFilesFromClone, type IndexedClone } from './clone';
+import { readCloneCommits, type RawCommit } from './commits';
 import { aggregateGitStats, type CommitRecord } from './stats';
 import { scanForSecrets, type SecretHit } from './secrets';
 
@@ -30,8 +29,10 @@ export type AnalyzeGitHistoryOptions = {
   commitLimit?: number;
   /** Максимум файлов, которые просматриваем на секреты. */
   secretsFileLimit?: number;
-  /** Готовый список файлов на HEAD, если вызывающий уже его читал. */
-  files?: string[];
+  /** Уже прочитанный лог: его делят метрики активности и дерево коммитов. */
+  commits?: RawCommit[];
+  /** Момент, после которого скан секретов прекращается. */
+  deadline?: number;
 };
 
 const DEFAULT_COMMIT_LIMIT = 2_000;
@@ -62,14 +63,21 @@ export function emptyGitHistoryFacts(errors: string[] = []): GitHistoryFacts {
 }
 
 export async function analyzeGitHistoryInClone(
-  repo: RepoClone,
+  clone: IndexedClone,
   options: AnalyzeGitHistoryOptions = {},
 ): Promise<GitHistoryFacts> {
   const errors: string[] = [];
 
   let commits: CommitRecord[];
   try {
-    commits = await readCommits(repo, options.commitLimit ?? DEFAULT_COMMIT_LIMIT);
+    const raw = options.commits ?? (await readCloneCommits(clone.repo, options.commitLimit ?? DEFAULT_COMMIT_LIMIT));
+    commits = raw.map((entry) => ({
+      sha: entry.oid,
+      authorName: entry.authorName,
+      authorEmail: entry.authorEmail,
+      authorDate: entry.authorDate,
+      subject: entry.subject,
+    }));
   } catch (err) {
     return emptyGitHistoryFacts([`git_history_failed: ${describeError(err)}`]);
   }
@@ -80,12 +88,13 @@ export async function analyzeGitHistoryInClone(
   let secretsScannedFiles = 0;
   try {
     const scan = await scanCloneForSecrets(
-      repo,
+      clone,
       options.secretsFileLimit ?? DEFAULT_SECRETS_FILE_LIMIT,
-      options.files,
+      options.deadline,
     );
     secretHits = scan.hits;
     secretsScannedFiles = scan.scannedFiles;
+    if (!scan.complete) errors.push('secrets_scan_partial');
   } catch (err) {
     errors.push(`secrets_scan_failed: ${describeError(err)}`);
   }
@@ -102,39 +111,25 @@ export async function analyzeGitHistoryInClone(
   };
 }
 
-async function readCommits(repo: RepoClone, limit: number): Promise<CommitRecord[]> {
-  const log = await git.log({ fs, dir: repo.dir, ref: repo.headOid, depth: limit });
-  return log.map((entry) => ({
-    sha: entry.oid,
-    authorName: entry.commit.author.name,
-    authorEmail: entry.commit.author.email,
-    // isomorphic-git отдаёт unix-время автора в секундах.
-    authorDate: new Date(entry.commit.author.timestamp * 1000).toISOString(),
-    subject: entry.commit.message.split('\n', 1)[0] ?? '',
-  }));
-}
-
 async function scanCloneForSecrets(
-  repo: RepoClone,
+  clone: IndexedClone,
   fileLimit: number,
-  knownFiles?: string[],
-): Promise<{ hits: SecretHit[]; scannedFiles: number }> {
-  const all = knownFiles ?? (await listFilesInClone(repo));
-  const paths = all.filter(isScannable).slice(0, fileLimit);
+  deadline?: number,
+): Promise<{ hits: SecretHit[]; scannedFiles: number; complete: boolean }> {
+  const paths = clone.files.filter(isScannable).slice(0, fileLimit);
+  const { files, complete } = await readFilesFromClone(clone.repo, clone.index, paths, {
+    maxFileBytes: SECRETS_MAX_FILE_BYTES,
+    deadline,
+  });
 
   const hits: SecretHit[] = [];
-  let scannedFiles = 0;
-
-  for (const path of paths) {
-    const content = await readFileFromClone(repo, path);
-    if (content === null || content.length > SECRETS_MAX_FILE_BYTES) continue;
-    scannedFiles += 1;
+  for (const [path, content] of files) {
     for (const hit of scanForSecrets(content)) {
       hits.push({ ...hit, file: path });
     }
   }
 
-  return { hits, scannedFiles };
+  return { hits, scannedFiles: files.size, complete };
 }
 
 function isScannable(path: string): boolean {

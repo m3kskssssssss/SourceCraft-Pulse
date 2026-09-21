@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import git from 'isomorphic-git';
 import type { RepoClone } from './clone';
+import { readCloneCommits, type RawCommit } from './commits';
 
 export type GraphCommit = {
   /** Короткий sha — длинный в интерфейсе не нужен. */
@@ -52,7 +53,9 @@ export type GitGraph = {
 };
 
 export type CollectGitGraphOptions = {
-  /** Сколько коммитов читать из клона. */
+  /** Готовый лог: тот же, что считают метрики активности. */
+  commits?: RawCommit[];
+  /** Сколько коммитов читать из клона, если лог не передали. */
   readLimit?: number;
   /** Сколько свежих коммитов оставить в фактах. */
   keepRecent?: number;
@@ -89,9 +92,9 @@ export async function collectGitGraph(
   const keepRecent = options.keepRecent ?? DEFAULT_KEEP_RECENT;
   const keepRoot = options.keepRoot ?? DEFAULT_KEEP_ROOT;
 
-  let log;
+  let log: RawCommit[];
   try {
-    log = await git.log({ fs, dir: repo.dir, ref: repo.headOid, depth: readLimit });
+    log = options.commits ?? (await readCloneCommits(repo, readLimit));
   } catch (err) {
     return emptyGitGraph([`git_graph_failed:${describe(err)}`]);
   }
@@ -101,10 +104,10 @@ export async function collectGitGraph(
 
   const all = log.map((entry) => ({
     oid: short(entry.oid),
-    parents: (entry.commit.parent ?? []).map(short),
-    author: entry.commit.author.name,
-    date: new Date(entry.commit.author.timestamp * 1000).toISOString(),
-    subject: firstLine(entry.commit.message),
+    parents: entry.parents.map(short),
+    author: entry.authorName,
+    date: entry.authorDate,
+    subject: entry.subject.slice(0, 120),
     refs: refs.get(entry.oid) ?? [],
   }));
 
@@ -255,9 +258,6 @@ function short(oid: string): string {
   return oid.slice(0, SHORT);
 }
 
-function firstLine(message: string): string {
-  return (message.split('\n', 1)[0] ?? '').trim().slice(0, 120);
-}
 
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err);

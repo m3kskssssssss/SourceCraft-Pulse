@@ -107,7 +107,7 @@ src/
 │   │   ├── budget.ts             # assertUnderMonthlyBudget
 │   │   ├── runner.ts             # runAiTask: cache + budget + zod + retry + fallback
 │   │   ├── pipeline.ts           # runAiAnalysis: четыре задачи параллельно
-│   │   └── tasks/                # readme-rubric.ts, code-review.ts, pr-issues-digest.ts, recommendation-copy.ts
+│   │   └── tasks/                # file-selection.ts (что читать), readme-rubric.ts, code-review.ts, pr-issues-digest.ts, recommendation-copy.ts
 │   ├── scoring/
 │   │   ├── index.ts              # scoreRepo(facts, {aiDocsScore?, aiCodeScore?}) → AnalysisResult
 │   │   ├── config.ts             # веса, пороги, штрафы, effort
@@ -118,8 +118,9 @@ src/
 │   │   └── metrics/              # activity.ts, code.ts, security.ts, docs.ts
 │   │   └── __tests__/            # Vitest фикстуры + тесты
 │   ├── git/
-│   │   ├── clone.ts              # withRepoClone() + readFileFromClone() + listFilesInClone()
+│   │   ├── clone.ts              # withRepoClone/deepenClone + индекс путь→oid + пакетное чтение
 │   │   ├── code-facts.ts         # измерения по исходникам: тесты, длина файлов, TODO, выборка
+│   │   ├── commits.ts            # общий лог коммитов для истории и дерева
 │   │   ├── graph.ts              # граф коммитов + раскладка по дорожкам (assignLanes)
 │   │   ├── languages.ts          # состав языков по расширениям файлов
 │   │   ├── history.ts            # analyzeGitHistory / analyzeGitHistoryInClone
@@ -165,3 +166,4 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 12 — анимации и чистка разговорных формулировок
 - [x] Этап 13 — админка: прогон задачи и всей очереди прямо в запросе, снятие задач, удаление прогонов и репозиториев со всеми оценками
 - [x] Этап 14 — логотип-планета (вращается сдвигом карты под маской) вместо пингвина
+- [x] Этап 15 — сбор ускорен (индекс путь→oid, пакетное чтение, общий лог, дедлайны, добор истории по остатку) + первый проход ИИ выбирает файлы для ревью по структуре проекта

@@ -19,6 +19,10 @@ import { DrizzleAiCache } from '../ai/cache';
 import { DrizzleAiTelemetry } from '../ai/telemetry';
 import { getAiProvider } from '../ai/router';
 import { runAiAnalysis, type AiCodeScore, type AiDocsScore } from '../ai/pipeline';
+import { runFileSelection } from '../ai/tasks/file-selection';
+import type { AiCache } from '../ai/cache';
+import type { AiProvider } from '../ai/provider';
+import type { AiTelemetry } from '../ai/telemetry';
 
 export type AnalysisDb = NodePgDatabase<typeof schema>;
 
@@ -33,6 +37,8 @@ export type ProcessOutcome = 'done' | 'failed' | 'requeued';
 export const MAX_ATTEMPTS = 3;
 /** Лимит на сбор фактов. Остаток времени функции оставляем на AI и запись. */
 const COLLECT_TIMEOUT_MS = 180_000;
+/** Сколько ждём выбор файлов моделью: дольше — считаем, что не дождались. */
+const SELECTION_TIMEOUT_MS = 30_000;
 /**
  * Через сколько чужой лок считается брошенным. Serverless-функция может умереть
  * молча (таймаут, деплой), и без этого задача осталась бы залоченной навсегда.
@@ -85,9 +91,28 @@ export async function processAnalysis(
   });
   if (!repo) return failJob(db, job, runnerId, 'repository_row_missing');
 
+  // Слой ИИ поднимаем до сбора: выбор файлов для ревью делается по структуре
+  // проекта, пока клон ещё открыт. Если ИИ не настроен — сбор просто идёт без
+  // него, а выборку соберёт эвристика по размеру.
+  const ai = openAi(db, job.analysisId);
+
   try {
     const facts = await withTimeout(
-      collectRepoFacts(repo.orgSlug, repo.repoSlug),
+      collectRepoFacts(repo.orgSlug, repo.repoSlug, {
+        selectCodeFiles: ai
+          ? (catalog) =>
+              withTimeout(
+                runFileSelection({
+                  ...ai,
+                  orgRepo: `${repo.orgSlug}/${repo.repoSlug}`,
+                  language: null,
+                  catalog,
+                }).then((result) => result.value.pick),
+                SELECTION_TIMEOUT_MS,
+                'file_selection_timeout',
+              ).catch(() => [])
+          : undefined,
+      }),
       COLLECT_TIMEOUT_MS,
       `collect_timeout_${COLLECT_TIMEOUT_MS}ms`,
     );
@@ -100,27 +125,26 @@ export async function processAnalysis(
     // AI: четыре задачи параллельно, падение любой не роняет анализ.
     let aiDocsScore: AiDocsScore | null = null;
     let aiCodeScore: AiCodeScore | null = null;
-    let aiOutputs: Record<string, unknown> = {};
-    try {
-      const provider = getAiProvider();
-      const ai = await runAiAnalysis({
-        provider,
-        cache: new DrizzleAiCache(db, { provider: provider.name, model: provider.model }),
-        telemetry: new DrizzleAiTelemetry(db, job.analysisId),
-        facts,
-        // Вход для «красивых рекомендаций» — оценка без ИИ.
-        recommendations: scoreRepo(facts).recommendations,
-      });
-      aiDocsScore = ai.aiDocsScore;
-      aiCodeScore = ai.aiCodeScore;
-      // Находки ревьюера кладём отдельным ключом: страница анализа берёт их
-      // оттуда, не разбирая сырой ответ задачи.
-      aiOutputs = { ...ai.outputs, codeFindings: ai.codeFindings };
-      log(runnerId, `AI: ${ai.elapsedMs} мс`);
-    } catch (aiErr) {
-      const message = describe(aiErr);
-      log(runnerId, `AI не сконфигурирован: ${message}`);
-      aiOutputs = { unavailable: true, reason: message };
+    let aiOutputs: Record<string, unknown> = { unavailable: true, reason: 'ai_not_configured' };
+    if (ai) {
+      try {
+        const outcome = await runAiAnalysis({
+          ...ai,
+          facts,
+          // Вход для «красивых рекомендаций» — оценка без ИИ.
+          recommendations: scoreRepo(facts).recommendations,
+        });
+        aiDocsScore = outcome.aiDocsScore;
+        aiCodeScore = outcome.aiCodeScore;
+        // Находки ревьюера кладём отдельным ключом: страница анализа берёт их
+        // оттуда, не разбирая сырой ответ задачи.
+        aiOutputs = { ...outcome.outputs, codeFindings: outcome.codeFindings };
+        log(runnerId, `AI: ${outcome.elapsedMs} мс, выборка — ${facts.code.sampleSource}`);
+      } catch (aiErr) {
+        const message = describe(aiErr);
+        log(runnerId, `AI не отработал: ${message}`);
+        aiOutputs = { unavailable: true, reason: message };
+      }
     }
 
     const result = scoreRepo(facts, { aiDocsScore, aiCodeScore });
@@ -167,6 +191,24 @@ export async function processAnalysis(
     const message = describe(err);
     console.error(`[analysis ${runnerId}] ✗ analysis=${job.analysisId} failed: ${message}`);
     return failJob(db, job, runnerId, message);
+  }
+}
+
+/** Провайдер, кэш и телеметрия одним куском. null — ИИ не сконфигурирован. */
+function openAi(
+  db: AnalysisDb,
+  analysisId: string,
+): { provider: AiProvider; cache: AiCache; telemetry: AiTelemetry } | null {
+  try {
+    const provider = getAiProvider();
+    return {
+      provider,
+      cache: new DrizzleAiCache(db, { provider: provider.name, model: provider.model }),
+      telemetry: new DrizzleAiTelemetry(db, analysisId),
+    };
+  } catch (err) {
+    console.warn(`[analysis] ИИ недоступен: ${describe(err)}`);
+    return null;
   }
 }
 

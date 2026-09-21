@@ -111,6 +111,7 @@ export function makePerfectFacts(): RepoFacts {
       commentSharePercent: 15,
       todoPerKiloLines: 0,
       scannedFiles: 40,
+      sampleSource: 'size',
       sample: [],
       errors: [],
     },

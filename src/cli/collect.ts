@@ -16,6 +16,7 @@ import { InMemoryAiCache } from '../lib/ai/cache';
 import { ConsoleAiTelemetry } from '../lib/ai/telemetry';
 import { getAiProvider } from '../lib/ai/router';
 import { runAiAnalysis } from '../lib/ai/pipeline';
+import { runFileSelection } from '../lib/ai/tasks/file-selection';
 
 type Args = { org: string; repo: string; score: boolean; ai: boolean };
 
@@ -50,8 +51,25 @@ async function main(): Promise<void> {
   const { org, repo, score, ai } = parseArgs(process.argv);
   console.log(`Собираем факты о ${org}/${repo} ...`);
 
+  // С --ai слой ИИ поднимаем до сбора: выбор файлов для ревью делается по
+  // структуре проекта, пока клон открыт.
+  const aiContext = ai
+    ? {
+        provider: getAiProvider(),
+        cache: new InMemoryAiCache(),
+        telemetry: new ConsoleAiTelemetry(),
+      }
+    : null;
+
   const started = Date.now();
-  const facts = await collectRepoFacts(org, repo);
+  const facts = await collectRepoFacts(org, repo, {
+    selectCodeFiles: aiContext
+      ? (catalog) =>
+          runFileSelection({ ...aiContext, orgRepo: `${org}/${repo}`, language: null, catalog })
+            .then((result) => result.value.pick)
+            .catch(() => [])
+      : undefined,
+  });
   const elapsedCollect = Date.now() - started;
 
   const summary = {
@@ -100,6 +118,7 @@ async function main(): Promise<void> {
       longFileSharePercent: facts.code.longFileSharePercent,
       commentSharePercent: facts.code.commentSharePercent,
       todoPerKiloLines: facts.code.todoPerKiloLines,
+      sampleSource: facts.code.sampleSource,
       sample: facts.code.sample.map((f) => `${f.path} (${f.lines})`),
       errors: facts.code.errors,
     },

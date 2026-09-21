@@ -3,8 +3,9 @@
 // Один заход:
 //   1. API SourceCraft: /repos, /contributors, /trees, /branches, /tags, /releases,
 //      /releases/latest, /pulls (выборка), /issues (выборка).
-//   2. Shallow-клон репозитория (один): история за 90 дней, скан секретов,
-//      README и lock-файлы.
+//   2. Клон репозитория (один): индекс файлов строится одним обходом дерева,
+//      лог коммитов читается один раз на историю и на дерево пути, файлы
+//      читаются пачками и по общему дедлайну.
 //   3. SecurityProvider (OSV по умолчанию): вход — резолвленные lock-файлы.
 //
 // Всё, что не удалось получить, честно уходит в `missing: string[]`.
@@ -16,19 +17,20 @@ import {
 } from './security/lockfiles';
 import { getSecurityProvider } from './security/provider';
 import type { SecurityScanResult } from './security/types';
-import {
-  listFilesInClone,
-  readFileFromClone,
-  withRepoClone,
-  type RepoClone,
-} from './git/clone';
+import { deepenClone, openIndexedClone, readFilesFromClone, withRepoClone } from './git/clone';
 import {
   analyzeGitHistoryInClone,
   emptyGitHistoryFacts,
   type GitHistoryFacts,
 } from './git/history';
 import { detectLanguages, type LanguageShare } from './git/languages';
-import { collectCodeFacts, emptyCodeFacts, type CodeFacts } from './git/code-facts';
+import {
+  collectCodeFacts,
+  emptyCodeFacts,
+  type CodeCatalogEntry,
+  type CodeFacts,
+} from './git/code-facts';
+import { readCloneCommits, type RawCommit } from './git/commits';
 import { collectGitGraph, emptyGitGraph, type GitGraph } from './git/graph';
 import {
   getSourcecraftClient,
@@ -139,6 +141,19 @@ const CI_CONFIG_MARKERS = [
   'Jenkinsfile',
 ];
 const TESTS_MARKERS = ['tests/', 'test/', '__tests__/', 'spec/', '.test.', '.spec.'];
+/** Сколько коммитов читаем из клона: хватает и метрикам, и дереву. */
+const COMMIT_LIMIT = 2_000;
+/** Меньше этого остатка за добор истории даже не беремся. */
+const DEEPEN_MIN_LEFT_MS = 20_000;
+/** И дольше этого его не ждём: не добрался за полминуты — не доберётся. */
+const DEEPEN_MAX_MS = 30_000;
+/**
+ * Добираем историю только у небольших репозиториев. У крупного и пачка тяжёлая,
+ * и дерево всё равно рисуется по последним двум с половиной сотням коммитов —
+ * платить за это минутой ожидания нечем.
+ */
+const DEEPEN_MAX_FILES = 1_200;
+const DEEPEN_MAX_COMMITS = 300;
 /** README в корне репозитория, любой регистр и одно из принятых расширений. */
 const README_FILE_RE = /^readme(\.(md|markdown|rst|txt|adoc))?$/i;
 
@@ -151,7 +166,17 @@ export type CollectOptions = {
   pullsSampleLimit?: number;
   /** Максимум issue-ов, которые семплируем. */
   issuesSampleLimit?: number;
+  /** Сколько времени отводим на работу с клоном. */
+  cloneBudgetMs?: number;
+  /**
+   * Выбор файлов для AI-ревью по структуре проекта. Вызывается, пока клон
+   * открыт. Сам сборщик про ИИ ничего не знает — ему дают функцию.
+   */
+  selectCodeFiles?: (catalog: CodeCatalogEntry[]) => Promise<string[]>;
 };
+
+/** Сколько времени по умолчанию тратим на клон и чтение из него. */
+const CLONE_BUDGET_MS = 120_000;
 
 export async function collectRepoFacts(
   org: string,
@@ -261,28 +286,64 @@ export async function collectRepoFacts(
     try {
       await withRepoClone(
         { cloneUrlHttps, token: process.env.SOURCECRAFT_PAT ?? undefined },
-        async (repo) => {
-          // Список файлов нужен трём потребителям — читаем его один раз.
-          const files = await listFilesInClone(repo);
-          languages = detectLanguages(files);
+        async (repoClone) => {
+          // Дедлайн один на всё чтение из клона: любая часть, которая в него
+          // не уложилась, отдаёт то, что успела, и помечает себя неполной.
+          const deadline = Date.now() + (options.cloneBudgetMs ?? CLONE_BUDGET_MS);
 
-          const [history, graph, codeFacts, packageLockJson, pnpmLockYaml, readmeText] =
-            await Promise.all([
-              analyzeGitHistoryInClone(repo, { files }),
-              collectGitGraph(repo),
-              collectCodeFacts(repo, files),
-              readFileFromClone(repo, 'package-lock.json'),
-              readFileFromClone(repo, 'pnpm-lock.yaml'),
-              readReadme(repo, files),
-            ]);
+          // Индекс путь→oid строится одним обходом дерева и дальше кормит
+          // всех: метрики кода, скан секретов, lock-файлы, README.
+          const clone = await openIndexedClone(repoClone);
+          languages = detectLanguages(clone.files);
+
+          // Лог коммитов читают двое — читаем один раз.
+          let commits: RawCommit[] = [];
+          try {
+            commits = await readCloneCommits(repoClone, COMMIT_LIMIT);
+          } catch (err) {
+            missing.push(`git_history_failed:${describe(err)}`);
+          }
+
+          const [history, codeFacts, extras] = await Promise.all([
+            analyzeGitHistoryInClone(clone, { commits, deadline }),
+            collectCodeFacts(clone, { deadline, selectFiles: options.selectCodeFiles }),
+            readFilesFromClone(
+              clone.repo,
+              clone.index,
+              [
+                'package-lock.json',
+                'pnpm-lock.yaml',
+                clone.files.find((path) => README_FILE_RE.test(path)) ?? '',
+              ].filter(Boolean),
+              { deadline },
+            ),
+          ]);
+
           gitHistory = history;
-          gitGraph = graph;
           code = codeFacts;
           lockfileContents = {
-            packageLockJson: packageLockJson ?? undefined,
-            pnpmLockYaml: pnpmLockYaml ?? undefined,
+            packageLockJson: extras.files.get('package-lock.json'),
+            pnpmLockYaml: extras.files.get('pnpm-lock.yaml'),
           };
-          readme = readmeText;
+
+          // Дерево пути создания — единственное, ради чего нужна вся история.
+          // Дотягиваем её последней и только на остаток бюджета: без неё анализ
+          // полноценный, а на большом репозитории добор идёт долго.
+          const leftMs = deadline - Date.now();
+          const worthDeepening =
+            clone.files.length <= DEEPEN_MAX_FILES && commits.length <= DEEPEN_MAX_COMMITS;
+          if (worthDeepening && leftMs > DEEPEN_MIN_LEFT_MS) {
+            await deepenClone(repoClone, { timeoutMs: Math.min(leftMs, DEEPEN_MAX_MS) });
+            try {
+              commits = await readCloneCommits(repoClone, COMMIT_LIMIT);
+            } catch {
+              // остаёмся с тем логом, который уже прочитали
+            }
+          }
+          gitGraph = await collectGitGraph(repoClone, { commits });
+
+          const readmePath = clone.files.find((path) => README_FILE_RE.test(path));
+          readme = readmePath ? (extras.files.get(readmePath) ?? null) : null;
         },
       );
     } catch (err) {
@@ -359,11 +420,6 @@ export async function collectRepoFacts(
  * (README.md, readme.MD, Readme.rst), а промахнуться нельзя — это главный
  * вход для AI-оценки документации.
  */
-async function readReadme(repo: RepoClone, files: string[]): Promise<string | null> {
-  const path = files.find((p) => README_FILE_RE.test(p));
-  return path ? readFileFromClone(repo, path) : null;
-}
-
 // ---------- helpers ----------
 
 function normalizeCounters(repo: Repository | null): NormalizedCounters {
