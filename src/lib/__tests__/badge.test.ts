@@ -56,4 +56,17 @@ describe('renderBadgeSvg', () => {
     expect(svg).not.toContain('<script>');
     expect(svg).toContain('&lt;script&gt;');
   });
+
+  it('без оценки печатает пояснение вместо прочерка', () => {
+    const svg = renderBadgeSvg({ score: null, note: 'не опубликован' });
+    expect(svg).toContain('>не опубликован<');
+    expect(svg).not.toContain('>/100<');
+    expect(svg).toContain('aria-label="pulse: не опубликован"');
+  });
+
+  it('пояснение тоже экранируется', () => {
+    const svg = renderBadgeSvg({ score: null, note: '<b>' });
+    expect(svg).not.toContain('<b>');
+    expect(svg).toContain('&lt;b&gt;');
+  });
 });

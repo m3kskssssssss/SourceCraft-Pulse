@@ -13,6 +13,11 @@ export type BadgeInput = {
   score: number | null;
   /** Подпись слева, например «pulse». */
   label?: string;
+  /**
+   * Что написать вместо числа, когда оценки нет: «не опубликован», «нет
+   * оценки». Прочерк сам по себе выглядит как сломанная картинка.
+   */
+  note?: string;
 };
 
 const WIDTH = 168;
@@ -44,12 +49,14 @@ export function renderBadgeSvg(input: BadgeInput): string {
   const label = escapeXml(input.label ?? 'pulse');
   const score =
     input.score === null ? null : Math.max(0, Math.min(100, Math.round(input.score)));
-  const value = score === null ? '—' : String(score);
+  const note = input.note ? escapeXml(input.note) : null;
+  const value = score === null ? (note ?? '—') : String(score);
   const fillW = score === null ? 0 : Math.round((TRACK_W * score) / 100);
+  const aria = score === null ? value : `${value} из 100`;
 
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="${label}: ${value} из 100">`,
-    `<title>${label}: ${value} из 100</title>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="${label}: ${aria}">`,
+    `<title>${label}: ${aria}</title>`,
     `<clipPath id="r"><rect width="${WIDTH}" height="${HEIGHT}" rx="${RADIUS}"/></clipPath>`,
     `<g clip-path="url(#r)">`,
     `<rect width="${WIDTH}" height="${HEIGHT}" fill="${PAPER}"/>`,
@@ -63,8 +70,11 @@ export function renderBadgeSvg(input: BadgeInput): string {
     `</g>`,
     `<g font-family="${FONT}">`,
     `<text x="30" y="18" fill="${PAPER}" font-size="11" font-weight="600">${label}</text>`,
-    `<text x="${TRACK_X}" y="16" fill="${INK}" font-size="15" font-weight="700">${value}</text>`,
-    `<text x="${TRACK_X + (score === null ? 14 : String(value).length * 9 + 2)}" y="16" fill="${MUTED}" font-size="10" font-weight="600">/100</text>`,
+    score === null
+      ? // Пояснение вместо числа: мелко, приглушённо и без шкалы «/100».
+        `<text x="${TRACK_X}" y="17" fill="${MUTED}" font-size="${note ? 10 : 15}" font-weight="600">${value}</text>`
+      : `<text x="${TRACK_X}" y="16" fill="${INK}" font-size="15" font-weight="700">${value}</text>` +
+        `<text x="${TRACK_X + String(value).length * 9 + 2}" y="16" fill="${MUTED}" font-size="10" font-weight="600">/100</text>`,
     `</g>`,
     `<rect x="${TRACK_X}" y="${TRACK_Y}" width="${TRACK_W}" height="${TRACK_H}" rx="${TRACK_H / 2}" fill="${LINE}"/>`,
     fillW > 0

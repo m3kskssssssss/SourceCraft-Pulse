@@ -132,6 +132,8 @@ export async function getLatestPublicAnalysis(
   org: string,
   repo: string,
 ): Promise<LeaderboardItem | null> {
+  // Слаг ищем без учёта регистра: в README адрес бейджа часто перепечатывают
+  // руками, а «Org/Repo» и «org/repo» на SourceCraft — один репозиторий.
   const rows = await db
     .select({
       id: analyses.id,
@@ -147,8 +149,8 @@ export async function getLatestPublicAnalysis(
     .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
     .where(
       and(
-        eq(repositories.orgSlug, org),
-        eq(repositories.repoSlug, repo),
+        ilike(repositories.orgSlug, org),
+        ilike(repositories.repoSlug, repo),
         eq(analyses.isPublic, true),
         eq(analyses.status, 'done'),
       ),
@@ -176,4 +178,25 @@ function clampInt(value: number, min: number, max: number): number {
   if (n < min) return min;
   if (n > max) return max;
   return n;
+}
+
+/**
+ * Есть ли у репозитория посчитанный, но не опубликованный прогон.
+ * Нужно бейджу: прочерк без объяснения выглядит как поломка, хотя на деле
+ * владелец просто не нажал «Показать в рейтинге».
+ */
+export async function hasUnpublishedAnalysis(org: string, repo: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: analyses.id })
+    .from(analyses)
+    .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
+    .where(
+      and(
+        ilike(repositories.orgSlug, org),
+        ilike(repositories.repoSlug, repo),
+        eq(analyses.status, 'done'),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
 }

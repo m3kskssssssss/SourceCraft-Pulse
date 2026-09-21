@@ -3,7 +3,7 @@
 // README на GitHub кэширует картинки, чтобы страничка не тормозила.
 
 import { NextResponse } from 'next/server';
-import { getLatestPublicAnalysis } from '@/lib/ranking';
+import { getLatestPublicAnalysis, hasUnpublishedAnalysis } from '@/lib/ranking';
 import { renderBadgeSvg } from '@/lib/badge';
 import { InvalidSlugError, parseSlug } from '@/lib/slug';
 import { clientIp, rateLimit } from '@/lib/rate-limit';
@@ -32,22 +32,30 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     ({ org, repo } = parseSlug(`${rawOrg}/${repoClean}`));
   } catch (err) {
     if (err instanceof InvalidSlugError) {
-      return svgResponse(renderBadgeSvg({ score: null }), 400);
+      return svgResponse(renderBadgeSvg({ score: null, note: 'неверный адрес' }), 400);
     }
     throw err;
   }
 
   const latest = await getLatestPublicAnalysis(org, repo);
-  const svg = renderBadgeSvg({ score: latest?.score ?? null });
-  return svgResponse(svg, latest ? 200 : 404);
+  if (latest && latest.score !== null) {
+    return svgResponse(renderBadgeSvg({ score: latest.score }), 200);
+  }
+
+  // Оценки нет — объясняем, почему именно. Прочерк без пояснения читается
+  // как сломанный бейдж, и первым делом грешат на нас.
+  const note = (await hasUnpublishedAnalysis(org, repo)) ? 'не опубликован' : 'нет оценки';
+  // Отдаём 200: при 404 GitHub показывает битую картинку вместо подписи.
+  // И кэшируем короче — бейдж должен ожить сразу после публикации.
+  return svgResponse(renderBadgeSvg({ score: null, note }), 200, 30);
 }
 
-function svgResponse(svg: string, status: number): Response {
+function svgResponse(svg: string, status: number, maxAge = 60): Response {
   return new Response(svg, {
     status,
     headers: {
       'Content-Type': 'image/svg+xml; charset=utf-8',
-      'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300',
+      'Cache-Control': `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=300`,
     },
   });
 }
