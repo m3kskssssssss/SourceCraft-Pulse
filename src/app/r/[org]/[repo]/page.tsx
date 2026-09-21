@@ -120,7 +120,7 @@ export default async function RepositoryPage({ params }: PageProps) {
         <div className="mt-10">
           <EmptyState
             title="Этот репозиторий ещё не оценивали"
-            hint="Публичного анализа пока нет. Запустите оценку — как только автор опубликует результат, он появится здесь."
+            hint="Публичного анализа нет. Запустите оценку — опубликованный результат появится здесь."
             action={
               <Link
                 href={`/analyze?target=${encodeURIComponent(`${org}/${repo}`)}`}

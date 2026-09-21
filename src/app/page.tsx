@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { AnalyzeForm } from './components/AnalyzeForm';
+import { Penguin } from './components/Penguin';
 import { Bar, Chip, EmptyState } from './components/ui';
 import { getLanguageFacets, getLeaderboard, type LeaderboardSort } from '@/lib/ranking';
 import { CATEGORY_ACCENT_CLASS, CATEGORY_TITLES } from '@/lib/category-meta';
@@ -54,6 +55,10 @@ export default async function HomePage({
       {/* Hero */}
       <section className="relative pt-14 pb-16 sm:pt-20 sm:pb-20">
         <div className="grid-bg pointer-events-none absolute inset-0 -z-10 opacity-40" aria-hidden />
+        {/* Пингвин — единственная крупная картинка на главной. */}
+        <div className="float absolute right-2 top-10 hidden xl:block">
+          <Penguin size={190} />
+        </div>
         <div className="max-w-3xl">
           <h1 className="rise text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
             Оценка здоровья
@@ -101,7 +106,7 @@ export default async function HomePage({
           <div>
             <h2 className="text-3xl font-semibold tracking-tight">Рейтинг</h2>
             <p className="mt-1 text-sm text-[color:var(--muted)]">
-              Опубликованные анализы по убыванию оценки. Имя автора не показывается.
+              Опубликованные анализы. Имя автора не показывается.
             </p>
           </div>
           <div className="flex items-center gap-1 rounded-full bg-[color:var(--panel)] p-1 text-sm">
@@ -128,8 +133,8 @@ export default async function HomePage({
             title={languages.length > 0 || query ? 'Ничего не нашлось' : 'Пока пусто'}
             hint={
               languages.length > 0 || query
-                ? 'Попробуйте снять фильтры или поискать другой репозиторий.'
-                : 'Как только появится первый опубликованный анализ, он окажется здесь. Оцените репозиторий и включите публикацию.'
+                ? 'Снимите фильтры или измените запрос.'
+                : 'Первый опубликованный анализ появится здесь.'
             }
             action={
               <Link

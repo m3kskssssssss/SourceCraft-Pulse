@@ -26,7 +26,7 @@ export function AnalyzeForm({ defaultValue }: { defaultValue?: string }) {
           aria-label="Адрес репозитория"
         />
         <Button type="submit" disabled={pending} size="lg" className="sm:w-40">
-          {pending ? 'В очередь…' : 'Оценить'}
+          {pending ? 'Запускаем…' : 'Оценить'}
         </Button>
       </div>
       {state.error && (
@@ -35,7 +35,7 @@ export function AnalyzeForm({ defaultValue }: { defaultValue?: string }) {
         </p>
       )}
       <p className="text-xs text-[color:var(--muted)]">
-        Гостю мы сначала предложим войти — результат откроется автоматически после входа.
+        Без входа сначала откроется форма входа, после неё анализ запустится сам.
       </p>
     </form>
   );

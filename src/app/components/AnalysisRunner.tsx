@@ -53,7 +53,7 @@ export function AnalysisRunner({ id, initialStatus }: Props) {
       router.refresh();
     } catch {
       // Сеть отвалилась, но расчёт мог уже уйти на сервер: продолжаем опрос.
-      setFailure('Связь прервалась. Ждём результат.');
+      setFailure('Связь прервалась, ждём результат.');
     } finally {
       inFlight.current = false;
     }

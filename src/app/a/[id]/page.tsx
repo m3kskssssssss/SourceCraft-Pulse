@@ -222,7 +222,7 @@ export default async function AnalysisPage({ params }: PageProps) {
           <SectionHead
             eyebrow="Что подтянуть первым"
             title="Рекомендации"
-            hint="Отсортировано по приросту балла на единицу усилий. Значения условные — считает движок."
+            hint="Отсортировано по приросту балла на единицу усилий."
           />
           <ol className="mt-6 grid gap-3">
             {recommendations.map((r, idx) => (
@@ -272,8 +272,8 @@ export default async function AnalysisPage({ params }: PageProps) {
           ))}
           {sortedCategories.length === 0 && (
             <EmptyState
-              title="Данных не хватило"
-              hint="Движок не смог собрать ни одной метрики. Скорее всего, репозиторий закрыт или недоступен."
+              title="Метрик нет"
+              hint="Ни одной метрики собрать не удалось: репозиторий закрыт или недоступен."
             />
           )}
         </div>
@@ -285,7 +285,7 @@ export default async function AnalysisPage({ params }: PageProps) {
           <SectionHead
             eyebrow="Динамика"
             title="История оценок"
-            hint="Все прогоны этого репозитория, которые вы вправе видеть."
+            hint="Доступные вам прогоны этого репозитория."
           />
           <div className="mt-6">
             <AnalysisHistory items={history} currentId={analysis.id} />
@@ -317,7 +317,7 @@ export default async function AnalysisPage({ params }: PageProps) {
         <CardDiv tone="paper" className="mt-6">
           {missingNotes.length === 0 ? (
             <p className="text-sm text-[color:var(--ink-2)]">
-              Собрали всё, что умеем: пробелов нет.
+              Пробелов нет: собрали всё, что умеем.
             </p>
           ) : (
             <ul className="grid gap-2 text-sm">
@@ -573,12 +573,12 @@ function Pulse() {
 }
 
 function verdict(score: number | null): string {
-  if (score == null) return 'Данных пока недостаточно, чтобы вынести вердикт.';
-  if (score >= 85) return 'Отлично: репозиторий здоровый по всем ключевым практикам.';
-  if (score >= 70) return 'Хорошо: есть места, где можно подтянуться, но фундамент крепкий.';
-  if (score >= 50) return 'Средне: несколько практик просели — самое время закрыть слабые места.';
-  if (score >= 30) return 'Заметные проблемы: активность или базовая гигиена требуют внимания.';
-  return 'Тревожно: репозиторий выглядит заброшенным или сырым. Начните с рекомендаций ниже.';
+  if (score == null) return 'Данных для вывода недостаточно.';
+  if (score >= 85) return 'Здоровый репозиторий: ключевые практики на месте.';
+  if (score >= 70) return 'Крепкая основа, отдельные практики просели.';
+  if (score >= 50) return 'Средний уровень: слабых мест несколько.';
+  if (score >= 30) return 'Заметные пробелы в активности или базовой гигиене.';
+  return 'Репозиторий выглядит заброшенным или сырым.';
 }
 
 function formatDate(iso: string): string {

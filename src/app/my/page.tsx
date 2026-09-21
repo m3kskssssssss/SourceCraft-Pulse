@@ -41,7 +41,7 @@ export default async function MyAnalysesPage() {
         <div className="mt-10">
           <EmptyState
             title="Здесь пока ничего нет"
-            hint="Оцените первый репозиторий — он появится в этом списке вместе со всей историей повторных прогонов."
+            hint="Оценённые репозитории появятся здесь вместе с историей прогонов."
             action={
               <Link
                 href="/analyze"

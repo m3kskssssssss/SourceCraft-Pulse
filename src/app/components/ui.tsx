@@ -15,7 +15,8 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'link';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-2 rounded-full font-medium transition ' +
+  'inline-flex items-center justify-center gap-2 rounded-full font-medium ' +
+  'transition duration-150 active:scale-[0.97] ' +
   'disabled:opacity-40 disabled:pointer-events-none select-none whitespace-nowrap';
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {

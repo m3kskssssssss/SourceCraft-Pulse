@@ -22,6 +22,9 @@
   --accent-security: #2f6f4f;
   --accent-docs: #8a6320;
 
+  /* Клюв и лапы логотипа. Единственный цвет вне четырёх акцентов. */
+  --beak: #e08a1e;
+
   --radius-sm: 10px;
   --radius: 18px;
   --radius-lg: 28px;
@@ -53,6 +56,7 @@
   --color-accent-code: var(--accent-code);
   --color-accent-security: var(--accent-security);
   --color-accent-docs: var(--accent-docs);
+  --color-beak: var(--beak);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
@@ -194,6 +198,91 @@ body {
   transform-origin: center;
   animation: node-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transition: r 140ms ease-out;
+}
+
+/* ---------- Пингвин-логотип ---------- */
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.float {
+  animation: float 7s ease-in-out infinite;
+}
+
+
+.penguin {
+  overflow: visible;
+  cursor: pointer;
+}
+
+.penguin-wing {
+  fill: var(--ink);
+  transform-box: fill-box;
+  transform-origin: center top;
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.penguin:hover .penguin-wing-left,
+.penguin:focus-visible .penguin-wing-left {
+  transform: rotate(18deg);
+}
+
+.penguin:hover .penguin-wing-right,
+.penguin:focus-visible .penguin-wing-right {
+  transform: rotate(-18deg);
+}
+
+.penguin-feet {
+  fill: var(--beak);
+}
+
+/* Веки лежат поднятыми и опускаются на пару кадров. */
+.penguin-lids {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleY(0);
+  animation: penguin-blink 6.5s ease-in-out infinite;
+}
+
+@keyframes penguin-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(0);
+  }
+  94%,
+  96% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes penguin-hop {
+  0% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-14%);
+  }
+  55% {
+    transform: translateY(0);
+  }
+  72% {
+    transform: translateY(-5%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.penguin-hop {
+  animation: penguin-hop 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Уважение к системной настройке: никакого движения, если его не просили. */
