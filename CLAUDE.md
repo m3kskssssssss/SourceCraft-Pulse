@@ -87,7 +87,7 @@ src/
 │   ├── a/[id]/page.tsx
 │   ├── not-found.tsx             # общий 404
 │   ├── icon.svg                  # ЧБ-логотип-favicon
-│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, BadgeMarkdown, AdminSignInForm, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState)
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
@@ -120,6 +120,7 @@ src/
 │   ├── git/
 │   │   ├── clone.ts              # withRepoClone() + readFileFromClone() + listFilesInClone()
 │   │   ├── code-facts.ts         # измерения по исходникам: тесты, длина файлов, TODO, выборка
+│   │   ├── graph.ts              # граф коммитов + раскладка по дорожкам (assignLanes)
 │   │   ├── languages.ts          # состав языков по расширениям файлов
 │   │   ├── history.ts            # analyzeGitHistory / analyzeGitHistoryInClone
 │   │   ├── log-parser.ts         # чистый парсер git log --numstat
@@ -160,5 +161,5 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 8 — ЧБ-тема, набор примитивов (ScoreDial/Bar/Chip/Card/Stat), раскрыта страница /a/[id] с категориями/метриками/рекомендациями, обновлены главная/карточка репо/auth/админка, favicon SVG, not-found
 - [x] Этап 9 — возврат на Vercel: анализ в запросе (300 с), isomorphic-git вместо бинарника, три AI-задачи параллельно, кэш и телеметрия ИИ в Postgres
 - [x] Этап 10 — категория «Код» по самим исходникам (тесты, длина файлов, комментарии, TODO) + четвёртая AI-задача `code_review`, чей балл заменяет категорию
-- [ ] Этап 11 — гит-путь создания репозитория интерактивным деревом
+- [x] Этап 11 — гит-путь создания репозитория интерактивным деревом на странице анализа
 - [ ] Этап 12 — логотип-пингвин, анимации, чистка разговорных формулировок

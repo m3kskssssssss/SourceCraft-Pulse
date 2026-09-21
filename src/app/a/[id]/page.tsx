@@ -24,6 +24,8 @@ import {
   categoryOrder,
 } from '@/lib/category-meta';
 import { describeMissingList } from '@/lib/missing-labels';
+import { GitTree } from '@/app/components/GitTree';
+import type { GitGraph } from '@/lib/git/graph';
 import { getRepoHistory } from '@/lib/history';
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -140,6 +142,10 @@ export default async function AnalysisPage({ params }: PageProps) {
   const recommendations = (analysis.recommendations ?? []) as Recommendation[];
   const missing = (analysis.missing ?? []) as string[];
   const missingNotes = describeMissingList(missing);
+
+  // Путь создания репозитория: граф коммитов лежит в собранных фактах.
+  const factsMeta = (analysis.metrics as { facts?: { gitGraph?: GitGraph } } | null)?.facts;
+  const gitGraph = factsMeta?.gitGraph?.available ? factsMeta.gitGraph : null;
 
   // Находки ревьюера кода: их кладёт пайплайн ИИ рядом с сырыми выходами задач.
   const aiMeta = (analysis.metrics as { ai?: { codeFindings?: unknown } } | null)?.ai;
@@ -283,6 +289,20 @@ export default async function AnalysisPage({ params }: PageProps) {
           />
           <div className="mt-6">
             <AnalysisHistory items={history} currentId={analysis.id} />
+          </div>
+        </section>
+      )}
+
+      {/* Путь создания */}
+      {gitGraph && gitGraph.commits.length > 1 && (
+        <section className="mt-12">
+          <SectionHead
+            eyebrow="Путь"
+            title="Как рос репозиторий"
+            hint="История ветки по умолчанию из клона. Ветвления видно там, где ветку слили обратно; коммит можно открыть."
+          />
+          <div className="mt-6">
+            <GitTree graph={gitGraph} webUrl={repo?.webUrl ?? null} />
           </div>
         </section>
       )}

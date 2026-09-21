@@ -4,9 +4,10 @@
 // а история коммитов, README и lock-файлы берутся только из репозитория —
 // в API SourceCraft нет ни эндпоинта файлов, ни эндпоинта коммитов.
 //
-// Тянем узкий срез: одна ветка, без рабочей копии, история — за окно, которое
-// считает движок оценки (90 дней). Клон живёт в /tmp и удаляется сразу после
-// использования: постоянного диска нет ни на Vercel, ни в воркере.
+// Тянем узкий срез: одна ветка, без рабочей копии. Историю берём целиком, до
+// MAX_DEPTH коммитов: по ней рисуется путь создания репозитория, а окно в 90
+// дней движок оценки отрезает сам по датам. Клон живёт в /tmp и удаляется
+// сразу после использования: постоянного диска нет ни на Vercel, ни в воркере.
 //
 // Использование:
 //   await withRepoClone({ cloneUrlHttps, token }, async (repo) => {
@@ -14,7 +15,7 @@
 //   });
 
 import fs from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import git from 'isomorphic-git';
@@ -32,16 +33,18 @@ export type RepoClone = {
 export type CloneOptions = {
   cloneUrlHttps: string;
   token?: string;
-  /** Окно истории в днях. 0 или меньше — тянуть всю историю. */
+  /** Окно истории в днях. 0 или меньше (по умолчанию) — тянуть всю историю. */
   historyDays?: number;
   /** Лимит на весь клон. */
   timeoutMs?: number;
 };
 
-const DEFAULT_HISTORY_DAYS = 90;
+const DEFAULT_HISTORY_DAYS = 0;
 const DEFAULT_CLONE_TIMEOUT_MS = 120_000;
-/** Страховка на случай, если сервер проигнорирует deepen-since. */
+/** Потолок на историю: и страховка от deepen-since, и предел глубины клона. */
 const MAX_DEPTH = 2_000;
+/** Окно на вторую попытку, если полная история не скачалась. */
+const FALLBACK_HISTORY_DAYS = 90;
 
 export async function withRepoClone<T>(
   options: CloneOptions,
@@ -51,26 +54,23 @@ export async function withRepoClone<T>(
   const dir = await mkdtemp(join(tmpdir(), 'pulse-git-'));
 
   try {
-    const shallow = historyDays > 0;
-    await withTimeout(
-      git.clone({
-        fs,
-        http,
-        dir,
-        url: normalizeCloneUrl(options.cloneUrlHttps),
-        singleBranch: true,
-        // Рабочая копия не нужна: файлы читаем прямо из объектов.
-        noCheckout: true,
-        ...(shallow
-          ? { since: new Date(Date.now() - historyDays * 24 * 3600 * 1000) }
-          : { depth: MAX_DEPTH }),
-        onAuth: options.token
-          ? () => ({ username: 'x-access-token', password: options.token })
-          : undefined,
-      }),
-      options.timeoutMs ?? DEFAULT_CLONE_TIMEOUT_MS,
-      'clone_timeout',
-    );
+    // Полная история нужна дереву коммитов, но у большого репозитория пачка
+    // на две тысячи коммитов бывает неподъёмной и сервер обрывает запрос.
+    // Тогда откатываемся на окно, которого хватает движку оценки: лучше
+    // короткий путь, чем анализ целиком без клона.
+    let shallow = historyDays > 0;
+    try {
+      await cloneInto(dir, options, shallow ? { historyDays } : { depth: MAX_DEPTH });
+    } catch (err) {
+      if (shallow) throw err;
+      console.warn(
+        `[git] полная история не скачалась (${describe(err)}); берём ${FALLBACK_HISTORY_DAYS} дней`,
+      );
+      await rm(dir, { recursive: true, force: true });
+      await mkdir(dir, { recursive: true });
+      await cloneInto(dir, options, { historyDays: FALLBACK_HISTORY_DAYS });
+      shallow = true;
+    }
 
     const headOid = await git.resolveRef({ fs, dir, ref: 'HEAD' });
     return await fn({ dir, headOid, shallow });
@@ -79,6 +79,37 @@ export async function withRepoClone<T>(
       // мусор в /tmp — не повод ронять анализ
     });
   }
+}
+
+/** Одна попытка клона: либо на глубину, либо за окно в днях. */
+async function cloneInto(
+  dir: string,
+  options: CloneOptions,
+  window: { depth: number } | { historyDays: number },
+): Promise<void> {
+  await withTimeout(
+    git.clone({
+      fs,
+      http,
+      dir,
+      url: normalizeCloneUrl(options.cloneUrlHttps),
+      singleBranch: true,
+      // Рабочая копия не нужна: файлы читаем прямо из объектов.
+      noCheckout: true,
+      ...('depth' in window
+        ? { depth: window.depth }
+        : { since: new Date(Date.now() - window.historyDays * 24 * 3600 * 1000) }),
+      onAuth: options.token
+        ? () => ({ username: 'x-access-token', password: options.token })
+        : undefined,
+    }),
+    options.timeoutMs ?? DEFAULT_CLONE_TIMEOUT_MS,
+    'clone_timeout',
+  );
+}
+
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /** Содержимое файла на HEAD. Null, если файла нет или он не читается. */

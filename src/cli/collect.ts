@@ -79,6 +79,18 @@ async function main(): Promise<void> {
       secretHits: facts.gitHistory.secretHits.map((s) => s.name),
       errors: facts.gitHistory.errors,
     },
+    gitGraph: {
+      available: facts.gitGraph.available,
+      totalRead: facts.gitGraph.totalRead,
+      kept: facts.gitGraph.commits.length,
+      laneCount: facts.gitGraph.laneCount,
+      skipped: facts.gitGraph.skipped,
+      truncated: facts.gitGraph.truncated,
+      firstCommitDate: facts.gitGraph.firstCommitDate,
+      merges: facts.gitGraph.commits.filter((c) => c.parents.length > 1).length,
+      refs: facts.gitGraph.commits.flatMap((c) => c.refs).slice(0, 8),
+      errors: facts.gitGraph.errors,
+    },
     code: {
       available: facts.code.available,
       sourceFiles: facts.code.sourceFiles,

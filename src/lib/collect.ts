@@ -29,6 +29,7 @@ import {
 } from './git/history';
 import { detectLanguages, type LanguageShare } from './git/languages';
 import { collectCodeFacts, emptyCodeFacts, type CodeFacts } from './git/code-facts';
+import { collectGitGraph, emptyGitGraph, type GitGraph } from './git/graph';
 import {
   getSourcecraftClient,
   type Branch,
@@ -91,6 +92,8 @@ export type RepoFacts = {
   pullRequests: PullRequest[];
   issues: Issue[];
   gitHistory: GitHistoryFacts;
+  /** Путь создания: коммиты, ветвления и слияния для дерева. */
+  gitGraph: GitGraph;
   /** Измерения по самим исходникам. */
   code: CodeFacts;
   security: SecurityScanResult;
@@ -252,6 +255,7 @@ export async function collectRepoFacts(
   let readme: string | null = null;
   let languages: LanguageShare[] = [];
   let code: CodeFacts = emptyCodeFacts();
+  let gitGraph: GitGraph = emptyGitGraph();
 
   if ((options.runGitAnalysis ?? true) && cloneUrlHttps) {
     try {
@@ -262,14 +266,17 @@ export async function collectRepoFacts(
           const files = await listFilesInClone(repo);
           languages = detectLanguages(files);
 
-          const [history, codeFacts, packageLockJson, pnpmLockYaml, readmeText] = await Promise.all([
-            analyzeGitHistoryInClone(repo, { files }),
-            collectCodeFacts(repo, files),
-            readFileFromClone(repo, 'package-lock.json'),
-            readFileFromClone(repo, 'pnpm-lock.yaml'),
-            readReadme(repo, files),
-          ]);
+          const [history, graph, codeFacts, packageLockJson, pnpmLockYaml, readmeText] =
+            await Promise.all([
+              analyzeGitHistoryInClone(repo, { files }),
+              collectGitGraph(repo),
+              collectCodeFacts(repo, files),
+              readFileFromClone(repo, 'package-lock.json'),
+              readFileFromClone(repo, 'pnpm-lock.yaml'),
+              readReadme(repo, files),
+            ]);
           gitHistory = history;
+          gitGraph = graph;
           code = codeFacts;
           lockfileContents = {
             packageLockJson: packageLockJson ?? undefined,
@@ -296,6 +303,7 @@ export async function collectRepoFacts(
   // Причины, по которым код остался непрочитанным, объясняются пользователю
   // так же, как остальные пробелы в данных.
   for (const error of code.errors) missing.push(error);
+  for (const error of gitGraph.errors) missing.push(error);
 
   // 4. security scan
   const parsedLocks = parseLockfiles({
@@ -337,6 +345,7 @@ export async function collectRepoFacts(
     pullRequests,
     issues,
     gitHistory,
+    gitGraph,
     code,
     security: scanResult,
     readme,

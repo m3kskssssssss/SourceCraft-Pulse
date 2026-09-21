@@ -3,6 +3,7 @@
 
 import type { RepoFacts } from '../../collect';
 import { emptyCodeFacts } from '../../git/code-facts';
+import { emptyGitGraph } from '../../git/graph';
 
 /** Базовый «пустой но полностью известный» RepoFacts. */
 function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
@@ -53,6 +54,8 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
     // По умолчанию исходники не прочитаны: метрики по коду уходят в unknown,
     // а тесты считаются по галочке из дерева файлов.
     code: emptyCodeFacts(['code_files_not_found']),
+    // Дерево коммитов на оценку не влияет — это иллюстрация на странице анализа.
+    gitGraph: emptyGitGraph(),
     security: {
       provider: 'osv_dev',
       available: true,

@@ -40,6 +40,8 @@ const EXACT: Record<string, string> = {
   security_scan_error: 'Сканирование уязвимостей не отработало',
   secrets_scan_failed: 'Поиск секретов не отработал',
   git_history_failed: 'История коммитов не прочиталась',
+  git_graph_failed: 'Дерево коммитов не построилось',
+  git_graph_empty: 'В клоне не оказалось ни одного коммита',
   repository_api_error: 'API репозитория вернул ошибку',
   collect_timeout: 'Сбор данных не успел за отведённое время',
 };
