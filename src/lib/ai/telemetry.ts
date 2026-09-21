@@ -3,10 +3,17 @@
 // Две реализации:
 //   - ConsoleAiTelemetry: печатает в stdout, накапливает in-memory-суммы за месяц.
 //     Используется CLI и когда БД недоступна.
-//   - DrizzleAiTelemetry: пишет строки в ai_calls (используется воркером).
-//     Реализация появится, когда подключим Neon; интерфейс уже готов.
+//   - DrizzleAiTelemetry: пишет строки в ai_calls и считает месячный
+//     расход запросом к БД. Единственный рабочий вариант для бюджета.
 
+import { gte, sql } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { aiCalls } from '../../db/schema';
+import type * as schema from '../../db/schema';
 import type { AiCompleteResult } from './provider';
+
+/** Drizzle-клиент с нашей схемой. */
+export type AiTelemetryDb = NodePgDatabase<typeof schema>;
 
 export type AiCallStatus = 'ok' | 'cached' | 'error' | 'budget_exceeded';
 
@@ -98,4 +105,63 @@ export function makeAiCallRecord(args: {
 
 function getMonthKey(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+// ---------- Postgres ----------
+
+/**
+ * Пишет каждый вызов в ai_calls и считает месячный расход запросом к БД.
+ *
+ * In-memory-версия на serverless бесполезна: бюджет, посчитанный в памяти
+ * одного вызова функции, всегда равен нулю — лимит просто не работал бы.
+ */
+export class DrizzleAiTelemetry implements AiTelemetry {
+  constructor(
+    private readonly db: AiTelemetryDb,
+    /** К какому анализу отнести вызовы. null — вне анализа (CLI, ai:ping). */
+    private readonly analysisId: string | null = null,
+  ) {}
+
+  async record(call: AiCallRecord): Promise<void> {
+    try {
+      await this.db.insert(aiCalls).values({
+        analysisId: this.analysisId,
+        provider: call.provider,
+        model: call.model,
+        task: call.task,
+        promptTokens: call.promptTokens,
+        completionTokens: call.completionTokens,
+        costRub: call.costRub.toFixed(6),
+        latencyMs: call.latencyMs,
+        status: call.status,
+        error: call.error?.slice(0, 500) ?? null,
+      });
+    } catch (err) {
+      // Телеметрия не должна ронять анализ: логируем и идём дальше.
+      console.warn('[ai] не удалось записать ai_calls:', describeError(err));
+    }
+  }
+
+  async monthlySpendRub(): Promise<number> {
+    try {
+      const rows = await this.db
+        .select({ total: sql<string>`coalesce(sum(${aiCalls.costRub}), 0)::text` })
+        .from(aiCalls)
+        .where(gte(aiCalls.createdAt, startOfUtcMonth(new Date())));
+      return Number.parseFloat(rows[0]?.total ?? '0') || 0;
+    } catch (err) {
+      // Не смогли прочитать расход — считаем, что лимит не достигнут,
+      // иначе сбой БД молча выключил бы весь ИИ.
+      console.warn('[ai] не удалось прочитать месячный расход:', describeError(err));
+      return 0;
+    }
+  }
+}
+
+function startOfUtcMonth(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+
+function describeError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

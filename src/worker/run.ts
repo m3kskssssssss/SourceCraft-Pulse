@@ -1,41 +1,26 @@
-// Воркер очереди анализа. Запускается обычным Node-процессом
-// (pnpm worker вручную либо GitHub Actions workflow_dispatch).
+// Воркер очереди анализа: обычный Node-процесс (pnpm worker).
+//
+// На Vercel основной путь другой — анализ считается прямо в запросе
+// /api/analyses/<id>/run. Воркер остаётся для двух случаев:
+//   - локальный прогон очереди без поднятого приложения;
+//   - добор задач, брошенных упавшей функцией (лок старше шести минут).
 //
 // Что делает:
-//   1) Берёт из analysis_jobs пачку задач через SELECT ... FOR UPDATE SKIP LOCKED
-//      + UPDATE locked_at/locked_by, всё внутри одной транзакции.
-//   2) Для каждой задачи вызывает collectRepoFacts, пишет факты в analyses.metrics
-//      и переводит статус в 'done'. Если упало — attempts++, снимает лок, ставит
-//      last_error. После MAX_ATTEMPTS попыток статус переводится в 'failed'.
-//   3) В конце закрывает пул и завершает процесс.
-//
-// На Этапе 3 (движок оценки) сюда добавится расчёт score и запись category_scores/recommendations.
+//   1) берёт из analysis_jobs пачку задач через SELECT ... FOR UPDATE SKIP LOCKED
+//      + UPDATE locked_at/locked_by, всё в одной транзакции;
+//   2) на каждую вызывает processAnalysis (общий код с маршрутом);
+//   3) закрывает пул и выходит.
 
 import 'dotenv/config';
-import { and, eq, isNull, sql, inArray } from 'drizzle-orm';
 import { hostname } from 'node:os';
 import { getWorkerDb, getWorkerPool, shutdownWorkerDb } from '../db/worker-client';
-import { analyses, analysisJobs, repositories, events } from '../db/schema';
-import { collectRepoFacts } from '../lib/collect';
-import { scoreRepo } from '../lib/scoring';
-import { InMemoryAiCache } from '../lib/ai/cache';
-import { ConsoleAiTelemetry } from '../lib/ai/telemetry';
-import { getAiProvider } from '../lib/ai/router';
-import { runReadmeRubric } from '../lib/ai/tasks/readme-rubric';
-import { runPrIssuesDigest } from '../lib/ai/tasks/pr-issues-digest';
-import { runRecommendationCopy } from '../lib/ai/tasks/recommendation-copy';
+import { MAX_ATTEMPTS, processAnalysis, type ClaimedJob } from '../lib/analysis/run';
 
 const DEFAULT_BATCH_SIZE = 5;
-const MAX_ATTEMPTS = 3;
-const JOB_TIMEOUT_MS = 5 * 60 * 1000; // 5 минут на одну задачу
+/** Лок, который старше этого, считаем брошенным — см. STALE_LOCK_MS в lib/analysis/run. */
+const STALE_LOCK_SQL = `now() - interval '6 minutes'`;
 
 const workerId = `${hostname()}#${process.pid}`;
-
-type LockedJob = {
-  jobId: string;
-  analysisId: string;
-  attempts: number;
-};
 
 async function main(): Promise<void> {
   const batchSize = Number.parseInt(process.env.WORKER_BATCH_SIZE ?? '', 10) || DEFAULT_BATCH_SIZE;
@@ -44,15 +29,16 @@ async function main(): Promise<void> {
   const jobs = await lockNextBatch(batchSize);
   console.log(`[worker ${workerId}] Захвачено задач: ${jobs.length}`);
 
+  const db = getWorkerDb();
   for (const job of jobs) {
-    await processJob(job);
+    await processAnalysis(db, job, workerId);
   }
 
   await shutdownWorkerDb();
   console.log(`[worker ${workerId}] Готово.`);
 }
 
-async function lockNextBatch(batchSize: number): Promise<LockedJob[]> {
+async function lockNextBatch(batchSize: number): Promise<ClaimedJob[]> {
   const pool = getWorkerPool();
   const client = await pool.connect();
   try {
@@ -60,7 +46,7 @@ async function lockNextBatch(batchSize: number): Promise<LockedJob[]> {
     const res = await client.query<{ id: string; analysis_id: string; attempts: number }>(
       `SELECT id, analysis_id, attempts
        FROM analysis_jobs
-       WHERE locked_at IS NULL AND attempts < $1
+       WHERE (locked_at IS NULL OR locked_at < ${STALE_LOCK_SQL}) AND attempts < $1
        ORDER BY created_at ASC
        LIMIT $2
        FOR UPDATE SKIP LOCKED`,
@@ -76,7 +62,11 @@ async function lockNextBatch(batchSize: number): Promise<LockedJob[]> {
       ids,
     ]);
     await client.query('COMMIT');
-    return res.rows.map((r) => ({ jobId: r.id, analysisId: r.analysis_id, attempts: r.attempts }));
+    return res.rows.map((r) => ({
+      jobId: r.id,
+      analysisId: r.analysis_id,
+      attempts: r.attempts,
+    }));
   } catch (err) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw err;
@@ -84,187 +74,6 @@ async function lockNextBatch(batchSize: number): Promise<LockedJob[]> {
     client.release();
   }
 }
-
-async function processJob(job: LockedJob): Promise<void> {
-  const db = getWorkerDb();
-  console.log(`[worker ${workerId}] → job=${job.jobId} analysis=${job.analysisId}`);
-
-  await db
-    .update(analyses)
-    .set({ status: 'running' })
-    .where(eq(analyses.id, job.analysisId));
-
-  const analysis = await db.query.analyses.findFirst({
-    where: eq(analyses.id, job.analysisId),
-  });
-  if (!analysis) {
-    await failJob(job, 'analysis_row_missing');
-    return;
-  }
-  const repo = await db.query.repositories.findFirst({
-    where: eq(repositories.id, analysis.repositoryId),
-  });
-  if (!repo) {
-    await failJob(job, 'repository_row_missing');
-    return;
-  }
-
-  try {
-    const facts = await withTimeout(
-      collectRepoFacts(repo.orgSlug, repo.repoSlug),
-      JOB_TIMEOUT_MS,
-      `job_timeout_${JOB_TIMEOUT_MS}ms`,
-    );
-
-    // AI-часть. Кэш и телеметрия — in-memory на процесс воркера. Три задачи
-    // независимы — падение одной не должно ронять остальные.
-    let aiDocsScore: { value: number; summary?: string } | null = null;
-    let aiOutputs: Record<string, unknown> = {};
-
-    const runSafely = async <T>(name: string, fn: () => Promise<T>): Promise<T | { error: string }> => {
-      try {
-        return await fn();
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn(`[worker ${workerId}] AI task ${name} упала: ${message.slice(0, 200)}`);
-        return { error: message };
-      }
-    };
-
-    try {
-      const provider = getAiProvider();
-      const cache = new InMemoryAiCache();
-      const telemetry = new ConsoleAiTelemetry();
-
-      const rubric = await runSafely('readme_rubric', () =>
-        runReadmeRubric({ provider, cache, telemetry, facts }),
-      );
-      if ('value' in rubric) {
-        aiDocsScore = { value: rubric.value.score, summary: rubric.value.summary };
-      }
-
-      const digest = await runSafely('pr_issues_digest', () =>
-        runPrIssuesDigest({ provider, cache, telemetry, facts }),
-      );
-
-      const preliminary = scoreRepo(facts, aiDocsScore ? { aiDocsScore } : {});
-      const copy = await runSafely('recommendation_copy', () =>
-        runRecommendationCopy({
-          provider,
-          cache,
-          telemetry,
-          orgRepo: `${repo.orgSlug}/${repo.repoSlug}`,
-          language: facts.language,
-          recommendations: preliminary.recommendations,
-        }),
-      );
-
-      aiOutputs = { readmeRubric: rubric, prIssuesDigest: digest, recommendationCopy: copy };
-    } catch (aiErr) {
-      const message = aiErr instanceof Error ? aiErr.message : String(aiErr);
-      console.warn(`[worker ${workerId}] AI не сконфигурирован: ${message}`);
-      aiOutputs = { error: message };
-    }
-
-    const result = scoreRepo(facts, aiDocsScore ? { aiDocsScore } : {});
-
-    await db
-      .update(analyses)
-      .set({
-        status: 'done',
-        score: result.score,
-        categoryScores: result.categoryScores as unknown as Record<string, unknown>,
-        metrics: {
-          facts: facts as unknown as Record<string, unknown>,
-          penalties: result.penalties,
-          scoreBeforePenalties: result.scoreBeforePenalties,
-          ai: aiOutputs,
-        },
-        recommendations: result.recommendations as unknown as Record<string, unknown>,
-        missing: result.missing as unknown as Record<string, unknown>,
-        finishedAt: new Date(),
-      })
-      .where(eq(analyses.id, job.analysisId));
-
-    // задачу считаем выполненной — удаляем строку из очереди
-    await db.delete(analysisJobs).where(eq(analysisJobs.id, job.jobId));
-
-    await db.insert(events).values({
-      kind: 'analysis.completed',
-      payload: {
-        analysisId: job.analysisId,
-        org: repo.orgSlug,
-        repo: repo.repoSlug,
-        score: result.score,
-        missingCount: result.missing.length,
-      },
-    });
-
-    console.log(
-      `[worker ${workerId}] ✓ analysis=${job.analysisId} done, score=${result.score}, missing=${result.missing.length}`,
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[worker ${workerId}] ✗ analysis=${job.analysisId} failed: ${message}`);
-    await failJob(job, message);
-  }
-}
-
-async function failJob(job: LockedJob, message: string): Promise<void> {
-  const db = getWorkerDb();
-  const nextAttempts = job.attempts + 1;
-
-  if (nextAttempts >= MAX_ATTEMPTS) {
-    // финальный провал — статус failed, из очереди убираем
-    await db
-      .update(analyses)
-      .set({ status: 'failed', error: message.slice(0, 500), finishedAt: new Date() })
-      .where(eq(analyses.id, job.analysisId));
-    await db.delete(analysisJobs).where(eq(analysisJobs.id, job.jobId));
-    await db.insert(events).values({
-      kind: 'analysis.failed',
-      payload: { analysisId: job.analysisId, error: message.slice(0, 500), attempts: nextAttempts },
-    });
-    return;
-  }
-
-  // мягкий провал — освобождаем лок, чтобы следующая пачка попробовала снова
-  await db
-    .update(analysisJobs)
-    .set({
-      attempts: nextAttempts,
-      lockedAt: null,
-      lockedBy: null,
-      lastError: message.slice(0, 500),
-    })
-    .where(eq(analysisJobs.id, job.jobId));
-  await db
-    .update(analyses)
-    .set({ status: 'queued' })
-    .where(eq(analyses.id, job.analysisId));
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, tag: string): Promise<T> {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const timer = setTimeout(() => rejectPromise(new Error(tag)), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolvePromise(value);
-      },
-      (err) => {
-        clearTimeout(timer);
-        rejectPromise(err);
-      },
-    );
-  });
-}
-
-// Namespace guard — импорты, чтобы линтер не считал их unused при рефакторе.
-void and;
-void isNull;
-void sql;
-void inArray;
 
 main().catch(async (err: unknown) => {
   console.error('[worker] fatal:', err);

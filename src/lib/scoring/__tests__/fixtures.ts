@@ -44,9 +44,8 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
       uniqueAuthorsLast90Days: 0,
       lastCommitDate: null,
       topAuthorSharePercent: null,
-      totalCommits: 0,
       secretHits: [],
-      secretsScanCommitLimit: 500,
+      secretsScannedFiles: 0,
       errors: [],
     },
     security: {
@@ -99,9 +98,8 @@ export function makePerfectFacts(): RepoFacts {
       uniqueAuthorsLast90Days: 8,
       lastCommitDate: new Date().toISOString(),
       topAuthorSharePercent: 25,
-      totalCommits: 500,
       secretHits: [],
-      secretsScanCommitLimit: 500,
+      secretsScannedFiles: 0,
       errors: [],
     },
     readme: [
@@ -151,7 +149,6 @@ export function makeMissingActivityFacts(): RepoFacts {
       uniqueAuthorsLast90Days: null,
       lastCommitDate: null,
       topAuthorSharePercent: null,
-      totalCommits: null,
       errors: ['git_history_failed: mock'],
     },
     security: {

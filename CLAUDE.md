@@ -7,19 +7,21 @@
 ## Стек (не обсуждается)
 
 - **Приложение:** Next.js 15 (App Router), TypeScript strict, pnpm
-- **База:** Postgres 16 (self-hosted), node-postgres драйвер, Drizzle ORM, drizzle-kit миграции
+- **База:** Postgres на Neon (pooled-строка), node-postgres драйвер, Drizzle ORM, drizzle-kit миграции
 - **Стили:** Tailwind CSS, без готовых UI-китов — компоненты пишем сами
 - **Валидация:** Zod для всего, что приходит извне
 - **Тесты:** Vitest, только на движке оценки и парсерах
 - **Авторизация:** Auth.js (next-auth) v5 с адаптером Drizzle
+- **Git:** isomorphic-git — чистый JS, в serverless-функциях бинарника git нет
 - **ИИ:** через OpenAI-совместимый роутер (RouterAI, `AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL`); usage.cost роутер возвращает сам
 - **Хостинг:** Vercel Hobby
 
 ## Ограничения Vercel Hobby
 
-- serverless-функции короткие; долгие задачи — во внешний воркер через очередь `analysis_jobs`
+- функции с Fluid compute живут до 300 с и 2 ГБ — анализ считается прямо в запросе `POST /api/analyses/[id]/run`, внешний воркер в проде не нужен
+- очередь `analysis_jobs` осталась журналом состояния и локом против двух параллельных прогонов; лок старше 6 минут считается брошенным
 - cron на Hobby ≤ 1 раза в сутки с точностью до часа → `/api/cron/*` дёргаются извне заголовком `Authorization: Bearer $CRON_SECRET`
-- нет постоянного диска; `git clone` — только в воркере, в `/tmp`, `--filter=blob:none --bare`, с немедленным удалением
+- нет постоянного диска и бинарника git; клон — isomorphic-git в `/tmp`, одна ветка, без рабочей копии, история за 90 дней, с немедленным удалением
 - никаких фоновых процессов, живущих дольше ответа
 
 ## Договорённости
@@ -47,7 +49,7 @@
 - `pnpm collect <org> <repo> [--score] [--ai]` — сбор фактов; `--score` печатает AnalysisResult; `--ai` также прогоняет три AI-задачи через RouterAI
 - `pnpm ai:ping` — проверка RouterAI: маленький запрос + повтор из кэша
 - `pnpm admin:hash` — печатает `ADMIN_PASSWORD_HASH=…` для .env (пароль от 20 символов)
-- `pnpm worker` — прогон воркера очереди `analysis_jobs`
+- `pnpm worker` — прогон очереди `analysis_jobs` вручную (локально и для добора брошенных задач; в проде считает сам запрос)
 - `pnpm seed:repos [--auto] [--count=N]` — поставить репозитории в очередь
 - `pnpm db:generate` — сгенерировать SQL-миграции из `src/db/schema.ts`
 - `pnpm db:migrate` — применить миграции к БД из `DATABASE_URL`
@@ -73,6 +75,8 @@ src/
 │   │   ├── auth.ts               # signUpAction, signOutAction
 │   │   ├── analyze.ts            # analyzeRepo — slug + limits + SC check + queue
 │   │   └── visibility.ts         # setAnalysisVisibility (публикация в рейтинг)
+│   ├── api/analyses/[id]/run/route.ts       # считает анализ в запросе (maxDuration 300)
+│   ├── api/analyses/[id]/status/route.ts    # статус для опроса со страницы
 │   ├── api/badge/[org]/[repo].svg/route.ts    # SVG-бейдж по последнему public
 │   ├── api/public/leaderboard/route.ts         # GET рейтинга (rate-limited)
 │   ├── api/public/repos/[org]/[repo]/route.ts  # GET последнего публичного
@@ -146,8 +150,9 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 - [x] Этап 1 — каркас, схема БД, health-эндпоинт, деплой
 - [x] Этап 2 — SourceCraft-клиент, сбор фактов, воркер
 - [x] Этап 3 — движок оценки + Vitest (seed по реальным данным отложен до подключения Neon)
-- [x] Этап 4 — слой ИИ через RouterAI, кэш, учёт затрат, лимит бюджета (Drizzle-версии кэша/телеметрии отложены до Neon)
+- [x] Этап 4 — слой ИИ через RouterAI, кэш, учёт затрат, лимит бюджета
 - [x] Этап 5 — Auth.js v5 (credentials + argon2), гостевой доступ, лимиты, /signin, /signup, /analyze, /a/[id] (живой прогон требует Neon)
 - [x] Этап 6 — публикация анализа, рейтинг с сортировкой/поиском, публичный API + SVG-бейдж (живой прогон требует Neon)
 - [x] Этап 7 — админка: отдельный вход /admin/login (HMAC-cookie, argon2id, rate-limit 5/15мин), 6 разделов (сводка/ai/очередь/пользователи/репозитории/настройки), таблица settings, pnpm admin:hash
 - [x] Этап 8 — ЧБ-тема, набор примитивов (ScoreDial/Bar/Chip/Card/Stat), раскрыта страница /a/[id] с категориями/метриками/рекомендациями, обновлены главная/карточка репо/auth/админка, favicon SVG, not-found
+- [x] Этап 9 — возврат на Vercel: анализ в запросе (300 с), isomorphic-git вместо бинарника, три AI-задачи параллельно, кэш и телеметрия ИИ в Postgres

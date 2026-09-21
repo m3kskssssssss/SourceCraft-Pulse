@@ -14,9 +14,7 @@ import { scoreRepo } from '../lib/scoring';
 import { InMemoryAiCache } from '../lib/ai/cache';
 import { ConsoleAiTelemetry } from '../lib/ai/telemetry';
 import { getAiProvider } from '../lib/ai/router';
-import { runReadmeRubric } from '../lib/ai/tasks/readme-rubric';
-import { runPrIssuesDigest } from '../lib/ai/tasks/pr-issues-digest';
-import { runRecommendationCopy } from '../lib/ai/tasks/recommendation-copy';
+import { runAiAnalysis } from '../lib/ai/pipeline';
 
 type Args = { org: string; repo: string; score: boolean; ai: boolean };
 
@@ -101,49 +99,21 @@ async function main(): Promise<void> {
   if (ai) {
     console.log('\n--- AI (RouterAI) ---');
     const provider = getAiProvider();
-    const cache = new InMemoryAiCache();
+    // CLI работает и без БД, поэтому кэш и телеметрия здесь in-memory.
     const telemetry = new ConsoleAiTelemetry();
 
-    const runSafely = async <T>(name: string, fn: () => Promise<T>): Promise<T | { error: string }> => {
-      try {
-        return await fn();
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn(`AI task ${name} упала, продолжаем без неё: ${message.slice(0, 200)}`);
-        return { error: message };
-      }
-    };
+    const outcome = await runAiAnalysis({
+      provider,
+      cache: new InMemoryAiCache(),
+      telemetry,
+      facts,
+      recommendations: scoreRepo(facts).recommendations,
+    });
 
-    // 1. Рубрика README — если упала, оставляем docs на heuristic
-    const rubric = await runSafely('readme_rubric', () =>
-      runReadmeRubric({ provider, cache, telemetry, facts }),
-    );
-    if ('value' in rubric) {
-      aiDocsScore = { value: rubric.value.score, summary: rubric.value.summary };
-    }
-
-    // 2. Дайджест PR/issues (не влияет на score)
-    const digest = await runSafely('pr_issues_digest', () =>
-      runPrIssuesDigest({ provider, cache, telemetry, facts }),
-    );
-
-    // 3. Красивые формулировки на топ-3 рекомендации
-    const preliminary = scoreRepo(facts, aiDocsScore ? { aiDocsScore } : {});
-    const copy = await runSafely('recommendation_copy', () =>
-      runRecommendationCopy({
-        provider,
-        cache,
-        telemetry,
-        orgRepo: `${org}/${repo}`,
-        language: facts.language,
-        recommendations: preliminary.recommendations,
-      }),
-    );
-
+    aiDocsScore = outcome.aiDocsScore;
     aiOutputs = {
-      readmeRubric: rubric,
-      prIssuesDigest: digest,
-      recommendationCopy: copy,
+      ...outcome.outputs,
+      elapsedMs: outcome.elapsedMs,
       monthlySpendRub: await telemetry.monthlySpendRub(),
     };
   }

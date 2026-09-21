@@ -20,6 +20,11 @@ import type { AiTelemetry } from './telemetry';
 import { assertUnderMonthlyBudget, BudgetExceededError } from './budget';
 import { makeAiCallRecord, usdToRub } from './telemetry';
 
+/** Лимит ответа, если задача не указала свой. */
+const DEFAULT_MAX_TOKENS = 1024;
+/** Выше этого потолка не поднимаем даже на повторе — дороже, чем полезно. */
+const MAX_TOKENS_CEILING = 4096;
+
 export type RunAiTaskArgs<TInput, TOutput> = {
   provider: AiProvider;
   cache: AiCache;
@@ -28,8 +33,12 @@ export type RunAiTaskArgs<TInput, TOutput> = {
   task: string;
   /** Вход в задачу — попадёт в hash-ключ и в buildPrompt. */
   input: TInput;
-  /** Zod-схема ожидаемого ответа. Обязательна. */
-  schema: z.ZodType<TOutput>;
+  /**
+   * Zod-схема ожидаемого ответа. Обязательна.
+   * Вход схемы — unknown: задача вправе принимать несколько форм ответа
+   * и нормализовать их через transform, а наружу отдавать один тип.
+   */
+  schema: z.ZodType<TOutput, z.ZodTypeDef, unknown>;
   /** Формирует промпты из входа. */
   buildPrompt(input: TInput): { system: string; user: string; maxTokens?: number };
   /**
@@ -91,10 +100,19 @@ export async function runAiTask<TInput, TOutput>(
   }
 
   const { system, user, maxTokens } = buildPrompt(input);
-  const call: AiCompleteInput = { system, user, maxTokens, json: true };
+  const baseMaxTokens = maxTokens ?? DEFAULT_MAX_TOKENS;
 
-  // Одна попытка + один повтор при zod-ошибке разбора.
+  // Одна попытка + один повтор при ошибке разбора. На повторе поднимаем лимит
+  // ответа: главная причина невалидного JSON — модель не успела закрыть скобки
+  // и ответ оборвался на max_tokens. Повторять с тем же лимитом бессмысленно.
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const call: AiCompleteInput = {
+      system,
+      user,
+      maxTokens: attempt === 1 ? baseMaxTokens : Math.min(baseMaxTokens * 2, MAX_TOKENS_CEILING),
+      json: true,
+    };
+
     let result;
     try {
       result = await provider.complete(call);
@@ -120,7 +138,7 @@ export async function runAiTask<TInput, TOutput>(
     try {
       parsed = JSON.parse(rawJson);
     } catch (err) {
-      const reason = `json_parse_failed: ${describe(err)}`;
+      const reason = `json_parse_failed: ${describe(err)}; ответ модели: ${preview(rawJson)}`;
       await telemetry.record(
         makeAiCallRecord({
           provider: provider.name,
@@ -140,7 +158,7 @@ export async function runAiTask<TInput, TOutput>(
 
     const validated = schema.safeParse(parsed);
     if (!validated.success) {
-      const reason = `zod_parse_failed: ${validated.error.message}`;
+      const reason = `zod_parse_failed: ${validated.error.message}; ответ модели: ${preview(rawJson)}`;
       await telemetry.record(
         makeAiCallRecord({
           provider: provider.name,
@@ -190,6 +208,16 @@ export function stripCodeFences(text: string): string {
 
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Начало ответа модели для сообщения об ошибке. Без него «невалидный JSON»
+ * ничего не говорит: непонятно, обрезан ответ, обёрнут в текст или просто
+ * другой формы, чем ждёт схема.
+ */
+function preview(raw: string, max = 220): string {
+  const flat = raw.replace(/\s+/g, ' ').trim();
+  return flat.length <= max ? flat : `${flat.slice(0, max)}… (всего ${raw.length} символов)`;
 }
 
 // Экспортируем usdToRub из телеметрии на всякий случай для тестов.

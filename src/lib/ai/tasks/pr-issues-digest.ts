@@ -8,19 +8,54 @@ import type { AiProvider } from '../provider';
 import type { AiTelemetry } from '../telemetry';
 import { runAiTask, type RunAiTaskResult } from '../runner';
 
-const MAX_ITEMS = 50;
-const MAX_TEXT_CHARS = 500;
+const MAX_ITEMS = 24;
+const MAX_TEXT_CHARS = 200;
+
+const TASK_KINDS = ['bug', 'feature', 'refactor', 'docs', 'chore', 'question', 'other'] as const;
+
+type TaskKind = (typeof TASK_KINDS)[number];
+
+const taskTypeEntrySchema = z.object({
+  kind: z.enum(TASK_KINDS),
+  count: z.number().int().nonnegative(),
+});
+
+/**
+ * Модель на этот вопрос устойчиво отвечает словарём `{"bug": 24}`, а не
+ * массивом `[{kind, count}]`. Спорить с ней дороже, чем принять оба вида:
+ * словарь нормализуем сами, неизвестные виды складываем в `other`.
+ */
+const taskTypesSchema = z
+  .union([z.array(taskTypeEntrySchema), z.record(z.string(), z.number())])
+  .transform(normalizeTaskTypes);
 
 const digestSchema = z.object({
   substantive_discussion_share: z.number().min(0).max(1),
-  task_types: z.array(
-    z.object({
-      kind: z.enum(['bug', 'feature', 'refactor', 'docs', 'chore', 'question', 'other']),
-      count: z.number().int().nonnegative(),
-    }),
-  ),
-  summary: z.string().max(600),
+  task_types: taskTypesSchema,
+  summary: z.string().max(400),
 });
+
+function normalizeTaskTypes(
+  raw: Array<{ kind: TaskKind; count: number }> | Record<string, number>,
+): Array<{ kind: TaskKind; count: number }> {
+  const counts = new Map<TaskKind, number>();
+  const add = (kind: string, count: number): void => {
+    const known = (TASK_KINDS as readonly string[]).includes(kind) ? (kind as TaskKind) : 'other';
+    const value = Number.isFinite(count) ? Math.max(0, Math.round(count)) : 0;
+    counts.set(known, (counts.get(known) ?? 0) + value);
+  };
+
+  if (Array.isArray(raw)) {
+    for (const entry of raw) add(entry.kind, entry.count);
+  } else {
+    for (const [kind, count] of Object.entries(raw)) add(kind, count);
+  }
+
+  return [...counts.entries()]
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([kind, count]) => ({ kind, count }));
+}
 
 export type PrIssuesDigest = z.infer<typeof digestSchema>;
 
@@ -54,11 +89,25 @@ function truncate(text: string, max: number): string {
 }
 
 const SYSTEM = `Ты аналитик open-source-репозиториев.
-На входе — выборка PR и issue. Оцени:
-- substantive_discussion_share: доля от 0 до 1 записей, где обсуждение по существу (не «lgtm», не только код-ревью-мелочи).
-- task_types: как часто встречаются разные виды задач (bug/feature/refactor/docs/chore/question/other).
-- summary: 1–3 предложения по-русски, что запомнилось.
-Отвечай ТОЛЬКО валидным JSON без markdown-ограждений.`;
+На входе — выборка PR и issue.
+Отвечай ТОЛЬКО валидным JSON без markdown-ограждений. Никаких пояснений вне JSON.
+
+Формат ответа СТРОГО такой:
+{
+  "substantive_discussion_share": <число от 0 до 1>,
+  "task_types": [
+    { "kind": "bug", "count": <целое> },
+    { "kind": "feature", "count": <целое> }
+  ],
+  "summary": "<1-2 предложения по-русски, до 300 символов>"
+}
+
+Правила:
+- substantive_discussion_share: доля записей, где обсуждение по существу
+  (не «lgtm», не мелкие замечания код-ревью).
+- task_types: массив объектов; kind — одно из bug, feature, refactor, docs,
+  chore, question, other. Перечисляй только встретившиеся виды.
+- Ответ короткий: перечислять сами записи не нужно.`;
 
 function buildPrompt(input: PrIssuesInput): { system: string; user: string; maxTokens?: number } {
   const list = input.items.length
@@ -72,7 +121,7 @@ function buildPrompt(input: PrIssuesInput): { system: string; user: string; maxT
   return {
     system: SYSTEM,
     user: `Репозиторий: ${input.orgRepo}\n\nЗаписи:\n${list}`,
-    maxTokens: 500,
+    maxTokens: 1200,
   };
 }
 

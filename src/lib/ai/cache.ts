@@ -2,13 +2,19 @@
 //
 // Две реализации:
 //   - InMemoryAiCache: Map, живёт процесс. Для CLI и тестов.
-//   - DrizzleAiCache: пишет/читает таблицу ai_cache. Требует worker-client
-//     (только для скрипта воркера); импорт лениво, чтобы модуль ai/cache
-//     оставался бэкенд-независимым.
+//   - DrizzleAiCache: таблица ai_cache. Обязателен на serverless — там
+//     каждый запрос новый процесс, и память ничего не хранит.
 //
 // Кэшируем JSON-объекты (Zod-парсированный результат конкретной задачи).
 
 import { createHash } from 'node:crypto';
+import { eq } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { aiCache } from '../../db/schema';
+import type * as schema from '../../db/schema';
+
+/** Drizzle-клиент с нашей схемой: и приложение, и воркер ходят через pg-драйвер. */
+export type AiCacheDb = NodePgDatabase<typeof schema>;
 
 export type AiCacheKey = { task: string; input: unknown };
 
@@ -56,5 +62,46 @@ export class InMemoryAiCache implements AiCache {
 
   size(): number {
     return this.store.size;
+  }
+}
+
+// ---------- Postgres ----------
+
+/**
+ * Кэш в таблице ai_cache. Нужен именно на serverless: там каждый запрос —
+ * новый процесс, и in-memory кэш не переживает даже соседний вызов задачи.
+ * Повторный анализ того же репозитория с теми же фактами не стоит ничего.
+ */
+export class DrizzleAiCache implements AiCache {
+  constructor(
+    private readonly db: AiCacheDb,
+    private readonly meta: { provider: string; model: string },
+  ) {}
+
+  hash(key: AiCacheKey): string {
+    return hashKey(key);
+  }
+
+  async get<T>(key: AiCacheKey): Promise<T | null> {
+    const rows = await this.db
+      .select({ response: aiCache.response })
+      .from(aiCache)
+      .where(eq(aiCache.hash, this.hash(key)))
+      .limit(1);
+    const row = rows[0];
+    return row ? (row.response as T) : null;
+  }
+
+  async put<T>(key: AiCacheKey, value: T): Promise<void> {
+    await this.db
+      .insert(aiCache)
+      .values({
+        hash: this.hash(key),
+        task: key.task,
+        provider: this.meta.provider,
+        model: this.meta.model,
+        response: value as Record<string, unknown>,
+      })
+      .onConflictDoNothing();
   }
 }

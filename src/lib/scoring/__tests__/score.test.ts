@@ -60,12 +60,12 @@ describe('scoreRepo — штрафы', () => {
 
   it('содержит три штрафа: секрет, critical CVE, нет лицензии', () => {
     const keys = result.penalties.map((p) => p.key).sort();
-    expect(keys).toEqual(['critical_vuln_unfixed', 'missing_license', 'secret_in_history']);
+    expect(keys).toEqual(['critical_vuln_unfixed', 'missing_license', 'secret_in_code']);
   });
 
   it('итог = round(clamp(scoreBeforePenalties − сумма штрафов))', () => {
     const totalPenalty =
-      PENALTIES.secretInHistory + PENALTIES.criticalVulnUnfixed + PENALTIES.missingLicense;
+      PENALTIES.secretInCode + PENALTIES.criticalVulnUnfixed + PENALTIES.missingLicense;
     const expected = Math.max(0, Math.round(result.scoreBeforePenalties - totalPenalty));
     expect(result.score).toBe(expected);
   });

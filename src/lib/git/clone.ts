@@ -1,134 +1,140 @@
-// Управление жизненным циклом bare-клона в /tmp.
-// Один клон обслуживает и историю (git log), и чтение конкретных файлов
-// (git show HEAD:path — --filter=blob:none тянет только нужные блобы).
+// Shallow-клон репозитория через isomorphic-git — чистый JS, без бинарника git.
+//
+// Почему не `git clone`: в serverless-функциях Vercel нет исполняемого git,
+// а история коммитов, README и lock-файлы берутся только из репозитория —
+// в API SourceCraft нет ни эндпоинта файлов, ни эндпоинта коммитов.
+//
+// Тянем узкий срез: одна ветка, без рабочей копии, история — за окно, которое
+// считает движок оценки (90 дней). Клон живёт в /tmp и удаляется сразу после
+// использования: постоянного диска нет ни на Vercel, ни в воркере.
 //
 // Использование:
-//   await withBareClone({ cloneUrlHttps, token }, async (workDir) => { ... });
-//
-// ВАЖНО: только для воркера. Не импортировать из App Router / API-роутов.
+//   await withRepoClone({ cloneUrlHttps, token }, async (repo) => {
+//     const readme = await readFileFromClone(repo, 'README.md');
+//   });
 
-import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import git from 'isomorphic-git';
+import http from 'isomorphic-git/http/node';
 
-export type BareCloneOptions = {
-  cloneUrlHttps: string;
-  token?: string;
-  /** Таймаут именно на clone; операции внутри — свой лимит через runGit. */
-  cloneTimeoutMs?: number;
+export type RepoClone = {
+  /** Каталог клона в /tmp. */
+  dir: string;
+  /** Коммит, на который смотрит HEAD. */
+  headOid: string;
+  /** Клон обрезанный: полное число коммитов по нему считать нельзя. */
+  shallow: boolean;
 };
 
-const DEFAULT_CLONE_TIMEOUT_MS = 180_000;
+export type CloneOptions = {
+  cloneUrlHttps: string;
+  token?: string;
+  /** Окно истории в днях. 0 или меньше — тянуть всю историю. */
+  historyDays?: number;
+  /** Лимит на весь клон. */
+  timeoutMs?: number;
+};
 
-export async function withBareClone<T>(
-  options: BareCloneOptions,
-  fn: (workDir: string) => Promise<T>,
+const DEFAULT_HISTORY_DAYS = 90;
+const DEFAULT_CLONE_TIMEOUT_MS = 120_000;
+/** Страховка на случай, если сервер проигнорирует deepen-since. */
+const MAX_DEPTH = 2_000;
+
+export async function withRepoClone<T>(
+  options: CloneOptions,
+  fn: (repo: RepoClone) => Promise<T>,
 ): Promise<T> {
-  const workDir = await mkdtemp(join(tmpdir(), 'pulse-git-'));
+  const historyDays = options.historyDays ?? DEFAULT_HISTORY_DAYS;
+  const dir = await mkdtemp(join(tmpdir(), 'pulse-git-'));
+
   try {
-    await runGit(
-      [
-        'clone',
-        '--filter=blob:none',
-        '--bare',
-        '--quiet',
-        injectToken(options.cloneUrlHttps, options.token),
-        workDir,
-      ],
-      { timeoutMs: options.cloneTimeoutMs ?? DEFAULT_CLONE_TIMEOUT_MS },
+    const shallow = historyDays > 0;
+    await withTimeout(
+      git.clone({
+        fs,
+        http,
+        dir,
+        url: normalizeCloneUrl(options.cloneUrlHttps),
+        singleBranch: true,
+        // Рабочая копия не нужна: файлы читаем прямо из объектов.
+        noCheckout: true,
+        ...(shallow
+          ? { since: new Date(Date.now() - historyDays * 24 * 3600 * 1000) }
+          : { depth: MAX_DEPTH }),
+        onAuth: options.token
+          ? () => ({ username: 'x-access-token', password: options.token })
+          : undefined,
+      }),
+      options.timeoutMs ?? DEFAULT_CLONE_TIMEOUT_MS,
+      'clone_timeout',
     );
-    return await fn(workDir);
+
+    const headOid = await git.resolveRef({ fs, dir, ref: 'HEAD' });
+    return await fn({ dir, headOid, shallow });
   } finally {
-    await rm(workDir, { recursive: true, force: true }).catch(() => {
-      // мусор в tmp — пусть, лишь бы не мешало возврату
+    await rm(dir, { recursive: true, force: true }).catch(() => {
+      // мусор в /tmp — не повод ронять анализ
     });
   }
 }
 
-type RunGitOptions = {
-  cwd?: string;
-  timeoutMs: number;
-  maxBufferBytes?: number;
-};
-
-/** Запускает git и возвращает stdout. Кидает Error с текстом stderr на ненулевой exit. */
-export function runGit(args: string[], options: RunGitOptions): Promise<string> {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const proc = spawn('git', args, {
-      cwd: options.cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-    });
-
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    let stdoutBytes = 0;
-    const maxBytes = options.maxBufferBytes ?? 16 * 1024 * 1024;
-    let killed = false;
-
-    const timer = setTimeout(() => {
-      killed = true;
-      proc.kill('SIGKILL');
-    }, options.timeoutMs);
-
-    proc.stdout.on('data', (chunk: Buffer) => {
-      stdoutBytes += chunk.length;
-      if (stdoutBytes > maxBytes) {
-        killed = true;
-        proc.kill('SIGKILL');
-        return;
-      }
-      stdout.push(chunk);
-    });
-    proc.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
-
-    proc.on('error', (err: Error) => {
-      clearTimeout(timer);
-      rejectPromise(err);
-    });
-
-    proc.on('close', (code: number | null) => {
-      clearTimeout(timer);
-      if (killed) {
-        rejectPromise(new Error(`git ${args[0]} killed (timeout or buffer overflow)`));
-        return;
-      }
-      if (code !== 0) {
-        const err = Buffer.concat(stderr).toString('utf8').trim();
-        rejectPromise(new Error(`git ${args[0]} exited ${code}: ${err.slice(0, 500)}`));
-        return;
-      }
-      resolvePromise(Buffer.concat(stdout).toString('utf8'));
-    });
-  });
-}
-
-/** Читает содержимое файла из bare-клона по ссылке ref:path. Null, если файл отсутствует. */
+/** Содержимое файла на HEAD. Null, если файла нет или он не читается. */
 export async function readFileFromClone(
-  workDir: string,
-  refPath: string, // 'HEAD:package-lock.json'
-  options: { timeoutMs?: number; maxBufferBytes?: number } = {},
+  repo: RepoClone,
+  filepath: string,
 ): Promise<string | null> {
   try {
-    return await runGit(['show', refPath], {
-      cwd: workDir,
-      timeoutMs: options.timeoutMs ?? 30_000,
-      maxBufferBytes: options.maxBufferBytes ?? 8 * 1024 * 1024,
+    const { blob } = await git.readBlob({
+      fs,
+      dir: repo.dir,
+      oid: repo.headOid,
+      filepath,
     });
+    return Buffer.from(blob).toString('utf8');
   } catch {
     return null;
   }
 }
 
-function injectToken(cloneUrl: string, token?: string): string {
-  if (!token) return cloneUrl;
+/** Пути всех файлов на HEAD. */
+export async function listFilesInClone(repo: RepoClone): Promise<string[]> {
+  try {
+    return await git.listFiles({ fs, dir: repo.dir, ref: repo.headOid });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Клон-URL SourceCraft приходит в виде `https://git@git.sourcecraft.dev/...`.
+ * isomorphic-git имя пользователя в URL не принимает — авторизуемся через onAuth.
+ */
+function normalizeCloneUrl(cloneUrl: string): string {
   try {
     const url = new URL(cloneUrl);
-    url.username = 'x-access-token';
-    url.password = token;
+    url.username = '';
+    url.password = '';
     return url.toString();
   } catch {
     return cloneUrl;
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, tag: string): Promise<T> {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const timer = setTimeout(() => rejectPromise(new Error(tag)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolvePromise(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        rejectPromise(err);
+      },
+    );
+  });
 }

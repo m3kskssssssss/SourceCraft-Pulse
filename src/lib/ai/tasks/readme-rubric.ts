@@ -10,8 +10,8 @@ import type { AiProvider } from '../provider';
 import type { AiTelemetry } from '../telemetry';
 import { runAiTask, type RunAiTaskResult } from '../runner';
 
-const READ_ME_MAX_CHARS = 12_000;
-const FILES_LIST_MAX = 150;
+const READ_ME_MAX_CHARS = 6_000;
+const FILES_LIST_MAX = 80;
 
 const rubricSchema = z.object({
   score: z.number().min(0).max(100),
@@ -80,7 +80,7 @@ function buildPrompt(input: ReadmeRubricInput): { system: string; user: string; 
     'СОДЕРЖИМОЕ README:',
     readme,
   ].join('\n');
-  return { system: SYSTEM, user, maxTokens: 700 };
+  return { system: SYSTEM, user, maxTokens: 900 };
 }
 
 export async function runReadmeRubric(args: {

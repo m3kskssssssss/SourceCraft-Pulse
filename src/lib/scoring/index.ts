@@ -131,9 +131,9 @@ export function computePenalties(facts: RepoFacts): AppliedPenalty[] {
 
   if (facts.gitHistory.available && facts.gitHistory.secretHits.length > 0) {
     penalties.push({
-      key: 'secret_in_history',
-      amount: PENALTIES.secretInHistory,
-      reason: `Найдены признаки секретов в истории: ${facts.gitHistory.secretHits
+      key: 'secret_in_code',
+      amount: PENALTIES.secretInCode,
+      reason: `Найдены признаки секретов в коде: ${facts.gitHistory.secretHits
         .map((s) => s.name)
         .join(', ')}`,
     });

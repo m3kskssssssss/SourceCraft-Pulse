@@ -19,8 +19,8 @@
 - Node.js ≥ 20
 - pnpm ≥ 10
 - Аккаунт [Neon](https://neon.tech) (бесплатный уровень) для Postgres
-- Позднее (Этап 2+): personal access token SourceCraft
-- Позднее (Этап 4+): ключ DeepSeek или Яндекса
+- Personal access token SourceCraft — `SOURCECRAFT_PAT`
+- Ключ RouterAI — `AI_API_KEY` (и `AI_BASE_URL`, `AI_MODEL`)
 
 ## Установка
 
@@ -63,13 +63,38 @@ curl http://localhost:3000/api/health
 # → {"status":"ok","db":"ok"}
 ```
 
+## Как считается анализ
+
+Отдельного воркера в проде нет. Функции Vercel с Fluid compute живут до 300 секунд даже
+на Hobby, а весь анализ укладывается в десятки секунд:
+
+1. `analyzeRepo` проверяет слаг, лимиты и публичность репозитория, кладёт строку в
+   `analyses` и `analysis_jobs` и ведёт на `/a/<id>`.
+2. Страница `/a/<id>` дёргает `POST /api/analyses/<id>/run` — именно этот запрос
+   собирает факты, считает оценку и зовёт модель — и опрашивает `/status`,
+   пока статус не станет `done` или `failed`.
+3. Очередь осталась журналом состояния и защитой от двух параллельных прогонов:
+   задачу нужно забрать локом. Лок старше шести минут считается брошенным.
+4. `pnpm worker` нужен только локально и для добора брошенных задач.
+
+История коммитов, README и lock-файлы читаются shallow-клоном через
+[isomorphic-git](https://isomorphic-git.org): в serverless-функциях нет бинарника git, а в API
+SourceCraft нет ни эндпоинта файлов, ни эндпоинта коммитов.
+
 ## Деплой на Vercel
 
-1. Импортируйте репозиторий на [vercel.com/new](https://vercel.com/new).
-2. Подключите Neon как integration (или задайте `DATABASE_URL` вручную).
-3. Заполните все переменные из `.env.example` в настройках проекта Vercel.
-4. Перед первым запуском выполните `pnpm db:migrate` локально с боевым `DATABASE_URL` — Vercel не запускает миграции автоматически.
-5. Cron на Hobby-тарифе ограничен: наши `/api/cron/*` — это защищённые HTTP-эндпоинты, которые дёргает любой внешний планировщик заголовком `Authorization: Bearer $CRON_SECRET`.
+1. Создать проект на [neon.tech](https://neon.tech) и взять **pooled** строку подключения
+   (хост с `-pooler`, с `?sslmode=require`) — это `DATABASE_URL`.
+2. Применить миграции: `DATABASE_URL=... pnpm db:migrate` (Vercel сам их не запускает).
+3. Импортировать репозиторий на [vercel.com/new](https://vercel.com/new).
+4. Задать переменные проекта: `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`,
+   `AUTH_TRUST_HOST=true`, `SOURCECRAFT_PAT`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`,
+   `AI_MONTHLY_BUDGET_RUB`, `ADMIN_LOGIN`, `ADMIN_PASSWORD_HASH`, `CRON_SECRET`.
+5. Убедиться, что в настройках проекта включён **Fluid compute** (у новых проектов
+   он включён по умолчанию). Без него функция оборвётся раньше 300 секунд.
+6. Cron на Hobby ограничен суточной точностью, поэтому `/api/cron/*` — обычные
+   защищённые эндпоинты: их дёргает любой внешний планировщик заголовком
+   `Authorization: Bearer $CRON_SECRET`.
 
 ## Структура
 
@@ -98,3 +123,5 @@ drizzle/               # сгенерированные SQL-миграции
 - [x] Этап 5 — авторизация Auth.js, гостевой доступ, лимиты
 - [x] Этап 6 — публичный рейтинг, публичный API, SVG-бейдж
 - [x] Этап 7 — админка (сводка, расходы, очередь, настройки)
+- [x] Этап 8 — ЧБ-тема, примитивы, раскрытая страница анализа
+- [x] Этап 9 — возврат на Vercel: анализ в запросе, git без бинарника, быстрый ИИ

@@ -14,7 +14,7 @@ const copySchema = z.object({
       z.object({
         key: z.string(),
         title: z.string().max(120),
-        explanation: z.string().max(500),
+        explanation: z.string().max(400),
       }),
     )
     .max(3),
@@ -36,7 +36,7 @@ export type RecommendationCopyInput = {
 
 const SYSTEM = `Ты пишешь короткие, конкретные советы для разработчиков open-source-проектов.
 На вход — «сухие» рекомендации. Твоя задача:
-- переформулировать каждую по-русски: одно ёмкое title (до 12 слов) и explanation (2–3 предложения);
+- переформулировать каждую по-русски: одно ёмкое title (до 12 слов) и explanation (2 предложения, до 300 символов);
 - в explanation объяснить, ПОЧЕМУ это важно для здоровья репозитория (без общих слов, привязать к open-source практикам);
 - сохранить массив в том же порядке и с теми же key.
 Отвечай ТОЛЬКО валидным JSON без markdown-ограждений.`;
@@ -57,7 +57,7 @@ function buildPrompt(input: RecommendationCopyInput): {
       null,
       2,
     ),
-    maxTokens: 700,
+    maxTokens: 1400,
   };
 }
 

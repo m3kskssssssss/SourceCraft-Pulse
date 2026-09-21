@@ -25,7 +25,7 @@ export const CATEGORY_WEIGHTS = {
 
 export const PENALTIES = {
   /** Найден секрет в git-истории. */
-  secretInHistory: 15,
+  secretInCode: 15,
   /** Есть хотя бы одна critical-уязвимость без исправлений. */
   criticalVulnUnfixed: 10,
   /** Нет LICENSE-файла. Открытый OSS без лицензии юридически двусмыслен. */

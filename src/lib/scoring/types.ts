@@ -59,7 +59,7 @@ export type Recommendation = {
 
 /** Применённый штраф. */
 export type AppliedPenalty = {
-  key: 'secret_in_history' | 'critical_vuln_unfixed' | 'missing_license';
+  key: 'secret_in_code' | 'critical_vuln_unfixed' | 'missing_license';
   amount: number; // положительное число; вычитается из overall
   reason: string;
 };

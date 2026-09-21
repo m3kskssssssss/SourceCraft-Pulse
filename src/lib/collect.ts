@@ -3,7 +3,8 @@
 // Один заход:
 //   1. API SourceCraft: /repos, /contributors, /trees, /branches, /tags, /releases,
 //      /releases/latest, /pulls (выборка), /issues (выборка).
-//   2. Bare-клон git (один): git log — статистика 90 дней + скан секретов + чтение lock-файлов.
+//   2. Shallow-клон репозитория (один): история за 90 дней, скан секретов,
+//      README и lock-файлы.
 //   3. SecurityProvider (OSV по умолчанию): вход — резолвленные lock-файлы.
 //
 // Всё, что не удалось получить, честно уходит в `missing: string[]`.
@@ -15,8 +16,17 @@ import {
 } from './security/lockfiles';
 import { getSecurityProvider } from './security/provider';
 import type { SecurityScanResult } from './security/types';
-import { readFileFromClone, withBareClone } from './git/clone';
-import { analyzeGitHistoryInClone, type GitHistoryFacts } from './git/history';
+import {
+  listFilesInClone,
+  readFileFromClone,
+  withRepoClone,
+  type RepoClone,
+} from './git/clone';
+import {
+  analyzeGitHistoryInClone,
+  emptyGitHistoryFacts,
+  type GitHistoryFacts,
+} from './git/history';
 import {
   getSourcecraftClient,
   type Branch,
@@ -119,6 +129,8 @@ const CI_CONFIG_MARKERS = [
   'Jenkinsfile',
 ];
 const TESTS_MARKERS = ['tests/', 'test/', '__tests__/', 'spec/', '.test.', '.spec.'];
+/** README в корне репозитория, любой регистр и одно из принятых расширений. */
+const README_FILE_RE = /^readme(\.(md|markdown|rst|txt|adoc))?$/i;
 
 // ---------- Точка входа ----------
 
@@ -227,31 +239,21 @@ export async function collectRepoFacts(
   if (!flags.hasReadme) missing.push('readme_missing');
   if (!flags.hasLicense) missing.push('license_missing');
 
-  // 3. git clone + история + чтение lock-файлов + security scan
-  let gitHistory: GitHistoryFacts = {
-    available: false,
-    commitsLast90Days: null,
-    uniqueAuthorsLast90Days: null,
-    lastCommitDate: null,
-    topAuthorSharePercent: null,
-    totalCommits: null,
-    secretHits: [],
-    secretsScanCommitLimit: 500,
-    errors: [],
-  };
+  // 3. shallow-клон: история, lock-файлы, README, признаки секретов
+  let gitHistory: GitHistoryFacts = emptyGitHistoryFacts();
   let lockfileContents: { packageLockJson?: string; pnpmLockYaml?: string } = {};
   let readme: string | null = null;
 
   if ((options.runGitAnalysis ?? true) && cloneUrlHttps) {
     try {
-      await withBareClone(
+      await withRepoClone(
         { cloneUrlHttps, token: process.env.SOURCECRAFT_PAT ?? undefined },
-        async (workDir) => {
+        async (repo) => {
           const [history, packageLockJson, pnpmLockYaml, readmeText] = await Promise.all([
-            analyzeGitHistoryInClone(workDir),
-            readFileFromClone(workDir, 'HEAD:package-lock.json'),
-            readFileFromClone(workDir, 'HEAD:pnpm-lock.yaml'),
-            readReadme(workDir),
+            analyzeGitHistoryInClone(repo),
+            readFileFromClone(repo, 'package-lock.json'),
+            readFileFromClone(repo, 'pnpm-lock.yaml'),
+            readReadme(repo),
           ]);
           gitHistory = history;
           lockfileContents = {
@@ -313,14 +315,15 @@ export async function collectRepoFacts(
   };
 }
 
-/** Попытка прочитать README любой из принятых расширений. */
-async function readReadme(workDir: string): Promise<string | null> {
-  const candidates = ['README.md', 'readme.md', 'README.rst', 'README.txt', 'README'];
-  for (const path of candidates) {
-    const content = await readFileFromClone(workDir, `HEAD:${path}`);
-    if (content) return content;
-  }
-  return null;
+/**
+ * README в корне репозитория. Имя ищем по списку файлов, а не перебором
+ * вариантов: регистр и расширение в проектах пишут как угодно
+ * (README.md, readme.MD, Readme.rst), а промахнуться нельзя — это главный
+ * вход для AI-оценки документации.
+ */
+async function readReadme(repo: RepoClone): Promise<string | null> {
+  const path = (await listFilesInClone(repo)).find((p) => README_FILE_RE.test(p));
+  return path ? readFileFromClone(repo, path) : null;
 }
 
 // ---------- helpers ----------

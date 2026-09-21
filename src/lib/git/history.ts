@@ -1,16 +1,16 @@
-// Анализ git-истории.
+// Факты из репозитория: активность по коммитам и признаки секретов в коде.
 //
-// Разбит на две части:
-//   - analyzeGitHistoryInClone(workDir, options) — работает на существующем bare-клоне
-//   - analyzeGitHistory({cloneUrlHttps, token}) — сам создаёт и удаляет клон
+// Работает на уже открытом shallow-клоне (см. clone.ts) — один клон обслуживает
+// и историю, и чтение файлов, и скан секретов.
 //
-// Второй вариант удобен для одноразовых прогонов; первый — когда клон уже
-// открыт и мы хотим переиспользовать его (например, вместе с чтением lock-файлов).
-//
-// ВАЖНО: этот модуль запускается ТОЛЬКО в воркере. Никогда — из App Router / API-роутов.
+// Скан секретов идёт по файлам на HEAD, а не по диффам истории: shallow-клон
+// без рабочей копии diff-статистики не даёт, а считать дифф на каждый коммит —
+// это обход дерева на каждый коммит. Поэтому «секрет в коде», а не «в истории».
 
-import { runGit, withBareClone, type BareCloneOptions } from './clone';
-import { GIT_LOG_PRETTY_FORMAT, aggregateGitStats, parseGitLog } from './log-parser';
+import git from 'isomorphic-git';
+import fs from 'node:fs';
+import { listFilesInClone, readFileFromClone, type RepoClone } from './clone';
+import { aggregateGitStats, type CommitRecord } from './stats';
 import { scanForSecrets, type SecretHit } from './secrets';
 
 export type GitHistoryFacts = {
@@ -19,94 +19,122 @@ export type GitHistoryFacts = {
   uniqueAuthorsLast90Days: number | null;
   lastCommitDate: string | null;
   topAuthorSharePercent: number | null;
-  totalCommits: number | null;
   secretHits: SecretHit[];
-  secretsScanCommitLimit: number;
+  /** Сколько файлов на HEAD успели просмотреть в поиске секретов. */
+  secretsScannedFiles: number;
   errors: string[];
 };
 
 export type AnalyzeGitHistoryOptions = {
-  timeoutMs?: number;
-  secretsCommitLimit?: number;
+  /** Максимум коммитов, которые читаем из клона. */
+  commitLimit?: number;
+  /** Максимум файлов, которые просматриваем на секреты. */
+  secretsFileLimit?: number;
 };
 
-const DEFAULT_TIMEOUT_MS = 60_000;
-const DEFAULT_SECRETS_COMMIT_LIMIT = 500;
+const DEFAULT_COMMIT_LIMIT = 2_000;
+const DEFAULT_SECRETS_FILE_LIMIT = 300;
+/** Файлы крупнее не смотрим: собранные бандлы и данные дают только шум. */
+const SECRETS_MAX_FILE_BYTES = 256 * 1024;
 
-/** Работает на уже созданном bare-клоне. */
+/** Расширения, в которых секрет — реальная находка, а не случайная строка. */
+const SCANNABLE_EXTENSIONS = [
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+  '.py', '.rb', '.php', '.go', '.java', '.kt', '.kts', '.cs', '.rs', '.swift',
+  '.sh', '.bash', '.zsh', '.ps1',
+  '.yml', '.yaml', '.json', '.toml', '.ini', '.cfg', '.conf', '.properties',
+  '.xml', '.tf', '.tfvars', '.gradle', '.env', '.example', '.sample', '.md',
+];
+
+export function emptyGitHistoryFacts(errors: string[] = []): GitHistoryFacts {
+  return {
+    available: false,
+    commitsLast90Days: null,
+    uniqueAuthorsLast90Days: null,
+    lastCommitDate: null,
+    topAuthorSharePercent: null,
+    secretHits: [],
+    secretsScannedFiles: 0,
+    errors,
+  };
+}
+
 export async function analyzeGitHistoryInClone(
-  workDir: string,
+  repo: RepoClone,
   options: AnalyzeGitHistoryOptions = {},
 ): Promise<GitHistoryFacts> {
   const errors: string[] = [];
-  const secretsCommitLimit = options.secretsCommitLimit ?? DEFAULT_SECRETS_COMMIT_LIMIT;
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
+  let commits: CommitRecord[];
   try {
-    const logOutput = await runGit(
-      ['log', '--all', '--numstat', `--pretty=format:${GIT_LOG_PRETTY_FORMAT}`],
-      { cwd: workDir, timeoutMs },
-    );
-    const commits = parseGitLog(logOutput);
-    const stats = aggregateGitStats(commits);
-
-    let secretHits: SecretHit[] = [];
-    try {
-      const patchOutput = await runGit(
-        ['log', '-p', '--unified=0', `-n${secretsCommitLimit}`, '--all'],
-        { cwd: workDir, timeoutMs, maxBufferBytes: 32 * 1024 * 1024 },
-      );
-      secretHits = scanForSecrets(patchOutput);
-    } catch (err) {
-      errors.push(`secrets_scan_failed: ${describeError(err)}`);
-    }
-
-    return {
-      available: true,
-      commitsLast90Days: stats.commitsLast90Days,
-      uniqueAuthorsLast90Days: stats.uniqueAuthorsLast90Days,
-      lastCommitDate: stats.lastCommitDate,
-      topAuthorSharePercent: stats.topAuthorSharePercent,
-      totalCommits: stats.totalCommits,
-      secretHits,
-      secretsScanCommitLimit: secretsCommitLimit,
-      errors,
-    };
+    commits = await readCommits(repo, options.commitLimit ?? DEFAULT_COMMIT_LIMIT);
   } catch (err) {
-    errors.push(`git_history_failed: ${describeError(err)}`);
-    return {
-      available: false,
-      commitsLast90Days: null,
-      uniqueAuthorsLast90Days: null,
-      lastCommitDate: null,
-      topAuthorSharePercent: null,
-      totalCommits: null,
-      secretHits: [],
-      secretsScanCommitLimit: secretsCommitLimit,
-      errors,
-    };
+    return emptyGitHistoryFacts([`git_history_failed: ${describeError(err)}`]);
   }
+
+  const stats = aggregateGitStats(commits);
+
+  let secretHits: SecretHit[] = [];
+  let secretsScannedFiles = 0;
+  try {
+    const scan = await scanCloneForSecrets(repo, options.secretsFileLimit ?? DEFAULT_SECRETS_FILE_LIMIT);
+    secretHits = scan.hits;
+    secretsScannedFiles = scan.scannedFiles;
+  } catch (err) {
+    errors.push(`secrets_scan_failed: ${describeError(err)}`);
+  }
+
+  return {
+    available: true,
+    commitsLast90Days: stats.commitsLast90Days,
+    uniqueAuthorsLast90Days: stats.uniqueAuthorsLast90Days,
+    lastCommitDate: stats.lastCommitDate,
+    topAuthorSharePercent: stats.topAuthorSharePercent,
+    secretHits,
+    secretsScannedFiles,
+    errors,
+  };
 }
 
-/** Клонирует, анализирует, удаляет — самодостаточный проход. */
-export async function analyzeGitHistory(
-  options: BareCloneOptions & AnalyzeGitHistoryOptions,
-): Promise<GitHistoryFacts> {
-  try {
-    return await withBareClone(options, (workDir) => analyzeGitHistoryInClone(workDir, options));
-  } catch (err) {
-    return {
-      available: false,
-      commitsLast90Days: null,
-      uniqueAuthorsLast90Days: null,
-      lastCommitDate: null,
-      topAuthorSharePercent: null,
-      totalCommits: null,
-      secretHits: [],
-      secretsScanCommitLimit: options.secretsCommitLimit ?? DEFAULT_SECRETS_COMMIT_LIMIT,
-      errors: [`git_clone_failed: ${describeError(err)}`],
-    };
+async function readCommits(repo: RepoClone, limit: number): Promise<CommitRecord[]> {
+  const log = await git.log({ fs, dir: repo.dir, ref: repo.headOid, depth: limit });
+  return log.map((entry) => ({
+    sha: entry.oid,
+    authorName: entry.commit.author.name,
+    authorEmail: entry.commit.author.email,
+    // isomorphic-git отдаёт unix-время автора в секундах.
+    authorDate: new Date(entry.commit.author.timestamp * 1000).toISOString(),
+    subject: entry.commit.message.split('\n', 1)[0] ?? '',
+  }));
+}
+
+async function scanCloneForSecrets(
+  repo: RepoClone,
+  fileLimit: number,
+): Promise<{ hits: SecretHit[]; scannedFiles: number }> {
+  const paths = (await listFilesInClone(repo)).filter(isScannable).slice(0, fileLimit);
+
+  const hits: SecretHit[] = [];
+  let scannedFiles = 0;
+
+  for (const path of paths) {
+    const content = await readFileFromClone(repo, path);
+    if (content === null || content.length > SECRETS_MAX_FILE_BYTES) continue;
+    scannedFiles += 1;
+    for (const hit of scanForSecrets(content)) {
+      hits.push({ ...hit, file: path });
+    }
   }
+
+  return { hits, scannedFiles };
+}
+
+function isScannable(path: string): boolean {
+  const lower = path.toLowerCase();
+  const name = lower.slice(lower.lastIndexOf('/') + 1);
+  // .env, .env.local и подобные — первые кандидаты на утёкший секрет.
+  if (name.startsWith('.env')) return true;
+  return SCANNABLE_EXTENSIONS.some((ext) => lower.endsWith(ext));
 }
 
 function describeError(err: unknown): string {

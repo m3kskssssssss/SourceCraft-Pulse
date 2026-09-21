@@ -11,6 +11,7 @@ import { db } from '@/db/client';
 import { analyses, repositories } from '@/db/schema';
 import { auth } from '@/auth';
 import { toggleVisibilityAction } from '@/app/actions/visibility';
+import { AnalysisRunner } from '@/app/components/AnalysisRunner';
 import { BadgeMarkdown } from '@/app/components/BadgeMarkdown';
 import { Bar, CardDiv, Chip, EmptyState, ScoreDial } from '@/app/components/ui';
 import type {
@@ -105,15 +106,9 @@ export default async function AnalysisPage({ params }: PageProps) {
         <CardDiv className="rise">
           <div className="flex items-start gap-4">
             <Pulse />
-            <div>
-              <h2 className="text-lg font-medium">
-                {status === 'queued' ? 'В очереди' : 'Идёт анализ'}
-              </h2>
-              <p className="mt-2 text-sm text-[color:var(--muted)]">
-                Собираем данные из SourceCraft, клонируем репозиторий, считаем метрики. Обычно это
-                занимает 1–3 минуты. Обновите страницу через минуту.
-              </p>
-            </div>
+            {/* Расчёт запускает и опрашивает клиент: на Vercel анализ считается
+                прямо в запросе к /api/analyses/<id>/run. */}
+            <AnalysisRunner id={id} initialStatus={status} />
           </div>
         </CardDiv>
       </PageShell>
