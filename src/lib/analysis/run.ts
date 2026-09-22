@@ -87,7 +87,23 @@ export async function processAnalysis(
 ): Promise<ProcessOutcome> {
   log(runnerId, `→ job=${job.jobId} analysis=${job.analysisId}`);
 
-  await db.update(analyses).set({ status: 'running' }).where(eq(analyses.id, job.analysisId));
+  await db
+    .update(analyses)
+    .set({ status: 'running', stage: 'queued' })
+    .where(eq(analyses.id, job.analysisId));
+
+  /**
+   * Пишем фазу в базу без ожидания: страница ожидания читает её опросом, а
+   * задерживать сбор ради записи прогресса незачем. Ошибку глотаем — прогресс
+   * не повод ронять анализ.
+   */
+  const setStage = (stage: string): void => {
+    void db
+      .update(analyses)
+      .set({ stage })
+      .where(eq(analyses.id, job.analysisId))
+      .catch(() => undefined);
+  };
 
   const analysis = await db.query.analyses.findFirst({ where: eq(analyses.id, job.analysisId) });
   if (!analysis) return failJob(db, job, runnerId, 'analysis_row_missing');
@@ -105,6 +121,7 @@ export async function processAnalysis(
   try {
     const facts = await withTimeout(
       collectRepoFacts(repo.orgSlug, repo.repoSlug, {
+        onPhase: setStage,
         selectCodeFiles: ai
           ? (catalog) =>
               withTimeout(
@@ -140,6 +157,7 @@ export async function processAnalysis(
       topics: [],
     };
     if (ai) {
+      setStage('ai');
       try {
         const outcome = await runAiAnalysis({
           ...ai,
@@ -173,12 +191,14 @@ export async function processAnalysis(
       }
     }
 
+    setStage('score');
     const result = scoreRepo(facts, { aiDocsScore, aiCodeScore });
 
     await db
       .update(analyses)
       .set({
         status: 'done',
+        stage: null,
         kind: repoKind.kind,
         // Материал не оцениваем: балла у него нет, а не «ноль» и не «мало».
         // Категории и метрики остаются в metrics для отладки, но наружу не идут.
@@ -255,7 +275,7 @@ async function failJob(
   if (nextAttempts >= MAX_ATTEMPTS) {
     await db
       .update(analyses)
-      .set({ status: 'failed', error: message.slice(0, 500), finishedAt: new Date() })
+      .set({ status: 'failed', stage: null, error: message.slice(0, 500), finishedAt: new Date() })
       .where(eq(analyses.id, job.analysisId));
     await db.delete(analysisJobs).where(eq(analysisJobs.id, job.jobId));
     await db.insert(events).values({

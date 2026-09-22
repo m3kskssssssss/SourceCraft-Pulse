@@ -211,6 +211,12 @@ export type CollectOptions = {
   /** Сколько времени отводим на весь сбор из клона. */
   cloneBudgetMs?: number;
   /**
+   * Куда сообщать о текущей фазе. Ключи — из lib/stages.ts. Вызывающий
+   * (маршрут прогона) пишет их в базу, чтобы страница ожидания показывала
+   * настоящий ход дела, а не выдуманный.
+   */
+  onPhase?: (phase: string) => void;
+  /**
    * Выбор файлов для AI-ревью по структуре проекта. Вызывается, пока клон
    * открыт. Сам сборщик про ИИ ничего не знает — ему дают функцию.
    */
@@ -237,11 +243,20 @@ export async function collectRepoFacts(
   options: CollectOptions = {},
 ): Promise<RepoFacts> {
   const trace = makeTrace();
+  const phase = (key: string): void => {
+    try {
+      options.onPhase?.(key);
+    } catch {
+      // отчёт о фазе не должен ломать сбор
+    }
+  };
   const missing: string[] = [];
   const client = getSourcecraftClient();
   const security = getSecurityProvider();
 
   const now = new Date().toISOString();
+
+  phase('api');
 
   // 1. Карточка репозитория
   let repository: Repository | null = null;
@@ -340,6 +355,7 @@ export async function collectRepoFacts(
 
   if ((options.runGitAnalysis ?? true) && cloneUrlHttps) {
     try {
+      phase('clone');
       const budgetEnd = Date.now() + (options.cloneBudgetMs ?? COLLECT_BUDGET_MS);
       await withRepoClone(
         {
@@ -357,6 +373,7 @@ export async function collectRepoFacts(
           // всех: метрики кода, скан секретов, lock-файлы, README.
           trace(repoClone.tipOnly ? 'clone (верхушка)' : 'clone');
 
+          phase('index');
           const clone = await openIndexedClone(repoClone);
           trace(`индекс (${clone.files.length} файлов)`);
           languages = detectLanguages(clone.files);
@@ -373,6 +390,7 @@ export async function collectRepoFacts(
           }
           trace(`лог (${commits.length} коммитов)`);
 
+          phase('read');
           const [history, codeFacts, extras] = await Promise.all([
             analyzeGitHistoryInClone(clone, { commits, deadline, hasHistory: !repoClone.tipOnly }),
             collectCodeFacts(clone, { deadline, selectFiles: options.selectCodeFiles }),
@@ -411,6 +429,7 @@ export async function collectRepoFacts(
               // остаёмся с тем логом, который уже прочитали
             }
           }
+          phase('history');
           // Ветки: клон берёт одну, остальные дотягиваем верхушками, если на
           // это осталось время. Без них дерево показывает только основную
           // линию, а ветки, которые не сливали, не видно вовсе.
@@ -473,6 +492,8 @@ export async function collectRepoFacts(
     hasTests: flags.hasTestsDir,
     hasCi: flags.hasCiConfig,
   });
+
+  phase('security');
 
   // 4. security scan
   const parsedLocks = parseLockfiles({

@@ -277,6 +277,85 @@ body {
   animation-duration: 5s;
 }
 
+/* ---------- Сканирование глобуса (страница ожидания) ---------- */
+
+/* Полоса чтения: идёт сверху вниз под круглой маской. */
+@keyframes scan-sweep {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.22;
+  }
+  85% {
+    opacity: 0.22;
+  }
+  100% {
+    transform: translateY(73px);
+    opacity: 0;
+  }
+}
+
+.scan-sweep {
+  fill: var(--ink);
+  animation: scan-sweep 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Дуга по краю: короткий штрих, бегущий по окружности. */
+@keyframes scan-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scan-arc {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 26 162;
+  opacity: 0.85;
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: scan-turn 2.4s linear infinite;
+}
+
+/* Спутник идёт навстречу дуге — так движение читается как работа, а не как
+   один общий поворот картинки. */
+.scan-orbit {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: scan-turn 4.2s linear infinite reverse;
+}
+
+.scan-blip {
+  fill: var(--ink);
+  opacity: 0.55;
+}
+
+/* Точка текущей фазы: дышит, пока фаза идёт. */
+@keyframes stage-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.72);
+  }
+}
+
+.stage-pulse {
+  animation: stage-pulse 1.4s ease-in-out infinite;
+}
+
+/* Строка фазы появляется, когда до неё дошли. */
+.stage-in {
+  animation: rise 260ms ease-out both;
+}
+
 /* Уважение к системной настройке: никакого движения, если его не просили. */
 @media (prefers-reduced-motion: reduce) {
   *,

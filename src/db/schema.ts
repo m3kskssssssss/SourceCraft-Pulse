@@ -134,6 +134,8 @@ export const analyses = pgTable(
     status: analysisStatusEnum('status').notNull().default('queued'),
     /** 'project' | 'material' | 'unclear' — подборку ссылок не оцениваем как код. */
     kind: text('kind'),
+    /** Текущая фаза прогона (см. lib/stages.ts). Нужна странице ожидания. */
+    stage: text('stage'),
     score: integer('score'),
     categoryScores: jsonb('category_scores'),
     metrics: jsonb('metrics'),

@@ -1,6 +1,7 @@
 // GET /api/analyses/<id>/status — короткий ответ для опроса со страницы /a/<id>.
 //
-// Отдаём только статус: пока анализ считается, страница держит опрос, а как
+// Отдаём статус, текущую фазу и время постановки в очередь: пока анализ
+// считается, страница держит опрос и показывает, что именно происходит, а как
 // только статус стал done или failed — перерисовывает себя целиком.
 
 import { NextResponse } from 'next/server';
@@ -38,5 +39,9 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     status: analysis.status,
     score: analysis.score,
     error: analysis.error,
+    // Фаза и время постановки в очередь: по ним страница ожидания рисует
+    // настоящий ход дела и секундомер, который не сбрасывается от F5.
+    stage: analysis.stage,
+    startedAt: analysis.createdAt.toISOString(),
   });
 }

@@ -96,13 +96,15 @@ export default async function AnalysisPage({ params }: PageProps) {
   if (status === 'queued' || status === 'running') {
     return (
       <PageShell title={title} org={repo?.orgSlug} repo={repo?.repoSlug}>
-        <CardDiv className="rise">
-          <div className="flex items-start gap-4">
-            <Pulse />
-            {/* Расчёт запускает и опрашивает клиент: на Vercel анализ считается
-                прямо в запросе к /api/analyses/<id>/run. */}
-            <AnalysisRunner id={id} initialStatus={status} />
-          </div>
+        <CardDiv className="rise p-6 sm:p-8">
+          {/* Расчёт запускает и опрашивает клиент: на Vercel анализ считается
+              прямо в запросе к /api/analyses/<id>/run. */}
+          <AnalysisRunner
+            id={id}
+            initialStatus={status}
+            initialStage={analysis.stage}
+            startedAt={analysis.createdAt.toISOString()}
+          />
         </CardDiv>
       </PageShell>
     );
@@ -675,15 +677,6 @@ function pickCodeStats(code?: Record<string, unknown>): Array<{ label: string; v
   push('Комментариев', num('commentSharePercent'), '%');
   push('TODO на 1000 строк', num('todoPerKiloLines'));
   return rows;
-}
-
-function Pulse() {
-  return (
-    <span className="relative mt-1.5 inline-flex h-3 w-3">
-      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--ink)] opacity-30" />
-      <span className="relative inline-flex h-3 w-3 rounded-full bg-[color:var(--ink)]" />
-    </span>
-  );
 }
 
 function verdict(score: number | null): string {

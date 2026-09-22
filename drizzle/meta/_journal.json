@@ -36,6 +36,13 @@
       "when": 1790033760590,
       "tag": "0004_nosy_doctor_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790046887450,
+      "tag": "0005_perpetual_darkstar",
+      "breakpoints": true
     }
   ]
 }
