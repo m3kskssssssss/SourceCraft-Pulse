@@ -115,7 +115,8 @@ README и перепись каталогов. Для материала рев�
 
 1. Создать проект на [neon.tech](https://neon.tech) и взять **pooled** строку подключения
    (хост с `-pooler`, с `?sslmode=require`) — это `DATABASE_URL`.
-2. Применить миграции: `DATABASE_URL=... pnpm db:migrate` (Vercel сам их не запускает).
+2. Миграции применяются сами перед сборкой (`pnpm build` вызывает `db:migrate`),
+   поэтому отдельного шага на деплое не нужно. Вручную — `DATABASE_URL=... pnpm db:migrate`.
 3. Импортировать репозиторий на [vercel.com/new](https://vercel.com/new).
 4. Задать переменные проекта: `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`,
    `AUTH_TRUST_HOST=true`, `SOURCECRAFT_PAT`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`,

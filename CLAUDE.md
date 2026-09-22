@@ -40,7 +40,7 @@
 
 - `pnpm install` — установка зависимостей
 - `pnpm dev` — dev-сервер на http://localhost:3000
-- `pnpm build` — прод-сборка
+- `pnpm build` — прод-сборка; перед ней применяются миграции (без `DATABASE_URL` шаг пропускается)
 - `pnpm start` — запуск прод-сборки
 - `pnpm typecheck` — `tsc --noEmit`
 - `pnpm lint` — ESLint (flat config через FlatCompat)
@@ -52,7 +52,7 @@
 - `pnpm worker` — прогон очереди `analysis_jobs` вручную: считает параллельно (`WORKER_CONCURRENCY`, по умолчанию 3), пачками по `WORKER_BATCH_SIZE` (6), пока есть задачи и бюджет `WORKER_MAX_SECONDS` (900); локи продлеваются heartbeat-ом
 - `pnpm seed:repos [--auto] [--count=N]` — поставить репозитории в очередь
 - `pnpm db:generate` — сгенерировать SQL-миграции из `src/db/schema.ts`
-- `pnpm db:migrate` — применить миграции к БД из `DATABASE_URL`
+- `pnpm db:migrate` — применить миграции к БД из `DATABASE_URL` (вручную; в сборке это делается само)
 - `pnpm db:push` — dev-режим Drizzle, пушит схему без миграций
 - `pnpm db:seed` — заглушка; реальный seed появится на Этапе 3
 
