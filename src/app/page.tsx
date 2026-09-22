@@ -150,46 +150,48 @@ export default async function HomePage({
           <ol className="mt-8 divide-y divide-[color:var(--line)]">
             {items.map((item, idx) => (
               <li key={item.id} className="rise" style={{ animationDelay: `${Math.min(idx, 10) * 25}ms` }}>
+                {/* Строка — сетка из трёх колонок: номер, название с мелочами,
+                    оценка. Фиксированных пикселей в середине нет, поэтому на
+                    узком экране строка сжимается, а не вылезает за край. */}
                 <Link
                   href={`/r/${item.org}/${item.repo}`}
-                  className="group flex items-center gap-5 py-4 transition hover:bg-[color:var(--paper-2)]"
+                  className="group -mx-3 grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl px-3 py-4 transition hover:bg-[color:var(--paper-2)] sm:gap-x-5"
                 >
-                  <span className="w-8 text-right text-sm tabular-nums text-[color:var(--muted)]">
-                    {String(offset + idx + 1).padStart(2, '0')}
+                  <span className="text-right text-xs tabular-nums text-[color:var(--muted-2)]">
+                    {offset + idx + 1}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="truncate text-base font-medium tracking-tight transition-transform duration-200 group-hover:translate-x-0.5 group-hover:underline">
-                        {item.org}
-                        <span className="text-[color:var(--muted-2)]">/</span>
-                        {item.repo}
-                      </span>
+
+                  <div className="min-w-0">
+                    <div className="truncate text-[15px] font-medium tracking-tight transition-transform duration-200 group-hover:translate-x-0.5">
+                      <span className="text-[color:var(--muted)]">{item.org}</span>
+                      <span className="text-[color:var(--muted-2)]">/</span>
+                      <span className="group-hover:underline">{item.repo}</span>
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[color:var(--muted)]">
-                      {item.kind === 'material' && (
-                        <span className="rounded-full border border-[color:var(--line)] px-2 py-0.5">
-                          материал
-                        </span>
-                      )}
-                      <span>{item.language ?? 'Язык не определён'}</span>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[color:var(--muted)]">
+                      <span className="truncate">{item.language ?? 'Язык не определён'}</span>
                       {item.forks != null && (
                         <span className="inline-flex items-center gap-1">
                           <ForkIcon /> {item.forks.toLocaleString('ru-RU')}
                         </span>
                       )}
-                      {item.publishedAt && <span>· {formatDate(item.publishedAt)}</span>}
+                      {item.publishedAt && <span>{formatDate(item.publishedAt)}</span>}
                     </div>
                   </div>
-                  <div className="hidden w-40 sm:block">
-                    {item.kind !== 'material' && <Bar value={item.score} />}
-                  </div>
-                  <div className="w-14 text-right text-2xl font-semibold tabular-nums">
+
+                  <div className="flex items-center gap-3 justify-self-end">
                     {item.kind === 'material' ? (
-                      <span className="text-[11px] font-semibold uppercase tracking-widest text-[color:var(--ink-2)]">
-                        Полезно
+                      <span className="max-w-[5.5rem] text-right text-[11px] font-semibold leading-tight text-[color:var(--ink-2)]">
+                        Полезный материал
                       </span>
                     ) : (
-                      (item.score ?? '—')
+                      <>
+                        <div className="hidden w-32 md:block">
+                          <Bar value={item.score} />
+                        </div>
+                        <span className="w-9 text-right text-xl font-semibold tabular-nums sm:text-2xl">
+                          {item.score ?? '—'}
+                        </span>
+                      </>
                     )}
                   </div>
                 </Link>

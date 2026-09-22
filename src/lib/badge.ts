@@ -20,7 +20,7 @@ export type BadgeInput = {
   note?: string;
 };
 
-const WIDTH = 168;
+const BASE_WIDTH = 168;
 const HEIGHT = 28;
 const PLATE = 74;
 const RADIUS = 6;
@@ -28,8 +28,10 @@ const RADIUS = 6;
 /** Дорожка под полосу прогресса. */
 const TRACK_X = PLATE + 12;
 const TRACK_Y = 21;
-const TRACK_W = WIDTH - TRACK_X - 12;
 const TRACK_H = 3.5;
+/** Ширина символа подписи на глаз: шрифта у нас нет, измерять нечем. */
+const NOTE_CHAR_W = 4.9;
+const NOTE_FONT = 10;
 
 const INK = '#1D1D1F';
 const PAPER = '#FFFFFF';
@@ -51,15 +53,21 @@ export function renderBadgeSvg(input: BadgeInput): string {
     input.score === null ? null : Math.max(0, Math.min(100, Math.round(input.score)));
   const note = input.note ? escapeXml(input.note) : null;
   const value = score === null ? (note ?? '—') : String(score);
-  const fillW = score === null ? 0 : Math.round((TRACK_W * score) / 100);
   const aria = score === null ? value : `${value} из 100`;
 
+  // Бейдж растёт под длинную подпись: «полезный материал» в 70 пикселей
+  // правой части не влезает, а обрезать слово хуже, чем добавить ширины.
+  const noteW = note ? Math.ceil(note.length * NOTE_CHAR_W) : 0;
+  const width = Math.max(BASE_WIDTH, TRACK_X + noteW + 14);
+  const trackW = width - TRACK_X - 12;
+  const fillW = score === null ? 0 : Math.round((trackW * score) / 100);
+
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="${label}: ${aria}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${HEIGHT}" viewBox="0 0 ${width} ${HEIGHT}" role="img" aria-label="${label}: ${aria}">`,
     `<title>${label}: ${aria}</title>`,
-    `<clipPath id="r"><rect width="${WIDTH}" height="${HEIGHT}" rx="${RADIUS}"/></clipPath>`,
+    `<clipPath id="r"><rect width="${width}" height="${HEIGHT}" rx="${RADIUS}"/></clipPath>`,
     `<g clip-path="url(#r)">`,
-    `<rect width="${WIDTH}" height="${HEIGHT}" fill="${PAPER}"/>`,
+    `<rect width="${width}" height="${HEIGHT}" fill="${PAPER}"/>`,
     `<rect width="${PLATE}" height="${HEIGHT}" fill="${INK}"/>`,
     // Планета: тот же знак, что и логотип сайта, только неподвижный.
     `<g transform="translate(16 14)">`,
@@ -72,16 +80,16 @@ export function renderBadgeSvg(input: BadgeInput): string {
     `<text x="30" y="18" fill="${PAPER}" font-size="11" font-weight="600">${label}</text>`,
     score === null
       ? // Пояснение вместо числа: мелко, приглушённо и без шкалы «/100».
-        `<text x="${TRACK_X}" y="17" fill="${MUTED}" font-size="${note ? 10 : 15}" font-weight="600">${value}</text>`
+        `<text x="${TRACK_X}" y="17" fill="${MUTED}" font-size="${note ? NOTE_FONT : 15}" font-weight="600">${value}</text>`
       : `<text x="${TRACK_X}" y="16" fill="${INK}" font-size="15" font-weight="700">${value}</text>` +
         `<text x="${TRACK_X + String(value).length * 9 + 2}" y="16" fill="${MUTED}" font-size="10" font-weight="600">/100</text>`,
     `</g>`,
-    `<rect x="${TRACK_X}" y="${TRACK_Y}" width="${TRACK_W}" height="${TRACK_H}" rx="${TRACK_H / 2}" fill="${LINE}"/>`,
+    `<rect x="${TRACK_X}" y="${TRACK_Y}" width="${trackW}" height="${TRACK_H}" rx="${TRACK_H / 2}" fill="${LINE}"/>`,
     fillW > 0
       ? `<rect x="${TRACK_X}" y="${TRACK_Y}" width="${fillW}" height="${TRACK_H}" rx="${TRACK_H / 2}" fill="${INK}"/>`
       : '',
     `</g>`,
-    `<rect x="0.5" y="0.5" width="${WIDTH - 1}" height="${HEIGHT - 1}" rx="${RADIUS}" fill="none" stroke="${LINE_2}"/>`,
+    `<rect x="0.5" y="0.5" width="${width - 1}" height="${HEIGHT - 1}" rx="${RADIUS}" fill="none" stroke="${LINE_2}"/>`,
     `</svg>`,
   ].join('');
 }

@@ -23,7 +23,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru" className="h-full antialiased">
       <body className="min-h-full bg-[color:var(--paper)] text-[color:var(--ink)] font-sans">
-        <div className="flex min-h-screen flex-col">
+        {/* overflow-x: clip, а не hidden: clip не создаёт контейнер прокрутки,
+            поэтому sticky-шапка продолжает липнуть к окну. Любой декор,
+            вылезший за край (планета на фоне), больше не даёт боковой
+            прокрутки на телефоне. */}
+        <div className="flex min-h-screen flex-col [overflow-x:clip]">
           <UserBar />
           <div className="flex-1">{children}</div>
           <SiteFooter />

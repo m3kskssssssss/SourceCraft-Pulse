@@ -199,8 +199,8 @@ export default async function AnalysisPage({ params }: PageProps) {
               {isMaterial ? 'Что это' : 'Итоговая оценка'}
             </div>
             {isMaterial ? (
-              <div className="mt-1 text-5xl font-semibold uppercase leading-none tracking-tight">
-                Полезно
+              <div className="mt-1 text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+                Полезный материал
               </div>
             ) : (
               <div className="mt-1 flex items-baseline gap-3">

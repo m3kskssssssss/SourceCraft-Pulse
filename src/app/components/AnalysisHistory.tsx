@@ -5,7 +5,6 @@
 
 import Link from 'next/link';
 import type { HistoryItem } from '@/lib/history';
-import { Chip } from './ui';
 
 export function AnalysisHistory({
   items,
@@ -32,23 +31,21 @@ export function AnalysisHistory({
         {items.map((item) => {
           const isCurrent = item.id === currentId;
           const row = (
-            <div className="flex flex-wrap items-center gap-3 px-5 py-3">
-              <span className="w-36 text-sm text-[color:var(--muted)]">
-                {formatDateTime(item.finishedAt ?? item.createdAt)}
+            // Три колонки: дата с пометкой, балл, дельта. Дата сжимается —
+            // на телефоне фиксированные колонки выдавливали строку за экран.
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_3.5rem] items-center gap-x-3 px-4 py-3 sm:px-5">
+              <span className="min-w-0">
+                <span className="block truncate text-xs text-[color:var(--muted)] sm:text-sm">
+                  {formatDateTime(item.finishedAt ?? item.createdAt)}
+                </span>
+                <span className="mt-0.5 block text-[11px] text-[color:var(--muted-2)]">
+                  {isCurrent ? 'Этот прогон' : item.isPublic ? 'В рейтинге' : 'Приватный'}
+                </span>
               </span>
-              <span className="min-w-0 flex-1">
-                {isCurrent ? (
-                  <Chip tone="ink">Этот прогон</Chip>
-                ) : (
-                  <span className="text-sm text-[color:var(--muted-2)]">
-                    {item.isPublic ? 'В рейтинге' : 'Приватный'}
-                  </span>
-                )}
-              </span>
-              <span className="w-16 text-right text-lg font-semibold tabular-nums">
+              <span className="text-right text-base font-semibold tabular-nums sm:text-lg">
                 {item.score ?? '—'}
               </span>
-              <span className="w-24 text-right text-sm tabular-nums">
+              <span className="text-right text-sm tabular-nums">
                 {item.delta === null || item.delta === 0 ? (
                   <span className="text-[color:var(--muted-2)]">—</span>
                 ) : (
