@@ -70,7 +70,7 @@ export default async function RepositoryPage({ params }: PageProps) {
               </div>
               <div className="mt-1 text-2xl font-semibold tracking-tight">
                 {latest.kind === 'material'
-                  ? 'Полезный материал'
+                  ? 'ПОЛЕЗНО'
                   : latest.score != null
                     ? `${latest.score} из 100`
                     : 'Нет данных'}

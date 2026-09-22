@@ -185,8 +185,8 @@ export default async function HomePage({
                   </div>
                   <div className="w-14 text-right text-2xl font-semibold tabular-nums">
                     {item.kind === 'material' ? (
-                      <span className="text-xs font-normal uppercase tracking-widest text-[color:var(--muted-2)]">
-                        мат.
+                      <span className="text-[11px] font-semibold uppercase tracking-widest text-[color:var(--ink-2)]">
+                        Полезно
                       </span>
                     ) : (
                       (item.score ?? '—')

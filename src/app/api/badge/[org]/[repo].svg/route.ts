@@ -55,7 +55,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   const latest = await getLatestPublicAnalysis(org, repo);
   // Подборке ссылок балл не рисуем: у неё его нет по существу.
   if (latest && latest.kind === 'material') {
-    return svgResponse(renderBadgeSvg({ score: null, note: 'материал' }), 200);
+    return svgResponse(renderBadgeSvg({ score: null, note: 'полезно' }), 200);
   }
   if (latest && latest.score !== null) {
     return svgResponse(renderBadgeSvg({ score: latest.score }), 200);

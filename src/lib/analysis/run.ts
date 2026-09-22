@@ -180,7 +180,9 @@ export async function processAnalysis(
       .set({
         status: 'done',
         kind: repoKind.kind,
-        score: result.score,
+        // Материал не оцениваем: балла у него нет, а не «ноль» и не «мало».
+        // Категории и метрики остаются в metrics для отладки, но наружу не идут.
+        score: repoKind.kind === 'material' ? null : result.score,
         categoryScores: result.categoryScores as unknown as Record<string, unknown>,
         metrics: {
           kind: repoKind as unknown as Record<string, unknown>,

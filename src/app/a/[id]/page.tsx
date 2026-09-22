@@ -199,7 +199,9 @@ export default async function AnalysisPage({ params }: PageProps) {
               {isMaterial ? 'Что это' : 'Итоговая оценка'}
             </div>
             {isMaterial ? (
-              <div className="mt-1 text-4xl font-semibold leading-tight">Полезный материал</div>
+              <div className="mt-1 text-5xl font-semibold uppercase leading-none tracking-tight">
+                Полезно
+              </div>
             ) : (
               <div className="mt-1 flex items-baseline gap-3">
                 <span className="text-5xl font-semibold tabular-nums leading-none">
@@ -237,8 +239,8 @@ export default async function AnalysisPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* мини-разбивка по категориям */}
-        {sortedCategories.length > 0 && (
+        {/* мини-разбивка по категориям: материалу не показываем вовсе */}
+        {!isMaterial && sortedCategories.length > 0 && (
           <div className="grid gap-px border-t border-[color:var(--line)] bg-[color:var(--line)] sm:grid-cols-4">
             {sortedCategories.map((c) => (
               <div
@@ -265,8 +267,8 @@ export default async function AnalysisPage({ params }: PageProps) {
         )}
       </section>
 
-      {/* Рекомендации */}
-      {recommendations.length > 0 && (
+      {/* Рекомендации: материалу нечего рекомендовать по инженерной части */}
+      {!isMaterial && recommendations.length > 0 && (
         <section className="rise mt-10" style={{ animationDelay: '80ms' }}>
           <SectionHead
             eyebrow="Что подтянуть первым"
@@ -303,36 +305,35 @@ export default async function AnalysisPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Категории с метриками */}
-      <section className="mt-12">
-        <SectionHead
-          eyebrow="Подробности"
-          title="Категории и метрики"
-          hint={
-            isMaterial
-              ? 'Для материала эти числа — справка, а не оценка: они ничего не говорят о его пользе.'
-              : 'Каждая метрика оценивается 0–100. Метрики без данных исключаются — веса остальных нормируются.'
-          }
-        />
-        <div className="mt-6 grid gap-4">
-          {sortedCategories.map((cat, idx) => (
-            <CategoryBlock
-              key={cat.key}
-              category={cat}
-              rank={idx + 1}
-              findings={cat.key === 'code' ? codeFindings : []}
-              note={cat.key === 'code' ? codeReviewNote : null}
-              stats={cat.key === 'code' ? codeMeasured : []}
-            />
-          ))}
-          {sortedCategories.length === 0 && (
-            <EmptyState
-              title="Метрик нет"
-              hint="Ни одной метрики собрать не удалось: репозиторий закрыт или недоступен."
-            />
-          )}
-        </div>
-      </section>
+      {/* Категории и метрики: материалу их не показываем — оценивать его нечем,
+          а таблица из «н/д» только создаёт вид оценки. */}
+      {!isMaterial && (
+        <section className="mt-12">
+          <SectionHead
+            eyebrow="Подробности"
+            title="Категории и метрики"
+            hint="Каждая метрика оценивается 0–100. Метрики без данных исключаются — веса остальных нормируются."
+          />
+          <div className="mt-6 grid gap-4">
+            {sortedCategories.map((cat, idx) => (
+              <CategoryBlock
+                key={cat.key}
+                category={cat}
+                rank={idx + 1}
+                findings={cat.key === 'code' ? codeFindings : []}
+                note={cat.key === 'code' ? codeReviewNote : null}
+                stats={cat.key === 'code' ? codeMeasured : []}
+              />
+            ))}
+            {sortedCategories.length === 0 && (
+              <EmptyState
+                title="Метрик нет"
+                hint="Ни одной метрики собрать не удалось: репозиторий закрыт или недоступен."
+              />
+            )}
+          </div>
+        </section>
+      )}
 
       {/* История прогонов */}
       {history.length > 1 && (
