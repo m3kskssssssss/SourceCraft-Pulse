@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { Analytics } from '@vercel/analytics/next';
 import { UserBar } from './components/UserBar';
 import { Planet } from './components/Planet';
 import './globals.css';
@@ -32,6 +33,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <div className="flex-1">{children}</div>
           <SiteFooter />
         </div>
+        {/* Веб-аналитика Vercel: без этого скрипта панель в дашборде остаётся
+            пустой, сколько бы её ни включали в настройках проекта. */}
+        <Analytics />
       </body>
     </html>
   );

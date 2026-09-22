@@ -34,7 +34,10 @@
 
 ## Чего не делаем
 
-Аналитика, Sentry, Storybook, микросервисы, Docker, Redis, GraphQL, очереди сложнее одной таблицы в Postgres.
+Sentry, Storybook, микросервисы, Docker, Redis, GraphQL, очереди сложнее одной таблицы в Postgres.
+
+Исключение по просьбе владельца: подключена веб-аналитика Vercel (`@vercel/analytics`,
+компонент `<Analytics />` в `layout.tsx`) — без её скрипта панель в дашборде пустая.
 
 ## Команды
 

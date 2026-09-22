@@ -1,4 +1,9 @@
 // Верхняя навигация. Sticky, тонкая нижняя граница, справа состояние сессии.
+//
+// На телефоне ссылки уезжают во вторую строку, а не прячутся: раньше нав-блок
+// был `hidden sm:flex`, и с телефона до «Оценить» и «Мои оценки» было просто
+// не добраться — оставался только логотип. Бургер здесь не нужен: три ссылки
+// помещаются в строку, а лишний клик до главного действия не нужен никому.
 
 import Link from 'next/link';
 import { auth } from '@/auth';
@@ -9,6 +14,12 @@ import { Planet } from './Planet';
 export async function UserBar() {
   const session = await auth();
   const user = session?.user as { email?: string; name?: string } | undefined;
+
+  const links = [
+    { href: '/', label: 'Рейтинг' },
+    { href: '/analyze', label: 'Оценить' },
+    ...(user ? [{ href: '/my', label: 'Мои оценки' }] : []),
+  ];
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--paper)]/85 backdrop-blur">
@@ -21,9 +32,11 @@ export async function UserBar() {
         </Link>
 
         <nav className="hidden items-center gap-1 text-sm sm:flex">
-          <NavLink href="/">Рейтинг</NavLink>
-          <NavLink href="/analyze">Оценить</NavLink>
-          {user && <NavLink href="/my">Мои оценки</NavLink>}
+          {links.map((link) => (
+            <NavLink key={link.href} href={link.href}>
+              {link.label}
+            </NavLink>
+          ))}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -60,6 +73,15 @@ export async function UserBar() {
           )}
         </div>
       </div>
+
+      {/* Вторая строка — только для телефона. */}
+      <nav className="mx-auto -mt-0.5 flex w-full max-w-6xl items-center gap-1 px-4 pb-2 text-sm sm:hidden">
+        {links.map((link) => (
+          <NavLink key={link.href} href={link.href}>
+            {link.label}
+          </NavLink>
+        ))}
+      </nav>
     </header>
   );
 }
