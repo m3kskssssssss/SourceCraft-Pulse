@@ -61,6 +61,20 @@ export function describeMissing(raw: string): MissingNote {
   return { text: 'Не удалось собрать данные', detail: raw, raw };
 }
 
+/**
+ * Ключи, которые не стоит показывать в «что не удалось собрать».
+ *
+ * `no_supported_lockfile_found` — не сбой, а обычное состояние: разбирать мы
+ * умеем package-lock.json и pnpm-lock.yaml, а у Go, Rust, Python и половины
+ * остального мира их нет и быть не должно. В списке пробелов эта строка
+ * появлялась почти всегда и только мешала читать настоящие пробелы; сам факт
+ * отсутствия lock-файлов виден в метрике «Lock-файлы» категории
+ * «Безопасность».
+ */
+const HIDDEN_FROM_GAPS = new Set(['no_supported_lockfile_found']);
+
 export function describeMissingList(items: string[]): MissingNote[] {
-  return items.map(describeMissing);
+  return items
+    .filter((raw) => !HIDDEN_FROM_GAPS.has(raw.split(':', 1)[0] ?? raw))
+    .map(describeMissing);
 }
