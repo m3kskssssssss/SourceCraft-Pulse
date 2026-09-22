@@ -167,7 +167,9 @@ export default async function HomePage({
                         {idx === 0 ? 'Лидер' : `№ ${idx + 1}`}
                       </span>
                       {item.kind === 'material' ? (
-                        <Chip tone="outline">Материал</Chip>
+                        <span className="max-w-[9rem] text-right text-2xl font-semibold leading-tight tracking-tight">
+                          Полезный материал
+                        </span>
                       ) : (
                         <span className="text-4xl font-semibold leading-none tabular-nums">
                           {item.score ?? '—'}
@@ -197,34 +199,39 @@ export default async function HomePage({
             <ol className="mt-8 divide-y divide-[color:var(--line)]">
               {rows.map((item, idx) => {
                 const place = offset + idx + 1 + podium.length;
+                const isMaterial = item.kind === 'material';
                 return (
                   <li
                     key={item.id}
                     className="rise"
                     style={{ animationDelay: `${Math.min(idx, 10) * 25}ms` }}
                   >
-                    {/* Сетка из трёх колонок: место, название с разбивкой по
-                        категориям, оценка. Середина сжимаемая — строка не
-                        вылезает за узкий экран и не пустует на широком. */}
-                    {/* Колонки расставлены явно: на узком экране разбивка по
-                        категориям уходит во вторую строку, на широком встаёт
-                        рядом с оценкой — иначе середина строки пустует. */}
+                    {/* На телефоне колонки номера нет: она сдвигала весь список
+                        вправо относительно заголовка. Номер уходит в строку
+                        названия, а с sm возвращается своей колонкой. */}
                     <Link
                       href={`/r/${item.org}/${item.repo}`}
-                      className="group -mx-3 grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl px-3 py-4 transition hover:bg-[color:var(--paper-2)] sm:gap-x-5 lg:grid-cols-[1.75rem_minmax(0,1fr)_auto_3rem]"
+                      className={`group -mx-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl px-3 py-4 transition hover:bg-[color:var(--paper-2)] sm:grid-cols-[1.75rem_minmax(0,1fr)_auto] sm:gap-x-5 ${
+                        isMaterial ? '' : 'lg:grid-cols-[1.75rem_minmax(0,1fr)_auto_3rem]'
+                      }`}
                     >
-                      <span className="col-start-1 row-start-1 self-start pt-0.5 text-right text-xs tabular-nums text-[color:var(--muted-2)]">
+                      <span className="hidden self-start pt-0.5 text-center text-xs tabular-nums text-[color:var(--muted-2)] sm:col-start-1 sm:row-start-1 sm:block">
                         {place}
                       </span>
 
-                      <div className="col-start-2 row-start-1 min-w-0">
+                      <div className="col-start-1 row-start-1 min-w-0 sm:col-start-2">
                         <div className="truncate text-[15px] font-medium tracking-tight transition-transform duration-200 group-hover:translate-x-0.5">
+                          <span className="tabular-nums text-[color:var(--muted-2)] sm:hidden">
+                            {place}.{' '}
+                          </span>
                           <span className="text-[color:var(--muted)]">{item.org}/</span>
                           <span className="group-hover:underline">{item.repo}</span>
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[color:var(--muted)]">
-                          {item.kind === 'material' && (
-                            <span className="rounded-full border border-[color:var(--line)] px-2 py-0.5 text-[color:var(--ink-2)]">
+                          {/* На телефоне пометка живёт здесь, на экране — крупно
+                              справа, на месте балла. Дублировать незачем. */}
+                          {isMaterial && (
+                            <span className="rounded-full border border-[color:var(--line)] px-2 py-0.5 text-[color:var(--ink-2)] sm:hidden">
                               Полезный материал
                             </span>
                           )}
@@ -238,16 +245,24 @@ export default async function HomePage({
                         </div>
                       </div>
 
-                      {item.kind !== 'material' && (
+                      {!isMaterial && (
                         <CategoryMini
                           values={item.categories}
-                          className="col-span-2 col-start-2 row-start-2 mt-2.5 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:mt-0"
+                          className="col-span-2 col-start-1 row-start-2 mt-2.5 sm:col-start-2 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:mt-0"
                         />
                       )}
 
-                      <span className="col-start-3 row-start-1 self-start pt-0.5 text-right text-xl font-semibold tabular-nums sm:text-2xl lg:col-start-4">
-                        {item.kind === 'material' ? '—' : (item.score ?? '—')}
-                      </span>
+                      {isMaterial ? (
+                        // Тем же кеглем, что балл у проектов, и только с sm:
+                        // на телефоне пометка уже стоит под названием.
+                        <span className="hidden w-36 self-start text-right text-2xl font-semibold leading-tight tracking-tight sm:col-start-3 sm:row-start-1 sm:block">
+                          Полезный материал
+                        </span>
+                      ) : (
+                        <span className="col-start-2 row-start-1 self-start pt-0.5 text-right text-xl font-semibold tabular-nums sm:col-start-3 sm:text-2xl lg:col-start-4">
+                          {item.score ?? '—'}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );
