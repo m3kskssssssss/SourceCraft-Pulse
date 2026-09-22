@@ -363,19 +363,16 @@ export default async function AnalysisPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Что не удалось собрать */}
-      <section className="mt-12">
-        <SectionHead
-          eyebrow="Пробелы"
-          title="Что не удалось собрать"
-          hint="Метрики, зависящие от этих данных, помечены «н/д» и не влияют на балл."
-        />
-        <CardDiv tone="paper" className="mt-6">
-          {missingNotes.length === 0 ? (
-            <p className="text-sm text-[color:var(--ink-2)]">
-              Пробелов нет: собрали всё, что умеем.
-            </p>
-          ) : (
+      {/* Что не удалось собрать. Пробелов нет — секции нет: сообщать «всё
+          собрали» отдельным блоком незачем, это и так видно по метрикам. */}
+      {missingNotes.length > 0 && (
+        <section className="mt-12">
+          <SectionHead
+            eyebrow="Пробелы"
+            title="Что не удалось собрать"
+            hint="Метрики, зависящие от этих данных, помечены «н/д» и не влияют на балл."
+          />
+          <CardDiv tone="paper" className="mt-6">
             <ul className="grid gap-2 text-sm">
               {missingNotes.map((note) => (
                 <li key={note.raw} className="flex flex-wrap items-baseline gap-x-2">
@@ -388,9 +385,9 @@ export default async function AnalysisPage({ params }: PageProps) {
                 </li>
               ))}
             </ul>
-          )}
-        </CardDiv>
-      </section>
+          </CardDiv>
+        </section>
+      )}
 
       {/* Публикация (только владелец) */}
       {isOwner && (
