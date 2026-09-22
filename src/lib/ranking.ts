@@ -5,6 +5,7 @@
 import { and, desc, eq, ilike, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { analyses, repositories } from '@/db/schema';
+import { pickCategoryValues, type CategoryValues } from '@/lib/category-meta';
 
 export type LeaderboardSort = 'score' | 'forks';
 
@@ -16,6 +17,8 @@ export type LeaderboardItem = {
   /** 'project' | 'material' | 'unclear'. Материал оценкой не меряем. */
   kind: string | null;
   score: number | null;
+  /** Баллы категорий: в строке рейтинга они объясняют оценку. */
+  categories: CategoryValues;
   forks: number | null;
   lastSyncedAt: string | null;
   publishedAt: string | null;
@@ -65,6 +68,7 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
       language: repositories.language,
       kind: analyses.kind,
       score: analyses.score,
+      categoryScores: analyses.categoryScores,
       forks: repositories.forksCount,
       lastSyncedAt: repositories.lastSyncedAt,
       publishedAt: analyses.finishedAt,
@@ -98,6 +102,7 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     language: r.language ?? null,
     kind: r.kind ?? null,
     score: r.score ?? null,
+    categories: pickCategoryValues(r.categoryScores),
     forks: r.forks ?? null,
     lastSyncedAt: r.lastSyncedAt ? r.lastSyncedAt.toISOString() : null,
     publishedAt: r.publishedAt ? r.publishedAt.toISOString() : null,
@@ -149,6 +154,7 @@ export async function getLatestPublicAnalysis(
       language: repositories.language,
       kind: analyses.kind,
       score: analyses.score,
+      categoryScores: analyses.categoryScores,
       forks: repositories.forksCount,
       lastSyncedAt: repositories.lastSyncedAt,
       publishedAt: analyses.finishedAt,
@@ -175,6 +181,7 @@ export async function getLatestPublicAnalysis(
     language: r.language ?? null,
     kind: r.kind ?? null,
     score: r.score ?? null,
+    categories: pickCategoryValues(r.categoryScores),
     forks: r.forks ?? null,
     lastSyncedAt: r.lastSyncedAt ? r.lastSyncedAt.toISOString() : null,
     publishedAt: r.publishedAt ? r.publishedAt.toISOString() : null,

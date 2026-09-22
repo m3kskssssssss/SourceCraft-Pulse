@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { getUserAnalyses, type HistoryItem } from '@/lib/history';
-import { Bar, Chip, EmptyState } from '@/app/components/ui';
+import { CategoryMini, Chip, EmptyState } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,44 +64,56 @@ export default async function MyAnalysesPage() {
             />
           </div>
 
-          <ol className="mt-8 divide-y divide-[color:var(--line)]">
+          <ol className="mt-8 grid gap-3">
             {items.map((item, idx) => (
               <li
                 key={item.id}
                 className="rise"
                 style={{ animationDelay: `${Math.min(idx, 10) * 25}ms` }}
               >
+                {/* Прогон — карточка: слева репозиторий и его состояние, справа
+                    балл с разницей к прошлому разу. Раньше это была строка с
+                    тремя фиксированными колонками, и три четверти её ширины
+                    приходились на пустоту. */}
                 <Link
                   href={`/a/${item.id}`}
-                  className="group flex flex-wrap items-center gap-4 py-4 transition hover:bg-[color:var(--paper-2)]"
+                  className="group grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 rounded-2xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-4 transition hover:border-[color:var(--line-2)] hover:shadow-[var(--shadow-1)] sm:p-5"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-base font-medium tracking-tight transition-transform duration-200 group-hover:translate-x-0.5 group-hover:underline">
-                      {item.org}
-                      <span className="text-[color:var(--muted-2)]">/</span>
+                  <div className="min-w-0">
+                    <div className="truncate text-[15px] font-medium tracking-tight group-hover:underline">
+                      <span className="text-[color:var(--muted)]">{item.org}/</span>
                       {item.repo}
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted)]">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[color:var(--muted)]">
                       <Chip tone={item.status === 'done' ? 'default' : 'outline'}>
                         {STATUS_LABELS[item.status]}
                       </Chip>
                       {item.isPublic && <Chip tone="ink">В рейтинге</Chip>}
+                      {item.kind === 'material' && <Chip tone="outline">Полезный материал</Chip>}
                       <span>{formatDateTime(item.finishedAt ?? item.createdAt)}</span>
                       {item.language && <span>· {item.language}</span>}
                     </div>
+                    {item.status === 'done' && item.kind !== 'material' && (
+                      <CategoryMini values={item.categories} className="mt-3" />
+                    )}
                   </div>
 
-                  <div className="hidden w-32 sm:block">
-                    <Bar value={item.score} />
-                  </div>
-
-                  <div className="w-24 text-right">
-                    <div className="text-2xl font-semibold tabular-nums">{item.score ?? '—'}</div>
+                  <div className="text-right">
+                    {item.kind === 'material' ? (
+                      <div className="max-w-[5.5rem] text-[11px] font-semibold leading-tight text-[color:var(--ink-2)]">
+                        Полезный материал
+                      </div>
+                    ) : (
+                      <div className="text-2xl font-semibold tabular-nums leading-none">
+                        {item.score ?? '—'}
+                      </div>
+                    )}
                     {item.delta !== null && item.delta !== 0 && (
                       <div
-                        className="text-xs tabular-nums"
+                        className="mt-1 text-xs tabular-nums"
                         style={{
-                          color: item.delta > 0 ? 'var(--accent-security)' : 'var(--accent-activity)',
+                          color:
+                            item.delta > 0 ? 'var(--accent-security)' : 'var(--accent-activity)',
                         }}
                       >
                         {item.delta > 0 ? '+' : ''}

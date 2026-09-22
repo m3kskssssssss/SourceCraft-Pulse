@@ -7,6 +7,7 @@
 import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { analyses, repositories } from '@/db/schema';
+import { pickCategoryValues, type CategoryValues } from '@/lib/category-meta';
 
 export type AnalysisStatus = 'queued' | 'running' | 'done' | 'failed';
 
@@ -16,7 +17,10 @@ export type HistoryItem = {
   repo: string;
   language: string | null;
   status: AnalysisStatus;
+  /** 'project' | 'material' | 'unclear'. */
+  kind: string | null;
   score: number | null;
+  categories: CategoryValues;
   isPublic: boolean;
   createdAt: string;
   finishedAt: string | null;
@@ -103,7 +107,9 @@ function historySelection() {
     repo: repositories.repoSlug,
     language: repositories.language,
     status: analyses.status,
+    kind: analyses.kind,
     score: analyses.score,
+    categoryScores: analyses.categoryScores,
     isPublic: analyses.isPublic,
     createdAt: analyses.createdAt,
     finishedAt: analyses.finishedAt,
@@ -116,7 +122,10 @@ type HistoryRow = {
   repo: string;
   language: string | null;
   status: AnalysisStatus;
+  kind: string | null;
   score: number | null;
+  /** jsonb из базы: разбирается pickCategoryValues. */
+  categoryScores: unknown;
   isPublic: boolean;
   createdAt: Date;
   finishedAt: Date | null;
@@ -129,7 +138,9 @@ function toHistoryItem(row: HistoryRow): HistoryItem {
     repo: row.repo,
     language: row.language ?? null,
     status: row.status,
+    kind: row.kind ?? null,
     score: row.score ?? null,
+    categories: pickCategoryValues(row.categoryScores),
     isPublic: row.isPublic,
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt ? row.finishedAt.toISOString() : null,

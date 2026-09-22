@@ -2,6 +2,13 @@
 // Никаких внешних зависимостей и variants API — вручную составленные классы.
 
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes } from 'react';
+import {
+  CATEGORY_ACCENT_CLASS,
+  CATEGORY_ORDER,
+  CATEGORY_SHORT,
+  CATEGORY_TITLES,
+  type CategoryValues,
+} from '@/lib/category-meta';
 
 // ---------- utility ----------
 
@@ -335,6 +342,45 @@ export function Stat({
       <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">{label}</div>
       <div className="mt-2 text-2xl font-semibold tabular-nums">{value}</div>
       {hint && <div className="mt-1 text-xs text-[color:var(--muted)]">{hint}</div>}
+    </div>
+  );
+}
+
+// ---------- CategoryMini ----------
+
+/**
+ * Четыре категории в одну строку: подпись, балл, тонкая полоска в акцентном
+ * цвете категории. Нужна там, где раньше было пусто — в строке рейтинга и в
+ * карточке прогона: одно число «74» ничего не объясняет, а четыре объясняют.
+ */
+export function CategoryMini({
+  values,
+  className,
+  size = 'sm',
+}: {
+  values: CategoryValues;
+  className?: string;
+  size?: 'sm' | 'md';
+}) {
+  return (
+    <div className={cx('flex items-end gap-2 sm:gap-3', className)}>
+      {CATEGORY_ORDER.map((key) => (
+        <div
+          key={key}
+          className={cx(CATEGORY_ACCENT_CLASS[key], size === 'md' ? 'w-16' : 'w-11 sm:w-12')}
+          title={`${CATEGORY_TITLES[key]}: ${values[key] ?? 'нет данных'}`}
+        >
+          <div className="flex items-baseline justify-between gap-1">
+            <span className="text-[10px] uppercase tracking-wide text-[color:var(--muted-2)]">
+              {CATEGORY_SHORT[key]}
+            </span>
+            <span className="text-[11px] tabular-nums text-[color:var(--ink-2)]">
+              {values[key] ?? '—'}
+            </span>
+          </div>
+          <Bar value={values[key]} height={3} accent className="mt-1" />
+        </div>
+      ))}
     </div>
   );
 }

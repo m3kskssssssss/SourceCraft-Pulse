@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { AnalyzeForm } from './components/AnalyzeForm';
 import { Planet } from './components/Planet';
-import { Bar, Chip, EmptyState } from './components/ui';
+import { CategoryMini, Chip, EmptyState } from './components/ui';
 import { getLanguageFacets, getLeaderboard, type LeaderboardSort } from '@/lib/ranking';
 import { CATEGORY_ACCENT_CLASS, CATEGORY_TITLES } from '@/lib/category-meta';
 
@@ -31,6 +31,11 @@ export default async function HomePage({
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Первая тройка на первой странице показывается карточками: рейтинг должен
+  // начинаться с лиц, а не сразу с однообразного списка.
+  const podium = sort === 'score' && page === 1 && items.length >= 3 ? items.slice(0, 3) : [];
+  const rows = podium.length > 0 ? items.slice(3) : items;
 
   const buildHref = (patch: {
     sort?: string;
@@ -147,25 +152,31 @@ export default async function HomePage({
             }
           />
         ) : (
-          <ol className="mt-8 divide-y divide-[color:var(--line)]">
-            {items.map((item, idx) => (
-              <li key={item.id} className="rise" style={{ animationDelay: `${Math.min(idx, 10) * 25}ms` }}>
-                {/* Строка — сетка из трёх колонок: номер, название с мелочами,
-                    оценка. Фиксированных пикселей в середине нет, поэтому на
-                    узком экране строка сжимается, а не вылезает за край. */}
-                <Link
-                  href={`/r/${item.org}/${item.repo}`}
-                  className="group -mx-3 grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl px-3 py-4 transition hover:bg-[color:var(--paper-2)] sm:gap-x-5"
-                >
-                  <span className="text-right text-xs tabular-nums text-[color:var(--muted-2)]">
-                    {offset + idx + 1}
-                  </span>
-
-                  <div className="min-w-0">
-                    <div className="truncate text-[15px] font-medium tracking-tight transition-transform duration-200 group-hover:translate-x-0.5">
-                      <span className="text-[color:var(--muted)]">{item.org}</span>
-                      <span className="text-[color:var(--muted-2)]">/</span>
-                      <span className="group-hover:underline">{item.repo}</span>
+          <>
+            {podium.length > 0 && (
+              <div className="mt-8 grid gap-4 sm:grid-cols-3">
+                {podium.map((item, idx) => (
+                  <Link
+                    key={item.id}
+                    href={`/r/${item.org}/${item.repo}`}
+                    className="rise group flex flex-col rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-5 transition hover:border-[color:var(--line-2)] hover:shadow-[var(--shadow-2)]"
+                    style={{ animationDelay: `${idx * 60}ms` }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-[11px] uppercase tracking-widest text-[color:var(--muted)]">
+                        {idx === 0 ? 'Лидер' : `№ ${idx + 1}`}
+                      </span>
+                      {item.kind === 'material' ? (
+                        <Chip tone="outline">Материал</Chip>
+                      ) : (
+                        <span className="text-4xl font-semibold leading-none tabular-nums">
+                          {item.score ?? '—'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-5 truncate text-[15px] font-medium tracking-tight group-hover:underline">
+                      <span className="text-[color:var(--muted)]">{item.org}/</span>
+                      {item.repo}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[color:var(--muted)]">
                       <span className="truncate">{item.language ?? 'Язык не определён'}</span>
@@ -174,30 +185,75 @@ export default async function HomePage({
                           <ForkIcon /> {item.forks.toLocaleString('ru-RU')}
                         </span>
                       )}
-                      {item.publishedAt && <span>{formatDate(item.publishedAt)}</span>}
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 justify-self-end">
-                    {item.kind === 'material' ? (
-                      <span className="max-w-[5.5rem] text-right text-[11px] font-semibold leading-tight text-[color:var(--ink-2)]">
-                        Полезный материал
-                      </span>
-                    ) : (
-                      <>
-                        <div className="hidden w-32 md:block">
-                          <Bar value={item.score} />
-                        </div>
-                        <span className="w-9 text-right text-xl font-semibold tabular-nums sm:text-2xl">
-                          {item.score ?? '—'}
-                        </span>
-                      </>
+                    {item.kind !== 'material' && (
+                      <CategoryMini values={item.categories} size="md" className="mt-5" />
                     )}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ol>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <ol className="mt-8 divide-y divide-[color:var(--line)]">
+              {rows.map((item, idx) => {
+                const place = offset + idx + 1 + podium.length;
+                return (
+                  <li
+                    key={item.id}
+                    className="rise"
+                    style={{ animationDelay: `${Math.min(idx, 10) * 25}ms` }}
+                  >
+                    {/* Сетка из трёх колонок: место, название с разбивкой по
+                        категориям, оценка. Середина сжимаемая — строка не
+                        вылезает за узкий экран и не пустует на широком. */}
+                    {/* Колонки расставлены явно: на узком экране разбивка по
+                        категориям уходит во вторую строку, на широком встаёт
+                        рядом с оценкой — иначе середина строки пустует. */}
+                    <Link
+                      href={`/r/${item.org}/${item.repo}`}
+                      className="group -mx-3 grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl px-3 py-4 transition hover:bg-[color:var(--paper-2)] sm:gap-x-5 lg:grid-cols-[1.75rem_minmax(0,1fr)_auto_3rem]"
+                    >
+                      <span className="col-start-1 row-start-1 self-start pt-0.5 text-right text-xs tabular-nums text-[color:var(--muted-2)]">
+                        {place}
+                      </span>
+
+                      <div className="col-start-2 row-start-1 min-w-0">
+                        <div className="truncate text-[15px] font-medium tracking-tight transition-transform duration-200 group-hover:translate-x-0.5">
+                          <span className="text-[color:var(--muted)]">{item.org}/</span>
+                          <span className="group-hover:underline">{item.repo}</span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[color:var(--muted)]">
+                          {item.kind === 'material' && (
+                            <span className="rounded-full border border-[color:var(--line)] px-2 py-0.5 text-[color:var(--ink-2)]">
+                              Полезный материал
+                            </span>
+                          )}
+                          <span className="truncate">{item.language ?? 'Язык не определён'}</span>
+                          {item.forks != null && (
+                            <span className="inline-flex items-center gap-1">
+                              <ForkIcon /> {item.forks.toLocaleString('ru-RU')}
+                            </span>
+                          )}
+                          {item.publishedAt && <span>{formatDate(item.publishedAt)}</span>}
+                        </div>
+                      </div>
+
+                      {item.kind !== 'material' && (
+                        <CategoryMini
+                          values={item.categories}
+                          className="col-span-2 col-start-2 row-start-2 mt-2.5 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:mt-0"
+                        />
+                      )}
+
+                      <span className="col-start-3 row-start-1 self-start pt-0.5 text-right text-xl font-semibold tabular-nums sm:text-2xl lg:col-start-4">
+                        {item.kind === 'material' ? '—' : (item.score ?? '—')}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          </>
         )}
 
         {totalPages > 1 && (
