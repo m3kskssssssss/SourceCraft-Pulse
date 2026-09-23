@@ -159,7 +159,10 @@ export default async function HomePage({
                   <Link
                     key={item.id}
                     href={`/r/${item.org}/${item.repo}`}
-                    className="rise group flex flex-col rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-5 transition hover:border-[color:var(--line-2)] hover:shadow-[var(--shadow-2)]"
+                    // @container: шкалы категорий внутри перестраиваются по
+                    // ширине самой карточки, а не окна — в три колонки она
+                    // узкая даже на большом экране.
+                    className="rise group @container flex flex-col rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-4 transition hover:border-[color:var(--line-2)] hover:shadow-[var(--shadow-2)] sm:p-5"
                     style={{ animationDelay: `${idx * 60}ms` }}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -167,11 +170,13 @@ export default async function HomePage({
                         {idx === 0 ? 'Лидер' : `№ ${idx + 1}`}
                       </span>
                       {item.kind === 'material' ? (
-                        <span className="max-w-[9rem] text-right text-2xl font-semibold leading-tight tracking-tight">
+                        // На тесной карточке кегль меньше: в три колонки
+                        // «Полезный материал» в 24 пикселя не помещается.
+                        <span className="max-w-[9rem] text-right text-lg font-semibold leading-tight tracking-tight @[18rem]:text-2xl">
                           Полезный материал
                         </span>
                       ) : (
-                        <span className="text-4xl font-semibold leading-none tabular-nums">
+                        <span className="text-3xl font-semibold leading-none tabular-nums @[18rem]:text-4xl">
                           {item.score ?? '—'}
                         </span>
                       )}
@@ -181,9 +186,11 @@ export default async function HomePage({
                       {item.repo}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[color:var(--muted)]">
-                      <span className="truncate">{item.language ?? 'Язык не определён'}</span>
+                      <span className="min-w-0 truncate">
+                        {item.language ?? 'Язык не определён'}
+                      </span>
                       {item.forks != null && (
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex shrink-0 items-center gap-1">
                           <ForkIcon /> {item.forks.toLocaleString('ru-RU')}
                         </span>
                       )}

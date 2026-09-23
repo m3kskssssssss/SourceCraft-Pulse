@@ -352,6 +352,12 @@ export function Stat({
  * Четыре категории в одну строку: подпись, балл, тонкая полоска в акцентном
  * цвете категории. Нужна там, где раньше было пусто — в строке рейтинга и в
  * карточке прогона: одно число «74» ничего не объясняет, а четыре объясняют.
+ *
+ * Размер `md` — для карточки подиума. Четыре колонки по 64 пикселя там
+ * складывались в 280 и вылезали за край узкой карточки, поэтому колонки
+ * делят её ширину поровну, а на совсем тесной карточке встают в два ряда.
+ * Порог берётся от ширины карточки (`@container`), а не окна: в раскладке
+ * «три в ряд» карточка узкая и на большом экране.
  */
 export function CategoryMini({
   values,
@@ -363,11 +369,18 @@ export function CategoryMini({
   size?: 'sm' | 'md';
 }) {
   return (
-    <div className={cx('flex items-end gap-2 sm:gap-3', className)}>
+    <div
+      className={cx(
+        size === 'md'
+          ? 'grid w-full grid-cols-2 gap-x-3 gap-y-2.5 @[18rem]:grid-cols-4'
+          : 'flex items-end gap-2 sm:gap-3',
+        className,
+      )}
+    >
       {CATEGORY_ORDER.map((key) => (
         <div
           key={key}
-          className={cx(CATEGORY_ACCENT_CLASS[key], size === 'md' ? 'w-16' : 'w-11 sm:w-12')}
+          className={cx(CATEGORY_ACCENT_CLASS[key], size === 'md' ? 'min-w-0' : 'w-11 sm:w-12')}
           title={`${CATEGORY_TITLES[key]}: ${values[key] ?? 'нет данных'}`}
         >
           <div className="flex items-baseline justify-between gap-1">
