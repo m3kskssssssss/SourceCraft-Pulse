@@ -1,32 +1,17 @@
 import { requireAdmin } from '@/app/actions/admin';
-import {
-  adminResetAiSpendAction,
-  adminUpdateSettingsAction,
-} from '@/app/actions/admin-settings';
+import { adminResetAiSpendAction } from '@/app/actions/admin-settings';
+import { AdminSettingsForm } from '@/app/components/AdminSettingsForm';
 import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
-import { Button, CardDiv, Chip, Field, Input } from '@/app/components/ui';
+import { CardDiv, Chip } from '@/app/components/ui';
 import { getAiSpend } from '@/lib/admin-stats';
-import { getSetting } from '@/lib/settings';
-import { USER_CONCURRENT_ANALYSIS_LIMIT, USER_DAILY_ANALYSIS_LIMIT } from '@/lib/limits';
+import { readAdminSettings } from '@/lib/admin-settings';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminSettings() {
   await requireAdmin();
 
-  const aiModel = await getSetting(
-    'ai.model',
-    process.env.AI_MODEL ?? 'openai/gpt-6-luna-pro',
-  );
-  const budget = await getSetting<number>(
-    'ai.monthly_budget_rub',
-    Number.parseFloat(process.env.AI_MONTHLY_BUDGET_RUB ?? '0'),
-  );
-  const userDaily = await getSetting<number>('limits.user_daily', USER_DAILY_ANALYSIS_LIMIT);
-  const userConcurrent = await getSetting<number>(
-    'limits.user_concurrent',
-    USER_CONCURRENT_ANALYSIS_LIMIT,
-  );
+  const values = await readAdminSettings();
   const spend = await getAiSpend();
 
   return (
@@ -40,30 +25,7 @@ export default async function AdminSettings() {
       </p>
 
       <CardDiv tone="paper" className="mt-8 max-w-xl">
-        <form action={adminUpdateSettingsAction} className="flex flex-col gap-5">
-          <Field label="Активная модель (routerai)">
-            <Input
-              name="aiModel"
-              defaultValue={String(aiModel)}
-              placeholder="openai/gpt-6-luna-pro"
-            />
-          </Field>
-          <Field
-            label="Месячный бюджет ИИ, ₽"
-            hint="0 — без лимита. По достижении лимита AI-задачи перестают выполняться."
-          >
-            <Input type="number" step="0.01" name="monthlyBudgetRub" defaultValue={String(budget)} />
-          </Field>
-          <Field label="Лимит анализов в сутки на пользователя">
-            <Input type="number" name="userDaily" defaultValue={String(userDaily)} />
-          </Field>
-          <Field label="Одновременно в очереди">
-            <Input type="number" name="userConcurrent" defaultValue={String(userConcurrent)} />
-          </Field>
-          <Button type="submit" size="lg" className="self-start">
-            Сохранить
-          </Button>
-        </form>
+        <AdminSettingsForm values={values} />
       </CardDiv>
 
       <CardDiv tone="outline" className="mt-6 max-w-xl">

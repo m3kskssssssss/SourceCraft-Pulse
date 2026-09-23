@@ -1,6 +1,7 @@
 import { requireAdmin } from '@/app/actions/admin';
 import { Bar, CardDiv, Chip, Stat } from '@/app/components/ui';
 import { getAiSpend } from '@/lib/admin-stats';
+import { getNumberSetting } from '@/lib/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +12,10 @@ function fmtRub(n: number): string {
 export default async function AdminAiPage() {
   await requireAdmin();
   const spend = await getAiSpend();
-  const budget = Number.parseFloat(process.env.AI_MONTHLY_BUDGET_RUB ?? '0');
+  // Бюджет берём из настроек, а не из окружения: именно по этому значению
+  // рубятся AI-задачи (assertUnderMonthlyBudget). Раньше здесь читалось
+  // окружение, и новый лимит из админки на этой странице не появлялся.
+  const budget = await getNumberSetting('ai.monthly_budget_rub', 'AI_MONTHLY_BUDGET_RUB', 0);
   const budgetShare = budget > 0 ? Math.min(1, spend.monthRub / budget) : 0;
   const budgetRemaining = budget > 0 ? Math.max(0, budget - spend.monthRub) : null;
 
