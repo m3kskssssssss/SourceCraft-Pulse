@@ -1,15 +1,16 @@
 // Верхняя навигация. Sticky, тонкая нижняя граница, справа состояние сессии.
 //
-// На телефоне ссылки уезжают во вторую строку, а не прячутся: раньше нав-блок
-// был `hidden sm:flex`, и с телефона до «Оценить» было просто не добраться —
-// оставался только логотип. Бургер здесь не нужен: две ссылки помещаются в
-// строку, а лишний клик до главного действия не нужен никому.
+// Два вида. На экране — ссылки в строку и имя с фото справа. На телефоне всё
+// это уходит под одну кнопку справа: раньше ссылки жили во второй строке, и
+// шапка занимала два этажа ради двух пунктов, а вход с выходом всё равно
+// теснились рядом с логотипом.
 
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { signOutAction } from '@/app/actions/auth';
 import { getPublicUser } from '@/lib/users';
 import { Avatar } from './Avatar';
+import { MobileMenu } from './MobileMenu';
 import { Button } from './ui';
 import { Planet } from './Planet';
 
@@ -46,7 +47,10 @@ export async function UserBar() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
+        {/* Телефон: одна кнопка, за ней и ссылки, и вход с выходом. */}
+        <MobileMenu links={links} user={profile} />
+
+        <div className="hidden items-center gap-2 sm:flex">
           {sessionUser ? (
             <>
               {/* Имя с фото ведут на свою страницу: там и стена с прогонами,
@@ -56,9 +60,7 @@ export async function UserBar() {
                 className="inline-flex max-w-[190px] items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm text-[color:var(--muted)] transition hover:bg-[color:var(--panel)] hover:text-[color:var(--ink)]"
               >
                 <Avatar user={profile} size={26} />
-                <span className="hidden truncate sm:inline">
-                  {profile?.displayName ?? sessionUser.email}
-                </span>
+                <span className="truncate">{profile?.displayName ?? sessionUser.email}</span>
               </Link>
               <form action={signOutAction}>
                 <Button type="submit" variant="ghost" size="sm">
@@ -84,15 +86,6 @@ export async function UserBar() {
           )}
         </div>
       </div>
-
-      {/* Вторая строка — только для телефона. */}
-      <nav className="mx-auto -mt-0.5 flex w-full max-w-6xl items-center gap-1 px-4 pb-2 text-sm sm:hidden">
-        {links.map((link) => (
-          <NavLink key={link.href} href={link.href}>
-            {link.label}
-          </NavLink>
-        ))}
-      </nav>
     </header>
   );
 }

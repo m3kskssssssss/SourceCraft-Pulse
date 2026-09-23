@@ -73,7 +73,7 @@ function AvatarCard({ user }: { user: PublicUser }) {
   return (
     <CardDiv tone="paper">
       <h2 className="text-lg font-medium">Фото</h2>
-      <div className="mt-4 flex flex-wrap items-center gap-5">
+      <div className="mt-4 flex flex-wrap items-center gap-4">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -81,28 +81,35 @@ function AvatarCard({ user }: { user: PublicUser }) {
             alt=""
             width={72}
             height={72}
-            className="h-[72px] w-[72px] rounded-full border border-[color:var(--line)] object-cover"
+            className="h-[72px] w-[72px] shrink-0 rounded-full border border-[color:var(--line)] object-cover"
           />
         ) : (
           <Avatar user={user} size={72} />
         )}
 
-        <form ref={formRef} action={formAction} className="flex flex-wrap items-center gap-3">
+        {/* Родной <input type="file"> не показываем: у него своя ширина под
+            кнопку и «файл не выбран», сжиматься он не умеет и на телефоне
+            распирал карточку. Видимая часть — обычная подпись-кнопка. */}
+        <form ref={formRef} action={formAction} className="min-w-0">
           <input
             ref={fileRef}
+            id="avatar-file"
             type="file"
             name="avatar"
             accept="image/png,image/jpeg,image/webp"
             onChange={onPick}
-            className="max-w-full text-sm file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-[color:var(--ink)] file:px-4 file:py-2 file:text-sm file:text-[color:var(--paper)]"
+            className="sr-only"
           />
-          {(pending || busy) && (
-            <span className="text-sm text-[color:var(--muted)]">Загружаем…</span>
-          )}
+          <label
+            htmlFor="avatar-file"
+            className="inline-flex cursor-pointer items-center rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
+          >
+            {pending || busy ? 'Загружаем…' : 'Выбрать файл'}
+          </label>
         </form>
 
         {user.hasAvatar && (
-          <form action={removeAvatarAction}>
+          <form action={removeAvatarAction} className="min-w-0">
             <Button type="submit" variant="ghost" size="sm">
               Убрать фото
             </Button>
@@ -211,34 +218,41 @@ function ContactsEditor({ initial }: { initial: ContactLink[] }) {
         </p>
       )}
 
+      {/* Каждая сеть — отдельный блок: название и «убрать» сверху, поле под
+          ними. В одну строку это складывалось только на широком экране, а на
+          телефоне поле оставалось без ширины. */}
       {links.map((link) => {
         const meta = CONTACT_META[link.kind];
         return (
-          <div key={link.kind} className="flex items-start gap-2">
-            <span className="mt-2.5 flex items-center gap-2 text-sm text-[color:var(--muted)]">
-              <ContactBadge text={meta.badge} size={26} />
-              <span className="hidden w-24 sm:inline">{meta.title}</span>
-            </span>
-            <span className="min-w-0 flex-1">
-              <input type="hidden" name="contactKind" value={link.kind} />
-              <Input
-                name="contactValue"
-                value={link.value}
-                onChange={(event) => change(link.kind, event.target.value)}
-                placeholder={meta.placeholder}
-                maxLength={200}
-                aria-label={meta.title}
-              />
-              <span className="mt-1 block text-xs text-[color:var(--muted)]">{meta.hint}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => remove(link.kind)}
-              aria-label={`Убрать ${meta.title}`}
-              className="mt-2 rounded-full border border-[color:var(--line)] px-3 py-1.5 text-xs text-[color:var(--muted)] transition hover:bg-[color:var(--panel)] hover:text-[color:var(--ink)]"
-            >
-              Убрать
-            </button>
+          <div
+            key={link.kind}
+            className="rounded-2xl border border-[color:var(--line)] p-3"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-2 text-sm text-[color:var(--ink-2)]">
+                <ContactBadge text={meta.badge} size={24} />
+                <span className="truncate">{meta.title}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => remove(link.kind)}
+                aria-label={`Убрать ${meta.title}`}
+                className="shrink-0 rounded-full border border-[color:var(--line)] px-3 py-1 text-xs text-[color:var(--muted)] transition hover:bg-[color:var(--panel)] hover:text-[color:var(--ink)]"
+              >
+                Убрать
+              </button>
+            </div>
+            <input type="hidden" name="contactKind" value={link.kind} />
+            <Input
+              className="mt-2"
+              name="contactValue"
+              value={link.value}
+              onChange={(event) => change(link.kind, event.target.value)}
+              placeholder={meta.placeholder}
+              maxLength={200}
+              aria-label={meta.title}
+            />
+            <span className="mt-1.5 block text-xs text-[color:var(--muted)]">{meta.hint}</span>
           </div>
         );
       })}
@@ -250,9 +264,10 @@ function ContactsEditor({ initial }: { initial: ContactLink[] }) {
               key={kind}
               type="button"
               onClick={() => add(kind)}
-              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--line)] py-1.5 pl-1.5 pr-3.5 text-sm text-[color:var(--ink-2)] transition hover:border-[color:var(--line-2)] hover:bg-[color:var(--panel)]"
+              className="inline-flex max-w-full items-center gap-2 rounded-full border border-[color:var(--line)] py-1.5 pl-1.5 pr-3.5 text-sm text-[color:var(--ink-2)] transition hover:border-[color:var(--line-2)] hover:bg-[color:var(--panel)]"
             >
-              <ContactBadge text={CONTACT_META[kind].badge} />+ {CONTACT_META[kind].title}
+              <ContactBadge text={CONTACT_META[kind].badge} />
+              <span className="truncate">+ {CONTACT_META[kind].title}</span>
             </button>
           ))}
         </div>

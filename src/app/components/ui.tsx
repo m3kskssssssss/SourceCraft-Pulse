@@ -124,7 +124,7 @@ export function Card({
   tone?: CardTone;
 }) {
   return (
-    <section className={cx('rounded-3xl p-6', CARD_TONES[tone], className)}>
+    <section className={cx('rounded-3xl p-5 sm:p-6', CARD_TONES[tone], className)}>
       {children}
     </section>
   );
@@ -140,7 +140,9 @@ export function CardDiv({
   tone?: CardTone;
 }) {
   return (
-    <div className={cx('rounded-3xl p-6', CARD_TONES[tone], className)}>
+    // Отступ на телефоне меньше: при 24 пикселях с каждой стороны плюс поля
+    // страницы содержимому оставалось меньше трёхсот.
+    <div className={cx('rounded-3xl p-5 sm:p-6', CARD_TONES[tone], className)}>
       {children}
     </div>
   );

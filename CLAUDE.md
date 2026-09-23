@@ -96,7 +96,7 @@ src/
 │   ├── my/page.tsx               # старый адрес «Моих оценок», редирект на свою страницу
 │   ├── not-found.tsx             # общий 404
 │   ├── icon.svg                  # ЧБ-логотип-favicon
-│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
@@ -166,6 +166,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 
 ## Прогресс
 
+- [x] Этап 27 — шапка на телефоне свернулась в одно выпадающее меню справа; настройки профиля перестали распирать экран (файловый инпут за подписью, контакты блоками, отступ карточек меньше на телефоне)
 - [x] Этап 26 — «Мои оценки» переехали на стену профиля: вкладки в шапке нет, имя ведёт на /u/<id>, публикация и снятие с рейтинга делаются прямо оттуда
 - [x] Этап 25 — контакты профиля по сетям (Telegram, ВКонтакте, GitHub, SourceCraft, почта): добавляются кнопкой, ник разбирается из любой вставленной ссылки, в профиле — значок и кликабельная ссылка
 - [x] Этап 24 — админка удаляет пользователей, оценки и комментарии (раздел «Обсуждение»); из actions/profile.ts убран экспорт константы — из файла с 'use server' наружу можно только async-функции, иначе сохранение профиля отвечает 500
