@@ -2,10 +2,20 @@
 // оставались тонкими. Тяжёлые сводки заворачиваем в unstable_cache на 60 секунд.
 
 import { unstable_cache } from 'next/cache';
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { getSpendResetAt } from '@/lib/settings';
-import { aiCalls, analyses, analysisJobs, events, repositories, users } from '@/db/schema';
+import { displayNameOf } from '@/lib/user-display';
+import {
+  aiCalls,
+  analyses,
+  analysisComments,
+  analysisJobs,
+  analysisRatings,
+  events,
+  repositories,
+  users,
+} from '@/db/schema';
 
 // ---------- Общая сводка ----------
 
@@ -217,9 +227,13 @@ export async function getQueueRows(limit = 100): Promise<QueueRow[]> {
 export type AdminUserRow = {
   id: string;
   email: string;
+  /** Как человек подписан в обсуждениях: ник, иначе ФИО, иначе логин. */
+  displayName: string;
   createdAt: string;
   blockedAt: string | null;
   analysesN: number;
+  ratingsN: number;
+  commentsN: number;
 };
 
 export async function getUsersList(limit = 100): Promise<AdminUserRow[]> {
@@ -227,9 +241,13 @@ export async function getUsersList(limit = 100): Promise<AdminUserRow[]> {
     .select({
       id: users.id,
       email: users.email,
+      nickname: users.nickname,
+      name: users.name,
       createdAt: users.createdAt,
       blockedAt: users.blockedAt,
       analysesN: sql<number>`(select count(*)::int from ${analyses} where ${analyses.requestedBy} = ${users.id})`,
+      ratingsN: sql<number>`(select count(*)::int from ${analysisRatings} where ${analysisRatings.userId} = ${users.id})`,
+      commentsN: sql<number>`(select count(*)::int from ${analysisComments} where ${analysisComments.userId} = ${users.id} and ${analysisComments.deletedAt} is null)`,
     })
     .from(users)
     .orderBy(desc(users.createdAt))
@@ -238,9 +256,102 @@ export async function getUsersList(limit = 100): Promise<AdminUserRow[]> {
   return rows.map((r) => ({
     id: r.id,
     email: r.email,
+    displayName: displayNameOf(r),
     createdAt: r.createdAt.toISOString(),
     blockedAt: r.blockedAt ? r.blockedAt.toISOString() : null,
     analysesN: r.analysesN,
+    ratingsN: r.ratingsN,
+    commentsN: r.commentsN,
+  }));
+}
+
+// ---------- Обсуждение: оценки и комментарии ----------
+
+export type AdminCommentRow = {
+  id: string;
+  analysisId: string;
+  orgRepo: string;
+  authorId: string | null;
+  authorName: string;
+  body: string;
+  isReply: boolean;
+  createdAt: string;
+};
+
+export async function getCommentsList(limit = 200): Promise<AdminCommentRow[]> {
+  const rows = await db
+    .select({
+      id: analysisComments.id,
+      analysisId: analysisComments.analysisId,
+      parentId: analysisComments.parentId,
+      body: analysisComments.body,
+      createdAt: analysisComments.createdAt,
+      org: repositories.orgSlug,
+      repo: repositories.repoSlug,
+      authorId: users.id,
+      email: users.email,
+      nickname: users.nickname,
+      name: users.name,
+    })
+    .from(analysisComments)
+    .innerJoin(analyses, eq(analysisComments.analysisId, analyses.id))
+    .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
+    .leftJoin(users, eq(analysisComments.userId, users.id))
+    .where(isNull(analysisComments.deletedAt))
+    .orderBy(desc(analysisComments.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.id,
+    analysisId: r.analysisId,
+    orgRepo: `${r.org}/${r.repo}`,
+    authorId: r.authorId ?? null,
+    authorName: displayNameOf(r),
+    body: r.body,
+    isReply: Boolean(r.parentId),
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+export type AdminRatingRow = {
+  id: string;
+  analysisId: string;
+  orgRepo: string;
+  authorId: string | null;
+  authorName: string;
+  value: number;
+  createdAt: string;
+};
+
+export async function getRatingsList(limit = 200): Promise<AdminRatingRow[]> {
+  const rows = await db
+    .select({
+      id: analysisRatings.id,
+      analysisId: analysisRatings.analysisId,
+      value: analysisRatings.value,
+      createdAt: analysisRatings.createdAt,
+      org: repositories.orgSlug,
+      repo: repositories.repoSlug,
+      authorId: users.id,
+      email: users.email,
+      nickname: users.nickname,
+      name: users.name,
+    })
+    .from(analysisRatings)
+    .innerJoin(analyses, eq(analysisRatings.analysisId, analyses.id))
+    .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
+    .leftJoin(users, eq(analysisRatings.userId, users.id))
+    .orderBy(desc(analysisRatings.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.id,
+    analysisId: r.analysisId,
+    orgRepo: `${r.org}/${r.repo}`,
+    authorId: r.authorId ?? null,
+    authorName: displayNameOf(r),
+    value: r.value,
+    createdAt: r.createdAt.toISOString(),
   }));
 }
 

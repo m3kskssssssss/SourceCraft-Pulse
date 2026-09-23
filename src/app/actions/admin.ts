@@ -11,7 +11,15 @@ import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import argon2 from 'argon2';
 import { z } from 'zod';
 import { db } from '@/db/client';
-import { analyses, analysisJobs, events, repositories, users } from '@/db/schema';
+import {
+  analyses,
+  analysisComments,
+  analysisJobs,
+  analysisRatings,
+  events,
+  repositories,
+  users,
+} from '@/db/schema';
 import {
   ADMIN_COOKIE_NAME,
   ADMIN_SESSION_MAX_AGE_SEC,
@@ -283,6 +291,70 @@ export async function adminToggleBlock(
   return { ok: true };
 }
 
+/**
+ * Удаляет пользователя. Что уходит следом, задано внешними ключами схемы:
+ * оценки, комментарии, сессии и привязки провайдеров — каскадом, а его
+ * анализы остаются в рейтинге с обнулённым автором. Это осознанно: чужой
+ * опубликованный разбор не должен исчезать из общего списка из-за уборки
+ * учётных записей.
+ */
+export async function adminDeleteUser(
+  userId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const parsed = idSchema.safeParse(userId);
+  if (!parsed.success) return { ok: false, error: 'Некорректный id' };
+
+  const rows = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const victim = rows[0];
+  if (!victim) return { ok: false, error: 'Пользователь не найден' };
+
+  await db.delete(users).where(eq(users.id, userId));
+  await recordEvent('admin.user.deleted', { userId, email: victim.email });
+  return { ok: true };
+}
+
+/** Убирает одну оценку. Средняя по анализу пересчитается сама. */
+export async function adminDeleteRating(
+  ratingId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const parsed = idSchema.safeParse(ratingId);
+  if (!parsed.success) return { ok: false, error: 'Некорректный id' };
+  await db.delete(analysisRatings).where(eq(analysisRatings.id, ratingId));
+  await recordEvent('admin.rating.deleted', { ratingId });
+  return { ok: true };
+}
+
+/**
+ * Убирает комментарий. В отличие от удаления самим автором — начисто, вместе
+ * с ответами на него: модерации нужна пустая ветка, а не «удалено» с живой
+ * перепиской под ним.
+ */
+export async function adminDeleteComment(
+  commentId: string,
+): Promise<{ ok: boolean; deletedReplies?: number; error?: string }> {
+  await requireAdmin();
+  const parsed = idSchema.safeParse(commentId);
+  if (!parsed.success) return { ok: false, error: 'Некорректный id' };
+
+  const replies = await db
+    .select({ id: analysisComments.id })
+    .from(analysisComments)
+    .where(eq(analysisComments.parentId, commentId));
+
+  if (replies.length > 0) {
+    await db.delete(analysisComments).where(eq(analysisComments.parentId, commentId));
+  }
+  await db.delete(analysisComments).where(eq(analysisComments.id, commentId));
+  await recordEvent('admin.comment.deleted', { commentId, deletedReplies: replies.length });
+  return { ok: true, deletedReplies: replies.length };
+}
+
 export async function adminUnpublishAnalysis(
   analysisId: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -352,6 +424,29 @@ export async function adminToggleBlockAction(formData: FormData): Promise<void> 
 export async function adminUnpublishAction(formData: FormData): Promise<void> {
   const id = String(formData.get('analysisId') ?? '');
   await adminUnpublishAnalysis(id);
+}
+
+export async function adminDeleteUserAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('userId') ?? '');
+  await adminDeleteUser(id);
+  revalidatePath('/admin/users');
+  revalidatePath('/admin/social');
+  revalidatePath('/admin');
+  revalidatePath('/');
+}
+
+export async function adminDeleteRatingAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('ratingId') ?? '');
+  await adminDeleteRating(id);
+  revalidatePath('/admin/social');
+  revalidatePath('/');
+}
+
+export async function adminDeleteCommentAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('commentId') ?? '');
+  await adminDeleteComment(id);
+  revalidatePath('/admin/social');
+  revalidatePath('/');
 }
 
 // ---------- утилиты ----------

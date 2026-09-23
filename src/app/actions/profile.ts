@@ -17,8 +17,15 @@ import { users } from '@/db/schema';
 
 export type ProfileState = { ok: boolean; error?: string; savedAt?: string };
 
-/** Больше этого в базу не кладём. Браузер ужимает картинку до отправки. */
-export const MAX_AVATAR_BYTES = 256 * 1024;
+/**
+ * Больше этого в базу не кладём. Браузер ужимает картинку до отправки.
+ *
+ * Константа намеренно не экспортируется: из файла с 'use server' наружу
+ * можно отдавать только async-функции. Экспорт числа Next оборачивал как
+ * серверную ссылку, и модуль падал при первом же вызове любого действия
+ * отсюда — сохранение профиля отвечало 500.
+ */
+const MAX_AVATAR_BYTES = 256 * 1024;
 
 const ALLOWED_AVATAR_MIME = ['image/png', 'image/jpeg', 'image/webp'];
 

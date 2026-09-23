@@ -14,6 +14,11 @@ const NAV = [
   { href: '/admin/queue', label: 'Очередь', match: (p: string) => p.startsWith('/admin/queue') },
   { href: '/admin/users', label: 'Пользователи', match: (p: string) => p.startsWith('/admin/users') },
   {
+    href: '/admin/social',
+    label: 'Обсуждение',
+    match: (p: string) => p.startsWith('/admin/social'),
+  },
+  {
     href: '/admin/repositories',
     label: 'Репозитории',
     match: (p: string) => p.startsWith('/admin/repositories'),
