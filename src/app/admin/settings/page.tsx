@@ -16,7 +16,7 @@ export default async function AdminSettings() {
 
   const aiModel = await getSetting(
     'ai.model',
-    process.env.AI_MODEL ?? 'deepseek/deepseek-v4.1-flash',
+    process.env.AI_MODEL ?? 'openai/gpt-6-luna-pro',
   );
   const budget = await getSetting<number>(
     'ai.monthly_budget_rub',
@@ -45,7 +45,7 @@ export default async function AdminSettings() {
             <Input
               name="aiModel"
               defaultValue={String(aiModel)}
-              placeholder="deepseek/deepseek-v4.1-flash"
+              placeholder="openai/gpt-6-luna-pro"
             />
           </Field>
           <Field

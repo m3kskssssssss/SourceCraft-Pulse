@@ -19,6 +19,20 @@ describe('hashKey', () => {
     const b = hashKey({ task: 'x', input: { foo: 2 } });
     expect(a).not.toBe(b);
   });
+
+  it('разная модель — разный хеш', () => {
+    const key = { task: 'x', input: { foo: 1 } };
+    const a = hashKey(key, { provider: 'routerai', model: 'openai/gpt-6-luna-pro' });
+    const b = hashKey(key, { provider: 'routerai', model: 'deepseek/deepseek-v4.1-flash' });
+    expect(a).not.toBe(b);
+  });
+
+  it('без meta хеш не совпадает с хешем с meta', () => {
+    const key = { task: 'x', input: { foo: 1 } };
+    const bare = hashKey(key);
+    const withMeta = hashKey(key, { provider: 'routerai', model: 'openai/gpt-6-luna-pro' });
+    expect(bare).not.toBe(withMeta);
+  });
 });
 
 describe('InMemoryAiCache', () => {

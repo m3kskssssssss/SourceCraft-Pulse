@@ -17,9 +17,9 @@ bash /tmp/setup.sh
 
 Спрашивает:
 - `SOURCECRAFT_PAT` (скрыто)
-- `AI_BASE_URL` — Enter (по умолчанию `https://routerai.ru/v1`)
+- `AI_BASE_URL` — Enter (по умолчанию `https://routerai.ru/api/v1`)
 - `AI_API_KEY` (скрыто)
-- `AI_MODEL` — Enter
+- `AI_MODEL` — Enter (по умолчанию `openai/gpt-6-luna-pro`)
 - `AI_MONTHLY_BUDGET_RUB` — Enter (500)
 - `ADMIN_LOGIN` — Enter (`admin`)
 - Пароль админа (скрыто, ≥ 20 символов)

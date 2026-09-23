@@ -169,13 +169,13 @@ SOURCECRAFT_PAT="$(get_existing SOURCECRAFT_PAT)"
 read_var SOURCECRAFT_PAT "SOURCECRAFT_PAT" 1 "$SOURCECRAFT_PAT"
 
 AI_BASE_URL="$(get_existing AI_BASE_URL)"
-read_var AI_BASE_URL "AI_BASE_URL" 0 "${AI_BASE_URL:-https://routerai.ru/v1}"
+read_var AI_BASE_URL "AI_BASE_URL" 0 "${AI_BASE_URL:-https://routerai.ru/api/v1}"
 
 AI_API_KEY="$(get_existing AI_API_KEY)"
 read_var AI_API_KEY "AI_API_KEY" 1 "$AI_API_KEY"
 
 AI_MODEL="$(get_existing AI_MODEL)"
-read_var AI_MODEL "AI_MODEL" 0 "${AI_MODEL:-deepseek/deepseek-v3.1-flash}"
+read_var AI_MODEL "AI_MODEL" 0 "${AI_MODEL:-openai/gpt-6-luna-pro}"
 
 AI_MONTHLY_BUDGET_RUB="$(get_existing AI_MONTHLY_BUDGET_RUB)"
 read_var AI_MONTHLY_BUDGET_RUB "AI_MONTHLY_BUDGET_RUB" 0 "${AI_MONTHLY_BUDGET_RUB:-500}"

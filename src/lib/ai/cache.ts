@@ -1,4 +1,4 @@
-// Кэш ответов ИИ по SHA-256 от «task + input».
+// Кэш ответов ИИ по SHA-256 от «провайдер + модель + task + input».
 //
 // Две реализации:
 //   - InMemoryAiCache: Map, живёт процесс. Для CLI и тестов.
@@ -18,16 +18,27 @@ export type AiCacheDb = NodePgDatabase<typeof schema>;
 
 export type AiCacheKey = { task: string; input: unknown };
 
+/** Чей это ответ: от провайдера и модели зависит сам ключ. */
+export type AiCacheMeta = { provider: string; model: string };
+
 export interface AiCache {
   hash(key: AiCacheKey): string;
   get<T>(key: AiCacheKey): Promise<T | null>;
   put<T>(key: AiCacheKey, value: T): Promise<void>;
 }
 
-/** Стабильный SHA-256 по task + канонический JSON. */
-export function hashKey(key: AiCacheKey): string {
+/**
+ * Стабильный SHA-256 по task + канонический JSON.
+ *
+ * Модель входит в ключ: иначе после смены модели тот же репозиторий с теми же
+ * фактами отдавал бы ответы прежней — новую никто бы и не вызвал.
+ * Плата за это — смена модели обнуляет кэш, а строки старой остаются
+ * в таблице мёртвым грузом: ни с чем не совпадут.
+ */
+export function hashKey(key: AiCacheKey, meta?: AiCacheMeta): string {
   const canonical = stableStringify(key.input);
-  return createHash('sha256').update(`${key.task}\n${canonical}`).digest('hex');
+  const prefix = meta ? `${meta.provider}\n${meta.model}\n` : '';
+  return createHash('sha256').update(`${prefix}${key.task}\n${canonical}`).digest('hex');
 }
 
 function stableStringify(value: unknown): string {
@@ -75,11 +86,11 @@ export class InMemoryAiCache implements AiCache {
 export class DrizzleAiCache implements AiCache {
   constructor(
     private readonly db: AiCacheDb,
-    private readonly meta: { provider: string; model: string },
+    private readonly meta: AiCacheMeta,
   ) {}
 
   hash(key: AiCacheKey): string {
-    return hashKey(key);
+    return hashKey(key, this.meta);
   }
 
   async get<T>(key: AiCacheKey): Promise<T | null> {
