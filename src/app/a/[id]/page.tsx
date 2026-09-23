@@ -269,6 +269,37 @@ export default async function AnalysisPage({ params }: PageProps) {
         )}
       </section>
 
+      {/* «Что это»: описание от модели — чем репозиторий занимается и из чего
+          состоит. У материала оно стоит прямо в шапке вместо оценки; проекту
+          отводим отдельную секцию: сначала балл, потом суть. Задача repo_kind
+          пишет summary и topics для обоих жанров, показывали их только
+          материалу. Нет описания (старый прогон или ИИ не отработал) —
+          секции просто нет, заглушку не рисуем. */}
+      {!isMaterial && kindSummary && (
+        <section className="rise mt-10" style={{ animationDelay: '40ms' }}>
+          <SectionHead
+            eyebrow="Что это"
+            title="О проекте"
+            hint="Пересказ модели по README и структуре репозитория — на оценку не влияет."
+          />
+          <CardDiv tone="outline" className="mt-6">
+            <p className="max-w-3xl text-[15px] leading-relaxed text-[color:var(--ink-2)]">
+              {kindSummary}
+            </p>
+            {kindTopics.length > 0 && (
+              <ul className="mt-5 grid gap-2 sm:grid-cols-2">
+                {kindTopics.map((topic) => (
+                  <li key={topic} className="flex gap-2 text-sm text-[color:var(--ink-2)]">
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[color:var(--muted-2)]" />
+                    <span>{topic}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardDiv>
+        </section>
+      )}
+
       {/* Рекомендации: материалу нечего рекомендовать по инженерной части */}
       {!isMaterial && recommendations.length > 0 && (
         <section className="rise mt-10" style={{ animationDelay: '80ms' }}>
