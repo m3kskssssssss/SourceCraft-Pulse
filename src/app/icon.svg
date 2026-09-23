@@ -1,11 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="16" fill="#0a0a0a"/>
-  <g fill="none" stroke="#ffffff" stroke-width="1.6" transform="translate(32 32) scale(0.78) translate(-32 -32)">
+  <!-- Тот же проволочный глобус, что и в components/Planet.tsx: обод r=30,
+       параллели со сплюснутостью 0.26 на высотах компонента, меридианы —
+       застывшие фазы вращения (rx = 30·|cos(π·i/6)|, повторы отброшены).
+       Отличия вынужденные, ради 16 пикселей во вкладке: фон белый, линии
+       без полутона и чуть толще, а из пяти параллелей оставлены три —
+       ±11 сливались с соседними в тёмное пятно. -->
+  <rect width="64" height="64" rx="16" fill="#ffffff"/>
+  <g fill="none" stroke="#0a0a0a" stroke-width="1.7">
     <circle cx="32" cy="32" r="30"/>
-    <ellipse cx="32" cy="11" rx="21.4" ry="5.6"/>
+
+    <ellipse cx="32" cy="11" rx="21.42" ry="5.57"/>
     <ellipse cx="32" cy="32" rx="30" ry="7.8"/>
-    <ellipse cx="32" cy="53" rx="21.4" ry="5.6"/>
-    <ellipse cx="32" cy="32" rx="30" ry="30"/>
+    <ellipse cx="32" cy="53" rx="21.42" ry="5.57"/>
+
+    <ellipse cx="32" cy="32" rx="25.98" ry="30"/>
     <ellipse cx="32" cy="32" rx="15" ry="30"/>
+    <ellipse cx="32" cy="32" rx="0.6" ry="30"/>
   </g>
 </svg>
