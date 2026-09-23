@@ -42,6 +42,29 @@ export async function getUserAnalyses(userId: string, limit = 60): Promise<Histo
 }
 
 /**
+ * Что видно в чужом профиле: только опубликованные и посчитанные прогоны.
+ * Приватные остаются в «Моих оценках» — профиль их не показывает даже
+ * владельцу, чтобы страница выглядела одинаково для всех.
+ */
+export async function getPublicUserAnalyses(userId: string, limit = 40): Promise<HistoryItem[]> {
+  const rows = await db
+    .select(historySelection())
+    .from(analyses)
+    .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
+    .where(
+      and(
+        eq(analyses.requestedBy, userId),
+        eq(analyses.isPublic, true),
+        eq(analyses.status, 'done'),
+      ),
+    )
+    .orderBy(desc(analyses.finishedAt))
+    .limit(limit);
+
+  return rows.map(toHistoryItem);
+}
+
+/**
  * Прогоны одного репозитория, которые вправе видеть смотрящий:
  * свои — любые, чужие — только опубликованные.
  */

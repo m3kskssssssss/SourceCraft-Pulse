@@ -72,12 +72,15 @@ src/
 │   └── globals.css
 ├── auth.ts                       # Auth.js v5, Node-конфиг с credentials+argon2
 ├── auth.config.ts                # Edge-safe конфиг (для middleware)
-├── middleware.ts                 # gate для /analyze
+├── middleware.ts                 # gate для /analyze, /my, /profile
 ├── app/
 │   ├── actions/
 │   │   ├── auth.ts               # signUpAction, signOutAction
 │   │   ├── analyze.ts            # analyzeRepo — slug + limits + SC check + queue
-│   │   └── visibility.ts         # setAnalysisVisibility (публикация в рейтинг)
+│   │   ├── visibility.ts         # setAnalysisVisibility (публикация в рейтинг)
+│   │   ├── profile.ts            # профиль, загрузка фото, смена пароля
+│   │   └── social.ts             # оценка анализа и комментарии
+│   ├── api/users/[id]/avatar/route.ts       # фото профиля из bytea
 │   ├── api/analyses/[id]/run/route.ts       # считает анализ в запросе (maxDuration 300)
 │   ├── api/analyses/[id]/status/route.ts    # статус для опроса со страницы
 │   ├── api/badge/[org]/[repo].svg/route.ts    # SVG-бейдж по последнему public
@@ -88,13 +91,15 @@ src/
 │   ├── signup/page.tsx
 │   ├── analyze/page.tsx
 │   ├── a/[id]/page.tsx
+│   ├── profile/page.tsx          # свои настройки: ник, ФИО, о себе, контакты, фото, пароль
+│   ├── u/[id]/page.tsx           # чужой профиль: кто это и что отправлял в рейтинг
 │   ├── not-found.tsx             # общий 404
 │   ├── icon.svg                  # ЧБ-логотип-favicon
-│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, ConfirmSubmit, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState)
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
-│   ├── schema.ts                 # 10 таблиц Drizzle
+│   ├── schema.ts                 # 13 таблиц Drizzle
 │   ├── client.ts                 # neon-http, для приложения (короткоживущие serverless)
 │   ├── worker-client.ts          # pg-Pool, только для воркера (FOR UPDATE SKIP LOCKED)
 │   ├── migrate.ts                # pnpm db:migrate
@@ -102,6 +107,9 @@ src/
 │   └── seed-repos.ts             # pnpm seed:repos
 ├── lib/
 │   ├── collect.ts                # collectRepoFacts(org, repo) → RepoFacts
+│   ├── users.ts                  # профили из базы; user-display.ts — имя и инициалы без БД
+│   ├── social.ts                 # оценки и комментарии; social-shared.ts — шкала без БД
+│   ├── admin-settings.ts         # одно чтение настроек для страницы и экшена
 │   ├── ai/
 │   │   ├── provider.ts           # интерфейс AiProvider
 │   │   ├── router.ts             # реализация поверх OpenAI-compat роутера
@@ -156,6 +164,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 
 ## Прогресс
 
+- [x] Этап 23 — профили (ник/ФИО/о себе/контакты/фото в bytea/смена пароля), оценка анализа пятью звёздами, комментарии с ответами; в рейтинге видно среднюю оценку и число комментариев, «по популярности» сортирует по оценке; рекомендаций девять вместо трёх, приросты считаются по очереди и не обещают больше 100; SECURITY.md из оценки убран
 - [x] Этап 1 — каркас, схема БД, health-эндпоинт, деплой
 - [x] Этап 2 — SourceCraft-клиент, сбор фактов, воркер
 - [x] Этап 3 — движок оценки + Vitest (seed по реальным данным отложен до подключения Neon)

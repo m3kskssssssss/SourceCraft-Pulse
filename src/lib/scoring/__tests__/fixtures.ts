@@ -32,6 +32,12 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
         hasTestsDir: false,
         hasLinterConfig: false,
         hasBuildManifest: false,
+        hasGitignore: false,
+        hasEditorConfig: false,
+        hasCodeOfConduct: false,
+        hasIssueTemplate: false,
+        hasDependencyBot: false,
+        hasDocsDir: false,
         supportedLockfiles: [],
         unsupportedLockfilesPresent: [],
       },
@@ -75,6 +81,17 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
 /** «Идеальный» репо — все известные метрики должны выходить в 100. */
 export function makePerfectFacts(): RepoFacts {
   const facts = baseFacts({
+    // Метрики активности смотрят и сюда: релизы, поток PR, закрытые задачи.
+    repository: { description: 'Полноценное описание репозитория для карточки' } as never,
+    counters: { forks: 12, pullRequests: 24, issues: 10, tags: 4, branches: 3 },
+    tags: [{ name: 'v1.0.0' }, { name: 'v1.1.0' }, { name: 'v2.0.0' }] as never[],
+    releases: [{ tag: 'v2.0.0' }] as never[],
+    issues: [
+      { id: '1', completed_at: '2026-01-01T00:00:00Z' },
+      { id: '2', completed_at: '2026-02-01T00:00:00Z' },
+      { id: '3', completed_at: '2026-03-01T00:00:00Z' },
+      { id: '4' },
+    ] as never[],
     tree: {
       entriesCount: 20,
       entries: [
@@ -99,6 +116,12 @@ export function makePerfectFacts(): RepoFacts {
         hasTestsDir: true,
         hasLinterConfig: true,
         hasBuildManifest: true,
+        hasGitignore: true,
+        hasEditorConfig: true,
+        hasCodeOfConduct: true,
+        hasIssueTemplate: true,
+        hasDependencyBot: true,
+        hasDocsDir: true,
         supportedLockfiles: ['package-lock.json'],
         unsupportedLockfilesPresent: [],
       },
@@ -182,7 +205,20 @@ export function makeMissingActivityFacts(): RepoFacts {
       ...facts.security,
       available: false,
     },
-    missing: [...facts.missing, 'git_clone_failed:mock', 'security_provider_down'],
+    // Вся активность без данных: истории нет, и списки из API тоже не пришли.
+    counters: { forks: null, pullRequests: null, issues: null, tags: null, branches: null },
+    releases: [],
+    tags: [],
+    issues: [],
+    missing: [
+      ...facts.missing,
+      'git_clone_failed:mock',
+      'security_provider_down',
+      'releases_fetch_failed',
+      'tags_fetch_failed',
+      'pull_requests_fetch_failed',
+      'issues_fetch_failed',
+    ],
   };
 }
 

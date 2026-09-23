@@ -1,7 +1,7 @@
 // Единый Next.js middleware:
 //   1) /admin/* (кроме /admin/login) — своя проверка admin-cookie (HMAC).
 //      Верификация здесь Edge-совместимая (Web Crypto через lib/admin-session-edge).
-//   2) /analyze и /my — Auth.js JWT-сессия обычного пользователя.
+//   2) /analyze, /my и /profile — Auth.js JWT-сессия обычного пользователя.
 //   3) остальное — пропускаем.
 
 import NextAuth from 'next-auth';
@@ -10,7 +10,7 @@ import { authConfig } from '@/auth.config';
 import { verifyAdminSessionEdge } from '@/lib/admin-session-edge';
 import { ADMIN_COOKIE_NAME } from '@/lib/admin-session-constants';
 
-const USER_PROTECTED_PREFIXES = ['/analyze', '/my'];
+const USER_PROTECTED_PREFIXES = ['/analyze', '/my', '/profile'];
 
 const { auth } = NextAuth(authConfig);
 

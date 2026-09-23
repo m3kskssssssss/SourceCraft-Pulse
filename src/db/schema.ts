@@ -9,7 +9,9 @@ import {
   varchar,
   timestamp,
   integer,
+  smallint,
   boolean,
+  customType,
   numeric,
   jsonb,
   uniqueIndex,
@@ -21,6 +23,18 @@ import { sql } from 'drizzle-orm';
 // ---------- Перечисления ----------
 
 export const userRoleEnum = pgEnum('user_role', ['user', 'admin']);
+
+/**
+ * bytea. У drizzle-orm нет своего типа под него, а аватар надо где-то хранить:
+ * на Vercel Hobby постоянного диска нет, а заводить отдельное хранилище ради
+ * одной картинки на пользователя — лишний сервис в стеке. Размер ограничен
+ * в действии загрузки, в базу попадает уже сжатая картинка.
+ */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+});
 
 export const analysisStatusEnum = pgEnum('analysis_status', [
   'queued',
@@ -39,7 +53,17 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   emailVerified: timestamp('email_verified', { withTimezone: true, mode: 'date' }),
   name: text('name'),
+  /** Отображаемое имя, которое пользователь выбрал сам. Приоритетнее name. */
+  nickname: varchar('nickname', { length: 40 }),
+  /** О себе: пара абзацев на странице профиля. */
+  bio: text('bio'),
+  /** Контакты одной строкой на строку: почта, телеграм, сайт. */
+  contacts: text('contacts'),
   avatarUrl: text('avatar_url'),
+  /** Сам файл аватара. Отдаётся из /api/users/[id]/avatar. */
+  avatarData: bytea('avatar_data'),
+  avatarMime: text('avatar_mime'),
+  avatarUpdatedAt: timestamp('avatar_updated_at', { withTimezone: true, mode: 'date' }),
   image: text('image'), // Auth.js использует это поле
   provider: text('provider'),
   providerId: text('provider_id'),
@@ -160,6 +184,71 @@ export const analyses = pgTable(
     ),
     // История репозитория и «последний публичный прогон».
     byRepoFinished: index('analyses_repo_finished_idx').on(t.repositoryId, t.finishedAt.desc()),
+  }),
+);
+
+// ---------- Оценки и обсуждение анализов ----------
+//
+// Оценка — одна на пользователя и анализ, поэтому не отдельная история, а
+// строка, которую переписывают: передумал — поставил другую звезду.
+
+export const analysisRatings = pgTable(
+  'analysis_ratings',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    analysisId: uuid('analysis_id')
+      .notNull()
+      .references(() => analyses.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 1..5. Проверяется в действии, в базе — просто маленькое целое. */
+    value: smallint('value').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    oncePerUser: uniqueIndex('analysis_ratings_analysis_user_unique').on(t.analysisId, t.userId),
+    byAnalysis: index('analysis_ratings_analysis_id_idx').on(t.analysisId),
+    byUser: index('analysis_ratings_user_id_idx').on(t.userId),
+  }),
+);
+
+/**
+ * Комментарии с одним уровнем вложенности: ответ ссылается на корневой
+ * комментарий, ответ на ответ — на тот же корень. Дерево произвольной
+ * глубины в такой ленте только мешает читать.
+ */
+export const analysisComments = pgTable(
+  'analysis_comments',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    analysisId: uuid('analysis_id')
+      .notNull()
+      .references(() => analyses.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Корневой комментарий ветки. null — сам корень. */
+    parentId: uuid('parent_id'),
+    body: text('body').notNull(),
+    /** Мягкое удаление: ветка ответов не должна рассыпаться. */
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    byAnalysis: index('analysis_comments_analysis_id_idx').on(t.analysisId, t.createdAt),
+    byUser: index('analysis_comments_user_id_idx').on(t.userId),
+    byParent: index('analysis_comments_parent_id_idx').on(t.parentId),
   }),
 );
 

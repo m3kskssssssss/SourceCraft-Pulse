@@ -32,7 +32,84 @@ export function computeCodeMetrics(facts: RepoFacts): MetricScore[] {
     todoDebtMetric(facts),
     hasLinterMetric(facts),
     hasCiMetric(facts),
+    hasBuildManifestMetric(facts),
+    hasGitignoreMetric(facts),
+    hasEditorConfigMetric(facts),
   ];
+}
+
+/** Флаг из дерева файлов: одинаковая обвязка для трёх метрик ниже. */
+function treeFlagMetric(
+  facts: RepoFacts,
+  spec: {
+    key: string;
+    weight: number;
+    flag: boolean;
+    yes: string;
+    no: string;
+    effort: 'trivial' | 'small' | 'medium' | 'large';
+    recommendationKind: string;
+  },
+): MetricScore {
+  if (isUnknown(facts, 'tree_fetch_failed')) {
+    return {
+      key: spec.key,
+      category: CATEGORY,
+      weight: spec.weight,
+      value: null,
+      unknown: true,
+      hint: 'Дерево файлов недоступно',
+    };
+  }
+  return {
+    key: spec.key,
+    category: CATEGORY,
+    weight: spec.weight,
+    value: boolScore(spec.flag),
+    hint: spec.flag ? spec.yes : spec.no,
+    target: 100,
+    effort: spec.effort,
+    recommendationKind: spec.recommendationKind,
+  };
+}
+
+/** Манифест сборки: без него непонятно, как проект ставить и собирать. */
+function hasBuildManifestMetric(facts: RepoFacts): MetricScore {
+  return treeFlagMetric(facts, {
+    key: 'code.build_manifest',
+    weight: CODE_WEIGHTS.hasBuildManifest,
+    flag: facts.tree.flags.hasBuildManifest,
+    yes: 'Манифест сборки есть',
+    no: 'Манифеста сборки нет',
+    effort: 'small',
+    recommendationKind: 'add_build_manifest',
+  });
+}
+
+/** .gitignore: без него в репозиторий попадает сборка и локальный мусор. */
+function hasGitignoreMetric(facts: RepoFacts): MetricScore {
+  return treeFlagMetric(facts, {
+    key: 'code.gitignore',
+    weight: CODE_WEIGHTS.hasGitignore,
+    flag: facts.tree.flags.hasGitignore,
+    yes: '.gitignore есть',
+    no: '.gitignore отсутствует',
+    effort: 'trivial',
+    recommendationKind: 'add_gitignore',
+  });
+}
+
+/** .editorconfig: отступы и переводы строк одинаковы у всех редакторов. */
+function hasEditorConfigMetric(facts: RepoFacts): MetricScore {
+  return treeFlagMetric(facts, {
+    key: 'code.editorconfig',
+    weight: CODE_WEIGHTS.hasEditorConfig,
+    flag: facts.tree.flags.hasEditorConfig,
+    yes: '.editorconfig есть',
+    no: '.editorconfig отсутствует',
+    effort: 'trivial',
+    recommendationKind: 'add_editorconfig',
+  });
 }
 
 function testsMetric(facts: RepoFacts): MetricScore {

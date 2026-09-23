@@ -65,6 +65,12 @@ export type RepoTreeFlags = {
   hasTestsDir: boolean; // наличие директории или файлов с признаками тестов
   hasLinterConfig: boolean; // eslint/biome/prettier
   hasBuildManifest: boolean; // package.json, go.mod, Cargo.toml и прочие
+  hasGitignore: boolean; // .gitignore
+  hasEditorConfig: boolean; // .editorconfig
+  hasCodeOfConduct: boolean; // CODE_OF_CONDUCT.md
+  hasIssueTemplate: boolean; // шаблоны задач и PR
+  hasDependencyBot: boolean; // dependabot/renovate — автообновление зависимостей
+  hasDocsDir: boolean; // каталог docs/ с документацией
   supportedLockfiles: string[]; // те, что мы умеем парсить и они реально есть
   unsupportedLockfilesPresent: string[]; // lock-файлы, для которых у нас нет парсера
 };
@@ -152,6 +158,26 @@ const CI_CONFIG_MARKERS = [
   'Jenkinsfile',
 ];
 const TESTS_MARKERS = ['tests/', 'test/', '__tests__/', 'spec/', '.test.', '.spec.'];
+const CODE_OF_CONDUCT_NAMES = ['code_of_conduct.md', 'code-of-conduct.md', 'code_of_conduct'];
+/** Шаблоны задач и PR: подсказывают, что и как сообщать. */
+const ISSUE_TEMPLATE_MARKERS = [
+  '.github/issue_template',
+  '.github/pull_request_template',
+  '.gitlab/issue_templates',
+  '.gitlab/merge_request_templates',
+  '.sourcecraft/issue_template',
+];
+/** Боты обновления зависимостей. */
+const DEPENDENCY_BOT_MARKERS = [
+  '.github/dependabot.yml',
+  '.github/dependabot.yaml',
+  'renovate.json',
+  'renovate.json5',
+  '.renovaterc',
+  '.renovaterc.json',
+];
+/** Каталоги, в которых обычно живёт расширенная документация. */
+const DOCS_DIR_MARKERS = ['docs/', 'doc/', 'documentation/'];
 /**
  * Манифесты сборки. Их наличие — самый честный признак того, что перед нами
  * программа, а не подборка материалов: подборку ссылок никто не собирает.
@@ -610,6 +636,17 @@ function computeTreeFlags(entries: TreeEntry[]): RepoTreeFlags {
     return BUILD_MANIFESTS.includes(name) || name.endsWith('.csproj') || name.endsWith('.sln');
   });
 
+  const hasGitignore = has(['.gitignore']);
+  const hasEditorConfig = has(['.editorconfig']);
+  const hasCodeOfConduct = has(CODE_OF_CONDUCT_NAMES);
+  const hasIssueTemplate = lowerPaths.some((p) =>
+    ISSUE_TEMPLATE_MARKERS.some((m) => p === m || p.startsWith(m)),
+  );
+  const hasDependencyBot = lowerPaths.some((p) =>
+    DEPENDENCY_BOT_MARKERS.some((m) => p === m || p.endsWith('/' + m)),
+  );
+  const hasDocsDir = lowerPaths.some((p) => DOCS_DIR_MARKERS.some((m) => p.startsWith(m)));
+
   const supportedLockfiles = SUPPORTED_LOCKFILES.filter((n) => lowerPaths.includes(n.toLowerCase()));
   const unsupportedLockfilesPresent = KNOWN_UNSUPPORTED_LOCKFILES.filter((n) =>
     lowerPaths.includes(n.toLowerCase()),
@@ -625,6 +662,12 @@ function computeTreeFlags(entries: TreeEntry[]): RepoTreeFlags {
     hasTestsDir,
     hasLinterConfig,
     hasBuildManifest,
+    hasGitignore,
+    hasEditorConfig,
+    hasCodeOfConduct,
+    hasIssueTemplate,
+    hasDependencyBot,
+    hasDocsDir,
     supportedLockfiles: [...supportedLockfiles],
     unsupportedLockfilesPresent: [...unsupportedLockfilesPresent],
   };

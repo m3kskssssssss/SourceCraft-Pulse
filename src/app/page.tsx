@@ -3,8 +3,13 @@
 import Link from 'next/link';
 import { AnalyzeForm } from './components/AnalyzeForm';
 import { Planet } from './components/Planet';
-import { CategoryMini, Chip, EmptyState } from './components/ui';
-import { getLanguageFacets, getLeaderboard, type LeaderboardSort } from '@/lib/ranking';
+import { CategoryMini, Chip, CommentIcon, EmptyState, StarIcon } from './components/ui';
+import {
+  getLanguageFacets,
+  getLeaderboard,
+  type LeaderboardItem,
+  type LeaderboardSort,
+} from '@/lib/ranking';
 import { CATEGORY_ACCENT_CLASS, CATEGORY_TITLES } from '@/lib/category-meta';
 
 export const revalidate = 60;
@@ -111,9 +116,6 @@ export default async function HomePage({
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
             <h2 className="text-3xl font-semibold tracking-tight">Рейтинг</h2>
-            <p className="mt-1 text-sm text-[color:var(--muted)]">
-              Опубликованные анализы. Полезные материалы идут после проектов — их не оцениваем.
-            </p>
           </div>
           <div className="flex items-center gap-1 rounded-full bg-[color:var(--panel)] p-1 text-sm">
             <SortLink href={buildHref({ sort: 'score', page: '1' })} active={sort === 'score'}>
@@ -156,15 +158,22 @@ export default async function HomePage({
             {podium.length > 0 && (
               <div className="mt-8 grid gap-4 sm:grid-cols-3">
                 {podium.map((item, idx) => (
-                  <Link
+                  // Карточка — не ссылка, а контейнер: внутри живёт своя
+                  // ссылка на обсуждение, а <a> внутри <a> не бывает. Клик по
+                  // карточке ловит растянутая ссылка под содержимым.
+                  <div
                     key={item.id}
-                    href={`/r/${item.org}/${item.repo}`}
                     // @container: шкалы категорий внутри перестраиваются по
                     // ширине самой карточки, а не окна — в три колонки она
                     // узкая даже на большом экране.
-                    className="rise group @container flex flex-col rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-4 transition hover:border-[color:var(--line-2)] hover:shadow-[var(--shadow-2)] sm:p-5"
+                    className="rise group @container pointer-events-none relative flex flex-col rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-4 transition hover:border-[color:var(--line-2)] hover:shadow-[var(--shadow-2)] sm:p-5"
                     style={{ animationDelay: `${idx * 60}ms` }}
                   >
+                    <Link
+                      href={`/r/${item.org}/${item.repo}`}
+                      aria-label={`${item.org}/${item.repo}`}
+                      className="pointer-events-auto absolute inset-0 rounded-3xl"
+                    />
                     <div className="flex items-start justify-between gap-3">
                       <span className="text-[11px] uppercase tracking-widest text-[color:var(--muted)]">
                         {idx === 0 ? 'Лидер' : `№ ${idx + 1}`}
@@ -195,10 +204,11 @@ export default async function HomePage({
                         </span>
                       )}
                     </div>
+                    <SocialLine item={item} className="relative mt-2" />
                     {item.kind !== 'material' && (
                       <CategoryMini values={item.categories} size="md" className="mt-5" />
                     )}
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}
@@ -215,13 +225,19 @@ export default async function HomePage({
                   >
                     {/* На телефоне колонки номера нет: она сдвигала весь список
                         вправо относительно заголовка. Номер уходит в строку
-                        названия, а с sm возвращается своей колонкой. */}
-                    <Link
-                      href={`/r/${item.org}/${item.repo}`}
-                      className={`group -mx-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl px-3 py-4 transition hover:bg-[color:var(--paper-2)] sm:grid-cols-[1.75rem_minmax(0,1fr)_auto] sm:gap-x-5 ${
+                        названия, а с sm возвращается своей колонкой.
+                        Сама строка — не ссылка: внутри есть ссылка к
+                        обсуждению. Клик по строке ловит растянутая ссылка. */}
+                    <div
+                      className={`group pointer-events-none relative -mx-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl px-3 py-4 transition hover:bg-[color:var(--paper-2)] sm:grid-cols-[1.75rem_minmax(0,1fr)_auto] sm:gap-x-5 ${
                         isMaterial ? '' : 'lg:grid-cols-[1.75rem_minmax(0,1fr)_auto_3rem]'
                       }`}
                     >
+                      <Link
+                        href={`/r/${item.org}/${item.repo}`}
+                        aria-label={`${item.org}/${item.repo}`}
+                        className="pointer-events-auto absolute inset-0 rounded-2xl"
+                      />
                       <span className="hidden self-start pt-0.5 text-center text-xs tabular-nums text-[color:var(--muted-2)] sm:col-start-1 sm:row-start-1 sm:block">
                         {place}
                       </span>
@@ -250,6 +266,7 @@ export default async function HomePage({
                           )}
                           {item.publishedAt && <span>{formatDate(item.publishedAt)}</span>}
                         </div>
+                        <SocialLine item={item} className="relative mt-1.5" />
                       </div>
 
                       {!isMaterial && (
@@ -270,7 +287,7 @@ export default async function HomePage({
                           {item.score ?? '—'}
                         </span>
                       )}
-                    </Link>
+                    </div>
                   </li>
                 );
               })}
@@ -296,6 +313,38 @@ export default async function HomePage({
         )}
       </section>
     </main>
+  );
+}
+
+/**
+ * Отклик людей на разбор: средняя оценка и число комментариев.
+ *
+ * Комментарии — отдельная ссылка прямо к обсуждению. Она лежит внутри
+ * карточки, которая сама ссылка, поэтому клик по ней приходится останавливать
+ * разметкой: вложенных <a> в HTML не бывает, и карточка на телефоне
+ * перехватила бы нажатие.
+ */
+function SocialLine({ item, className }: { item: LeaderboardItem; className?: string }) {
+  if (item.ratingCount === 0 && item.commentCount === 0) return null;
+  return (
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs ${className ?? ''}`}>
+      {item.ratingCount > 0 && (
+        <span className="inline-flex items-center gap-1 text-[color:var(--ink-2)]">
+          <StarIcon />
+          <span className="tabular-nums">{item.ratingAverage?.toFixed(1)}</span>
+          <span className="text-[color:var(--muted-2)]">({item.ratingCount})</span>
+        </span>
+      )}
+      {item.commentCount > 0 && (
+        <Link
+          href={`/a/${item.id}#comments`}
+          className="pointer-events-auto inline-flex items-center gap-1 text-[color:var(--muted)] underline-offset-4 transition hover:text-[color:var(--ink)] hover:underline"
+        >
+          <CommentIcon />
+          <span className="tabular-nums">{item.commentCount}</span>
+        </Link>
+      )}
+    </div>
   );
 }
 

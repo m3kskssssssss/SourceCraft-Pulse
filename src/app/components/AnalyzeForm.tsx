@@ -34,9 +34,6 @@ export function AnalyzeForm({ defaultValue }: { defaultValue?: string }) {
           {state.error}
         </p>
       )}
-      <p className="text-xs text-[color:var(--muted)]">
-        Без входа сначала откроется форма входа, после неё анализ запустится сам.
-      </p>
     </form>
   );
 }

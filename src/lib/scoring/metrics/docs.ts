@@ -17,7 +17,112 @@ export function computeDocsMetrics(facts: RepoFacts): MetricScore[] {
     contributingMetric(facts),
     changelogMetric(facts),
     usageExamplesMetric(facts),
+    docsDirMetric(facts),
+    codeOfConductMetric(facts),
+    issueTemplateMetric(facts),
+    repoDescriptionMetric(facts),
   ];
+}
+
+/** Признак из дерева файлов: одинаковая обвязка для метрик ниже. */
+function treeFlagMetric(
+  facts: RepoFacts,
+  spec: {
+    key: string;
+    weight: number;
+    flag: boolean;
+    yes: string;
+    no: string;
+    effort: 'trivial' | 'small' | 'medium' | 'large';
+    recommendationKind: string;
+  },
+): MetricScore {
+  if (isUnknown(facts, 'tree_fetch_failed')) {
+    return {
+      key: spec.key,
+      category: CATEGORY,
+      weight: spec.weight,
+      value: null,
+      unknown: true,
+      hint: 'Дерево файлов недоступно',
+    };
+  }
+  return {
+    key: spec.key,
+    category: CATEGORY,
+    weight: spec.weight,
+    value: boolScore(spec.flag),
+    hint: spec.flag ? spec.yes : spec.no,
+    target: 100,
+    effort: spec.effort,
+    recommendationKind: spec.recommendationKind,
+  };
+}
+
+/** Каталог docs/: документация, которая уже не помещается в README. */
+function docsDirMetric(facts: RepoFacts): MetricScore {
+  return treeFlagMetric(facts, {
+    key: 'docs.docs_dir',
+    weight: DOCS_WEIGHTS.docsDir,
+    flag: facts.tree.flags.hasDocsDir,
+    yes: 'Каталог с документацией есть',
+    no: 'Отдельной документации нет',
+    effort: 'medium',
+    recommendationKind: 'add_docs_dir',
+  });
+}
+
+function codeOfConductMetric(facts: RepoFacts): MetricScore {
+  return treeFlagMetric(facts, {
+    key: 'docs.code_of_conduct',
+    weight: DOCS_WEIGHTS.codeOfConduct,
+    flag: facts.tree.flags.hasCodeOfConduct,
+    yes: 'CODE_OF_CONDUCT есть',
+    no: 'CODE_OF_CONDUCT отсутствует',
+    effort: 'trivial',
+    recommendationKind: 'add_code_of_conduct',
+  });
+}
+
+function issueTemplateMetric(facts: RepoFacts): MetricScore {
+  return treeFlagMetric(facts, {
+    key: 'docs.issue_template',
+    weight: DOCS_WEIGHTS.issueTemplate,
+    flag: facts.tree.flags.hasIssueTemplate,
+    yes: 'Шаблоны задач и PR есть',
+    no: 'Шаблонов задач и PR нет',
+    effort: 'trivial',
+    recommendationKind: 'add_issue_template',
+  });
+}
+
+/**
+ * Описание репозитория в карточке SourceCraft. Пустое описание — первое, обо
+ * что спотыкается любой, кто нашёл проект в поиске.
+ */
+function repoDescriptionMetric(facts: RepoFacts): MetricScore {
+  if (!facts.repository) {
+    return {
+      key: 'docs.repo_description',
+      category: CATEGORY,
+      weight: DOCS_WEIGHTS.repoDescription,
+      value: null,
+      unknown: true,
+      hint: 'Карточка репозитория недоступна',
+    };
+  }
+  const text = (facts.repository.description ?? '').trim();
+  const has = text.length >= 20;
+  return {
+    key: 'docs.repo_description',
+    category: CATEGORY,
+    weight: DOCS_WEIGHTS.repoDescription,
+    value: boolScore(has),
+    hint: has ? 'Описание репозитория заполнено' : 'Описание репозитория пустое или слишком короткое',
+    target: 100,
+    effort: 'trivial',
+    recommendationKind: 'add_repo_description',
+  };
 }
 
 /**

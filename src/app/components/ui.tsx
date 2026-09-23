@@ -346,6 +346,36 @@ export function Stat({
   );
 }
 
+// ---------- Мелкие значки ----------
+//
+// Живут здесь, потому что нужны сразу в рейтинге и в профиле. Размер задаётся
+// снаружи: в строке рейтинга они мельче, чем в карточке.
+
+export function StarIcon({ size = 11 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
+      <path d="M12 3.5l2.6 5.5 6 .85-4.35 4.2 1.05 5.95L12 17.2l-5.3 2.8 1.05-5.95L3.4 9.85l6-.85z" />
+    </svg>
+  );
+}
+
+export function CommentIcon({ size = 11 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M4 5.5h16v11H12l-5 4v-4H4z" />
+    </svg>
+  );
+}
+
 // ---------- CategoryMini ----------
 
 /**

@@ -4,9 +4,17 @@
 
 import { and, desc, eq, ilike, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { analyses, repositories } from '@/db/schema';
+import { analyses, analysisComments, analysisRatings, repositories } from '@/db/schema';
 import { pickCategoryValues, type CategoryValues } from '@/lib/category-meta';
 
+/**
+ * 'score' — балл здоровья, 'forks' — «по популярности».
+ *
+ * Популярность теперь значит оценку людей, а не число форков: звёзды
+ * пользователей — про то, насколько разбор полезен, и именно их просили
+ * поднимать наверх. Форки остались тай-брейком между равными средними, и имя
+ * ключа не меняем, чтобы старые ссылки и бейджи не отвалились.
+ */
 export type LeaderboardSort = 'score' | 'forks';
 
 export type LeaderboardItem = {
@@ -20,6 +28,10 @@ export type LeaderboardItem = {
   /** Баллы категорий: в строке рейтинга они объясняют оценку. */
   categories: CategoryValues;
   forks: number | null;
+  /** Средняя оценка пользователей, 1..5. null — никто не оценивал. */
+  ratingAverage: number | null;
+  ratingCount: number;
+  commentCount: number;
   lastSyncedAt: string | null;
   publishedAt: string | null;
 };
@@ -60,6 +72,25 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
 
   // Строки и счётчик — независимые запросы, отправляем их одновременно:
   // последовательно они складывались в двойной round-trip на каждый рендер.
+  // Оценки и комментарии считаем коррелированными подзапросами: join с
+  // group by пришлось бы тащить через всю сортировку и пагинацию.
+  const ratingAvg = sql<string | null>`(
+    select avg(${analysisRatings.value})::text
+    from ${analysisRatings}
+    where ${analysisRatings.analysisId} = ${analyses.id}
+  )`;
+  const ratingCount = sql<number>`(
+    select count(*)::int
+    from ${analysisRatings}
+    where ${analysisRatings.analysisId} = ${analyses.id}
+  )`;
+  const commentCount = sql<number>`(
+    select count(*)::int
+    from ${analysisComments}
+    where ${analysisComments.analysisId} = ${analyses.id}
+      and ${analysisComments.deletedAt} is null
+  )`;
+
   const rowsPromise = db
     .select({
       id: analyses.id,
@@ -70,6 +101,9 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
       score: analyses.score,
       categoryScores: analyses.categoryScores,
       forks: repositories.forksCount,
+      ratingAvg,
+      ratingCount,
+      commentCount,
       lastSyncedAt: repositories.lastSyncedAt,
       publishedAt: analyses.finishedAt,
     })
@@ -80,7 +114,15 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     // оценки, поэтому они идут следом, своим списком.
     .orderBy(
       sql`case when ${analyses.kind} = 'material' then 1 else 0 end`,
-      sort === 'forks' ? desc(repositories.forksCount) : desc(analyses.score),
+      ...(sort === 'forks'
+        ? [
+            // Неоценённое вниз: пустая средняя не должна выигрывать у
+            // честной четвёрки. Форки решают спор равных.
+            sql`${ratingAvg} is null`,
+            sql`${ratingAvg} desc`,
+            desc(repositories.forksCount),
+          ]
+        : [desc(analyses.score)]),
       desc(analyses.finishedAt),
     )
     .limit(limit)
@@ -104,6 +146,9 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     score: r.score ?? null,
     categories: pickCategoryValues(r.categoryScores),
     forks: r.forks ?? null,
+    ratingAverage: parseAverage(r.ratingAvg),
+    ratingCount: r.ratingCount ?? 0,
+    commentCount: r.commentCount ?? 0,
     lastSyncedAt: r.lastSyncedAt ? r.lastSyncedAt.toISOString() : null,
     publishedAt: r.publishedAt ? r.publishedAt.toISOString() : null,
   }));
@@ -183,9 +228,21 @@ export async function getLatestPublicAnalysis(
     score: r.score ?? null,
     categories: pickCategoryValues(r.categoryScores),
     forks: r.forks ?? null,
+    // Бейджу и публичному API оценки людей не нужны — считать их ради одной
+    // строки незачем.
+    ratingAverage: null,
+    ratingCount: 0,
+    commentCount: 0,
     lastSyncedAt: r.lastSyncedAt ? r.lastSyncedAt.toISOString() : null,
     publishedAt: r.publishedAt ? r.publishedAt.toISOString() : null,
   };
+}
+
+/** avg() из Postgres приходит строкой; пусто — никто не оценивал. */
+function parseAverage(raw: string | null): number | null {
+  if (raw === null) return null;
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
 }
 
 function clampInt(value: number, min: number, max: number): number {

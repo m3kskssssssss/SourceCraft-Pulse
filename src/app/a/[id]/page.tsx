@@ -25,6 +25,10 @@ import {
 } from '@/lib/category-meta';
 import { describeMissingList } from '@/lib/missing-labels';
 import { GitTree } from '@/app/components/GitTree';
+import { RatingStars } from '@/app/components/RatingStars';
+import { CommentThread } from '@/app/components/CommentThread';
+import { getCommentTree, getRatingSummary } from '@/lib/social';
+import { getPublicUser } from '@/lib/users';
 import type { GitGraph } from '@/lib/git/graph';
 import { getRepoHistory } from '@/lib/history';
 
@@ -43,17 +47,28 @@ const METRIC_LABELS: Record<string, string> = {
   'code.todo_debt': 'Незакрытые TODO',
   'code.has_linter': 'Линтер',
   'code.has_ci': 'Непрерывная интеграция',
+  'code.build_manifest': 'Манифест сборки',
+  'code.gitignore': '.gitignore',
+  'code.editorconfig': '.editorconfig',
   'code.ai_review': 'Ревью кода моделью',
+  'activity.releases': 'Релизы и теги',
+  'activity.pr_flow': 'Поток pull request',
+  'activity.issue_flow': 'Закрытие задач',
   'security.critical_vulns': 'Critical-уязвимости',
   'security.high_vulns': 'High-уязвимости',
+  'security.medium_vulns': 'Medium-уязвимости',
   'security.lockfiles_present': 'Lock-файлы',
-  'security.security_md': 'SECURITY.md',
+  'security.dependency_bot': 'Автообновление зависимостей',
   'security.fresh_dependencies': 'Свежесть зависимостей',
   'docs.readme': 'README',
   'docs.license': 'LICENSE',
   'docs.contributing': 'CONTRIBUTING',
   'docs.changelog': 'CHANGELOG',
   'docs.usage_examples': 'Примеры использования',
+  'docs.docs_dir': 'Каталог документации',
+  'docs.code_of_conduct': 'CODE_OF_CONDUCT',
+  'docs.issue_template': 'Шаблоны задач и PR',
+  'docs.repo_description': 'Описание репозитория',
   'docs.ai_rubric': 'Документация по рубрике модели',
 };
 
@@ -88,6 +103,15 @@ export default async function AnalysisPage({ params }: PageProps) {
   const history = repo
     ? await getRepoHistory({ org: repo.orgSlug, repo: repo.repoSlug, viewerId: userId ?? null })
     : [];
+
+  // Отклик людей: звёзды и обсуждение. Нужны только готовому анализу, но
+  // запрашиваются здесь же — до ветвления по статусу их всё равно не видно.
+  const [rating, comments, viewer] = await Promise.all([
+    getRatingSummary(id, userId ?? null),
+    getCommentTree(id),
+    userId ? getPublicUser(userId) : Promise.resolve(null),
+  ]);
+  const commentTotal = countComments(comments);
 
   const status = analysis.status;
 
@@ -212,7 +236,18 @@ export default async function AnalysisPage({ params }: PageProps) {
                 <span className="text-lg text-[color:var(--muted)]">/ 100</span>
               </div>
             )}
-            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-[color:var(--ink-2)]">
+            {/* Оценка людей стоит сразу под баллом: это ответ на него, а не
+                отдельный раздел где-то внизу страницы. */}
+            <div className="mt-4">
+              <RatingStars
+                analysisId={id}
+                average={rating.average}
+                count={rating.count}
+                mine={rating.mine}
+                canRate={Boolean(userId)}
+              />
+            </div>
+            <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-[color:var(--ink-2)]">
               {isMaterial
                 ? (kindSummary ??
                   'Репозиторий похож на подборку или конспект, а не на программу: инженерная оценка к нему неприменима.')
@@ -467,8 +502,31 @@ export default async function AnalysisPage({ params }: PageProps) {
           </CardDiv>
         </section>
       )}
+
+      {/* Обсуждение — в самом низу и с якорем: на него ведёт счётчик
+          комментариев из карточки рейтинга. */}
+      <section id="comments" className="mt-14 scroll-mt-24 border-t border-[color:var(--line)] pt-10">
+        <CommentThread
+          analysisId={id}
+          comments={comments}
+          viewer={viewer}
+          total={commentTotal}
+        />
+      </section>
     </PageShell>
   );
+}
+
+/** Сколько всего живых комментариев в дереве, включая ответы. */
+function countComments(nodes: Awaited<ReturnType<typeof getCommentTree>>): number {
+  let total = 0;
+  for (const node of nodes) {
+    if (!node.deleted) total += 1;
+    for (const reply of node.replies) {
+      if (!reply.deleted) total += 1;
+    }
+  }
+  return total;
 }
 
 // ---------- вспомогательные компоненты страницы ----------

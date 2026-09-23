@@ -4,6 +4,7 @@ import type { RepoFacts } from '../../collect';
 import {
   CRITICAL_VULNS_MAX,
   HIGH_VULNS_MAX,
+  MEDIUM_VULNS_MAX,
   SECURITY_WEIGHTS,
 } from '../config';
 import { boolScore, invertedLinearScore } from '../normalize';
@@ -11,14 +12,62 @@ import type { MetricScore } from '../types';
 
 const CATEGORY = 'security' as const;
 
+/**
+ * SECURITY.md здесь больше нет. У обычного проекта его отсутствие не говорит
+ * о безопасности ничего, а в списке метрик выглядело обвинением. Факт
+ * собирается по-прежнему и уходит провайдеру — просто баллов не отнимает.
+ */
 export function computeSecurityMetrics(facts: RepoFacts): MetricScore[] {
   return [
     criticalVulnsMetric(facts),
     highVulnsMetric(facts),
+    mediumVulnsMetric(facts),
     lockfilesMetric(facts),
-    securityMdMetric(facts),
     freshDependenciesMetric(facts),
+    dependencyBotMetric(facts),
   ];
+}
+
+function mediumVulnsMetric(facts: RepoFacts): MetricScore {
+  if (!facts.security.available) {
+    return {
+      key: 'security.medium_vulns',
+      category: CATEGORY,
+      weight: SECURITY_WEIGHTS.mediumVulns,
+      value: null,
+      unknown: true,
+      hint: 'Провайдер безопасности недоступен',
+    };
+  }
+  const count = facts.security.vulnerabilities.filter((v) => v.severity === 'medium').length;
+  return {
+    key: 'security.medium_vulns',
+    category: CATEGORY,
+    weight: SECURITY_WEIGHTS.mediumVulns,
+    value: invertedLinearScore(count, { best: 0, worst: MEDIUM_VULNS_MAX }),
+    hint: count === 0 ? 'Уязвимостей medium нет' : `Medium: ${count}`,
+    target: 100,
+    effort: 'medium',
+    recommendationKind: 'fix_medium_vulns',
+  };
+}
+
+/**
+ * Бот обновления зависимостей. Разовое обновление стареет через месяц, а
+ * dependabot или renovate держат версии свежими без участия человека.
+ */
+function dependencyBotMetric(facts: RepoFacts): MetricScore {
+  const has = facts.tree.flags.hasDependencyBot;
+  return {
+    key: 'security.dependency_bot',
+    category: CATEGORY,
+    weight: SECURITY_WEIGHTS.dependencyBot,
+    value: boolScore(has),
+    hint: has ? 'Автообновление зависимостей настроено' : 'Автообновления зависимостей нет',
+    target: 100,
+    effort: 'small',
+    recommendationKind: 'add_dependency_bot',
+  };
 }
 
 function criticalVulnsMetric(facts: RepoFacts): MetricScore {
@@ -86,20 +135,6 @@ function lockfilesMetric(facts: RepoFacts): MetricScore {
     target: 100,
     effort: 'trivial',
     recommendationKind: 'add_lockfile',
-  };
-}
-
-function securityMdMetric(facts: RepoFacts): MetricScore {
-  const has = facts.tree.flags.hasSecurityMd;
-  return {
-    key: 'security.security_md',
-    category: CATEGORY,
-    weight: SECURITY_WEIGHTS.securityMd,
-    value: boolScore(has),
-    hint: has ? 'SECURITY.md есть' : 'SECURITY.md отсутствует',
-    target: 100,
-    effort: 'trivial',
-    recommendationKind: 'add_security_md',
   };
 }
 

@@ -35,11 +35,26 @@ export const PENALTIES = {
 // ---------- Активность ----------
 
 export const ACTIVITY_WEIGHTS = {
-  commitsLast90Days: 0.35,
-  activeAuthors: 0.2,
-  freshness: 0.3, // насколько давно был последний коммит
-  busFactor: 0.15, // доля кода топ-автора (bus factor)
+  commitsLast90Days: 0.22,
+  activeAuthors: 0.14,
+  freshness: 0.22, // насколько давно был последний коммит
+  busFactor: 0.12, // доля кода топ-автора (bus factor)
+  releases: 0.12, // выпускают ли версии
+  pullRequestFlow: 0.1, // идут ли изменения через pull request
+  issueFlow: 0.08, // доводят ли задачи до закрытия
 };
+
+/** Релизов или тегов, при которых метрика на максимуме. */
+export const RELEASES_TARGET = 3;
+
+/** Pull request'ов, при которых поток изменений считается налаженным. */
+export const PULL_REQUESTS_TARGET = 10;
+
+/**
+ * Доля закрытых задач в выборке, проценты. 60% → 100 баллов: часть задач
+ * всегда висит открытой, и это нормально.
+ */
+export const CLOSED_ISSUES_SHARE_TARGET = 60;
 
 /** Коммиты за 90 дней: log-шкала. 0 = 0 баллов, 50+ = 100. */
 export const COMMITS_90D_TARGET = 50;
@@ -72,12 +87,15 @@ export const BUS_FACTOR_MIN_SCORE = 30;
 // всегда были unknown и молча отдавали весь вес двум галочкам из дерева.
 
 export const CODE_WEIGHTS = {
-  tests: 0.3, // сколько тестовых файлов приходится на исходники
-  fileSize: 0.2, // доля слишком длинных файлов
-  comments: 0.1, // доля строк-пояснений
-  todoDebt: 0.1, // незакрытые TODO/FIXME
-  hasLinter: 0.15,
-  hasCi: 0.15,
+  tests: 0.24, // сколько тестовых файлов приходится на исходники
+  fileSize: 0.15, // доля слишком длинных файлов
+  comments: 0.08, // доля строк-пояснений
+  todoDebt: 0.08, // незакрытые TODO/FIXME
+  hasLinter: 0.12,
+  hasCi: 0.13,
+  hasBuildManifest: 0.08, // чем собирать и как ставить зависимости
+  hasGitignore: 0.07, // чтобы в репозиторий не попадал мусор сборки
+  hasEditorConfig: 0.05, // единое форматирование у всех, кто правит код
 };
 
 /**
@@ -108,12 +126,17 @@ export const TODO_PER_KLOC_WORST = 8;
 
 // ---------- Безопасность ----------
 
+// SECURITY.md из оценки убран сознательно: его отсутствие у обычного проекта
+// ничего не говорит о безопасности, а в списке метрик выглядело как минус.
+// Факт по-прежнему собирается (tree.flags.hasSecurityMd) и уходит провайдеру
+// безопасности — просто балл за него больше не снимается.
 export const SECURITY_WEIGHTS = {
-  criticalVulns: 0.3, // отсутствие критических CVE
+  criticalVulns: 0.27, // отсутствие критических CVE
   highVulns: 0.2, // отсутствие high CVE
+  mediumVulns: 0.1, // отсутствие medium CVE
   lockfilesPresent: 0.2, // зафиксированные версии зависимостей
-  securityMd: 0.15, // наличие SECURITY.md
-  freshDependencies: 0.15, // MVP: если lock есть — 100, нет — unknown
+  freshDependencies: 0.13, // MVP: если lock есть — 100, нет — unknown
+  dependencyBot: 0.1, // dependabot/renovate обновляют зависимости сами
 };
 
 /**
@@ -122,15 +145,20 @@ export const SECURITY_WEIGHTS = {
  */
 export const CRITICAL_VULNS_MAX = 3;
 export const HIGH_VULNS_MAX = 10;
+export const MEDIUM_VULNS_MAX = 25;
 
 // ---------- Документация ----------
 
 export const DOCS_WEIGHTS = {
-  readme: 0.4,
-  license: 0.2,
-  contributing: 0.15,
-  changelog: 0.1,
-  usageExamples: 0.15,
+  readme: 0.28,
+  license: 0.15,
+  contributing: 0.11,
+  changelog: 0.08,
+  usageExamples: 0.12,
+  docsDir: 0.08, // каталог docs/ — документация, которая не влезла в README
+  codeOfConduct: 0.06,
+  issueTemplate: 0.06, // шаблоны задач и PR
+  repoDescription: 0.06, // описание репозитория в карточке SourceCraft
 };
 
 /**
@@ -141,12 +169,21 @@ export const DOCS_WEIGHTS = {
 export const README_MIN_CHARS = 400;
 export const README_TARGET_SECTIONS = 3;
 
+// ---------- Рекомендации ----------
+
+/**
+ * Сколько советов показываем. Раньше было три, и список выглядел исчерпанным
+ * после первого же подхода. Приросты считаются по очереди, с учётом уже
+ * применённых, поэтому длинный список не раздувает сумму выше 100.
+ */
+export const RECOMMENDATIONS_LIMIT = 9;
+
 // ---------- Рекомендации: оценка трудозатрат ----------
 //
 // Единицы условные. При сортировке gain/effort меньшее effort = приоритетнее.
 
 export const EFFORT = {
-  trivial: 1, // добавить LICENSE, SECURITY.md
+  trivial: 1, // добавить LICENSE, .gitignore, описание репозитория
   small: 3, // добавить CHANGELOG, docs-разделы, включить линтер
   medium: 8, // добавить тесты, настроить CI
   large: 20, // рефакторинг ради снижения bus factor, глубокая переработка PR-процесса

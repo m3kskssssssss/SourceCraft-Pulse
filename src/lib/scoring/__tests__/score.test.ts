@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { scoreRepo } from '..';
-import { PENALTIES } from '../config';
+import { PENALTIES, RECOMMENDATIONS_LIMIT } from '../config';
 import type { MetricScore } from '../types';
 import {
   makeEmptyFacts,
@@ -112,20 +112,30 @@ describe('scoreRepo — категория «Код»', () => {
 });
 
 describe('scoreRepo — рекомендации', () => {
-  it('пустой репо получает три рекомендации', () => {
+  it('пустой репо получает полный список', () => {
     const result = scoreRepo(makeEmptyFacts());
-    expect(result.recommendations.length).toBe(3);
+    expect(result.recommendations.length).toBe(RECOMMENDATIONS_LIMIT);
   });
 
-  it('сумма gain трёх рекомендаций совпадает с приростом score при их применении', () => {
+  it('сумма gain совпадает с приростом score при их применении', () => {
     const facts = makeEmptyFacts();
     const base = scoreRepo(facts);
     // «Применяем» рекомендации: подкручиваем соответствующие поля в facts до целей.
     const applied = applyRecommendationsToFacts(facts, base.recommendations.map((r) => r.key));
     const after = scoreRepo(applied);
     const sumGain = base.recommendations.reduce((sum, r) => sum + r.gain, 0);
-    // Допускаем расхождение в 1 балл из-за округления по каждой рекомендации отдельно.
+    // Допускаем расхождение в 1 балл: каждый прирост округляется отдельно.
     expect(Math.abs(after.score - base.score - sumGain)).toBeLessThanOrEqual(1);
+  });
+
+  // Ради этого приросты и считаются по очереди: независимые приросты от одной
+  // базы складывались в обещание набрать больше сотни.
+  it('балл плюс сумма приростов не превышает 100', () => {
+    for (const facts of [makeEmptyFacts(), makeWeakCodeFacts(), makeNoCloneFacts()]) {
+      const result = scoreRepo(facts);
+      const sumGain = result.recommendations.reduce((sum, r) => sum + r.gain, 0);
+      expect(result.score + sumGain).toBeLessThanOrEqual(100);
+    }
   });
 
   it('идеальный репо получает 0 рекомендаций', () => {
@@ -145,6 +155,10 @@ function applyRecommendationsToFacts(
   let gh = { ...facts.gitHistory };
   let security = { ...facts.security };
   let readme = facts.readme;
+  let repository = facts.repository;
+  let tags = facts.tags;
+  let issues = facts.issues;
+  let counters = { ...facts.counters };
   const entries = [...facts.tree.entries];
 
   for (const key of metricKeys) {
@@ -179,9 +193,54 @@ function applyRecommendationsToFacts(
         flags.hasLinterConfig = true;
         entries.push({ path: 'eslint.config.mjs' } as never);
         break;
-      case 'security.security_md':
-        flags.hasSecurityMd = true;
-        entries.push({ path: 'SECURITY.md' } as never);
+      case 'security.dependency_bot':
+        flags.hasDependencyBot = true;
+        entries.push({ path: '.github/dependabot.yml' } as never);
+        break;
+      case 'security.medium_vulns':
+        security = {
+          ...security,
+          vulnerabilities: security.vulnerabilities.filter((v) => v.severity !== 'medium'),
+        };
+        break;
+      case 'code.build_manifest':
+        flags.hasBuildManifest = true;
+        entries.push({ path: 'package.json' } as never);
+        break;
+      case 'code.gitignore':
+        flags.hasGitignore = true;
+        entries.push({ path: '.gitignore' } as never);
+        break;
+      case 'code.editorconfig':
+        flags.hasEditorConfig = true;
+        entries.push({ path: '.editorconfig' } as never);
+        break;
+      case 'docs.docs_dir':
+        flags.hasDocsDir = true;
+        entries.push({ path: 'docs/index.md' } as never);
+        break;
+      case 'docs.code_of_conduct':
+        flags.hasCodeOfConduct = true;
+        entries.push({ path: 'CODE_OF_CONDUCT.md' } as never);
+        break;
+      case 'docs.issue_template':
+        flags.hasIssueTemplate = true;
+        entries.push({ path: '.github/issue_template.md' } as never);
+        break;
+      case 'docs.repo_description':
+        repository = { description: 'Понятное описание репозитория в карточке' } as never;
+        break;
+      case 'activity.releases':
+        tags = [{ name: 'v1.0.0' }, { name: 'v1.1.0' }, { name: 'v2.0.0' }] as never[];
+        break;
+      case 'activity.pr_flow':
+        counters = { ...counters, pullRequests: 12 };
+        break;
+      case 'activity.issue_flow':
+        issues = [
+          { id: '1', completed_at: '2026-01-01T00:00:00Z' },
+          { id: '2', completed_at: '2026-02-01T00:00:00Z' },
+        ] as never[];
         break;
       case 'security.lockfiles_present':
         flags.supportedLockfiles = ['package-lock.json'];
@@ -216,6 +275,10 @@ function applyRecommendationsToFacts(
   return {
     ...facts,
     readme,
+    repository,
+    tags,
+    issues,
+    counters,
     gitHistory: gh,
     security,
     tree: {

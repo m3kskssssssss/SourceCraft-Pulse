@@ -8,17 +8,23 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { signOutAction } from '@/app/actions/auth';
+import { getPublicUser } from '@/lib/users';
+import { Avatar } from './Avatar';
 import { Button } from './ui';
 import { Planet } from './Planet';
 
 export async function UserBar() {
   const session = await auth();
-  const user = session?.user as { email?: string; name?: string } | undefined;
+  const sessionUser = session?.user as { id?: string; email?: string; name?: string } | undefined;
+
+  // Имя и фото берём из базы, а не из сессии: сессия — это JWT, выданный при
+  // входе, и после смены ника в шапке ещё неделю висело бы старое.
+  const profile = sessionUser?.id ? await getPublicUser(sessionUser.id) : null;
 
   const links = [
     { href: '/', label: 'Рейтинг' },
     { href: '/analyze', label: 'Оценить' },
-    ...(user ? [{ href: '/my', label: 'Мои оценки' }] : []),
+    ...(sessionUser ? [{ href: '/my', label: 'Мои оценки' }] : []),
   ];
 
   return (
@@ -40,14 +46,18 @@ export async function UserBar() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {user ? (
+          {sessionUser ? (
             <>
-              {/* Имя ведёт в личную историю — иначе оно просто висит в шапке. */}
+              {/* Имя с фото ведут в профиль: там и настройки, и список того,
+                  что человек отправлял на оценку. */}
               <Link
-                href="/my"
-                className="hidden max-w-[180px] truncate rounded-full px-3 py-1.5 text-sm text-[color:var(--muted)] transition hover:bg-[color:var(--panel)] hover:text-[color:var(--ink)] sm:inline-block"
+                href="/profile"
+                className="inline-flex max-w-[190px] items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm text-[color:var(--muted)] transition hover:bg-[color:var(--panel)] hover:text-[color:var(--ink)]"
               >
-                {user.name ?? user.email}
+                <Avatar user={profile} size={26} />
+                <span className="hidden truncate sm:inline">
+                  {profile?.displayName ?? sessionUser.email}
+                </span>
               </Link>
               <form action={signOutAction}>
                 <Button type="submit" variant="ghost" size="sm">

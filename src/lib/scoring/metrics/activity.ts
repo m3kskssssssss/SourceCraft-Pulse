@@ -6,10 +6,14 @@ import {
   ACTIVITY_WEIGHTS,
   BUS_FACTOR_HEALTHY_SHARE,
   BUS_FACTOR_MIN_SCORE,
+  CLOSED_ISSUES_SHARE_TARGET,
   COMMITS_90D_TARGET,
   FRESHNESS_MAX_STALE_DAYS,
+  PULL_REQUESTS_TARGET,
+  RELEASES_TARGET,
 } from '../config';
-import { clamp, invertedLinearScore, logScore } from '../normalize';
+import { clamp, invertedLinearScore, linearScore, logScore } from '../normalize';
+import { isUnknown } from '../facts-helpers';
 import type { MetricScore } from '../types';
 
 const CATEGORY = 'activity' as const;
@@ -20,7 +24,102 @@ export function computeActivityMetrics(facts: RepoFacts): MetricScore[] {
     activeAuthorsMetric(facts),
     freshnessMetric(facts),
     busFactorMetric(facts),
+    releasesMetric(facts),
+    pullRequestFlowMetric(facts),
+    issueFlowMetric(facts),
   ];
+}
+
+/**
+ * Релизы и теги: у живого проекта версии выпускают, а не «берите главную
+ * ветку». Считаем и релизы, и теги — тег без оформленного релиза тоже
+ * означает, что версию зафиксировали.
+ */
+function releasesMetric(facts: RepoFacts): MetricScore {
+  // Пустой список после неудачного запроса — это не «релизов нет», а «мы не
+  // знаем». Ноль ставим только когда оба списка действительно получены.
+  if (isUnknown(facts, 'releases_fetch_failed') && isUnknown(facts, 'tags_fetch_failed')) {
+    return {
+      key: 'activity.releases',
+      category: CATEGORY,
+      weight: ACTIVITY_WEIGHTS.releases,
+      value: null,
+      unknown: true,
+      hint: 'Списки релизов и тегов недоступны',
+    };
+  }
+  const count = facts.releases.length + facts.tags.length;
+  return {
+    key: 'activity.releases',
+    category: CATEGORY,
+    weight: ACTIVITY_WEIGHTS.releases,
+    value: logScore(count, { target: RELEASES_TARGET }),
+    hint: count === 0 ? 'Релизов и тегов нет' : `Релизов и тегов: ${count}`,
+    target: 100,
+    effort: 'small',
+    recommendationKind: 'cut_release',
+  };
+}
+
+/**
+ * Поток изменений через pull request. Смотрим только на их число: статусы в
+ * спецификации есть, но что именно считать «принятым», она не определяет, а
+ * выдумывать не станем.
+ */
+function pullRequestFlowMetric(facts: RepoFacts): MetricScore {
+  if (facts.counters.pullRequests === null && isUnknown(facts, 'pull_requests_fetch_failed')) {
+    return {
+      key: 'activity.pr_flow',
+      category: CATEGORY,
+      weight: ACTIVITY_WEIGHTS.pullRequestFlow,
+      value: null,
+      unknown: true,
+      hint: 'Список pull request недоступен',
+    };
+  }
+  const count = facts.counters.pullRequests ?? facts.pullRequests.length;
+  return {
+    key: 'activity.pr_flow',
+    category: CATEGORY,
+    weight: ACTIVITY_WEIGHTS.pullRequestFlow,
+    value: logScore(count, { target: PULL_REQUESTS_TARGET }),
+    hint: count === 0 ? 'Pull request не используются' : `Pull request: ${count}`,
+    target: 100,
+    effort: 'medium',
+    recommendationKind: 'use_pull_requests',
+  };
+}
+
+/**
+ * Доводят ли задачи до конца. Выборка issue ограничена, поэтому это доля по
+ * выборке, а не по всему трекеру; пустой трекер — нет данных, а не ноль.
+ */
+function issueFlowMetric(facts: RepoFacts): MetricScore {
+  const sample = facts.issues;
+  if (sample.length === 0) {
+    return {
+      key: 'activity.issue_flow',
+      category: CATEGORY,
+      weight: ACTIVITY_WEIGHTS.issueFlow,
+      value: null,
+      unknown: true,
+      hint: isUnknown(facts, 'issues_fetch_failed')
+        ? 'Список задач недоступен'
+        : 'Задач в трекере не нашлось',
+    };
+  }
+  const closed = sample.filter((i) => Boolean(i.completed_at)).length;
+  const share = (closed / sample.length) * 100;
+  return {
+    key: 'activity.issue_flow',
+    category: CATEGORY,
+    weight: ACTIVITY_WEIGHTS.issueFlow,
+    value: linearScore(share, { min: 0, max: CLOSED_ISSUES_SHARE_TARGET }),
+    hint: `Закрыто ${closed} из ${sample.length} задач выборки`,
+    target: 100,
+    effort: 'medium',
+    recommendationKind: 'close_issues',
+  };
 }
 
 function commitsMetric(facts: RepoFacts): MetricScore {
