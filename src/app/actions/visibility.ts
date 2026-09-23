@@ -62,6 +62,7 @@ export async function setAnalysisVisibility(
   });
 
   revalidatePath(`/a/${analysisId}`);
+  revalidatePath(`/u/${userId}`);
   revalidatePath('/');
   return { ok: true };
 }

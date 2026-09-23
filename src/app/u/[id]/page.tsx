@@ -1,12 +1,14 @@
-// Публичная страница пользователя: кто это, как с ним связаться и какие
-// репозитории он отправлял на оценку.
+// Страница пользователя: кто это, как с ним связаться и что он отправлял
+// на оценку.
 //
-// Показываем только опубликованные прогоны: приватные — личное дело автора,
-// и страница обязана выглядеть одинаково для него самого и для гостя.
+// Хозяину страницы видно больше: все его прогоны, включая приватные и
+// незавершённые, и переключатель публикации у каждого. Отдельной вкладки
+// «Мои оценки» больше нет — стена профиля и есть это место.
 
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
+import { toggleVisibilityAction } from '@/app/actions/visibility';
 import { Avatar } from '@/app/components/Avatar';
 import {
   CardDiv,
@@ -23,28 +25,39 @@ import {
   contactLabel,
   type ContactLink,
 } from '@/lib/contacts';
-import { getPublicUserAnalyses } from '@/lib/history';
-import { getSocialByAnalysis, getUserActivityCounts } from '@/lib/social';
+import { getPublicUserAnalyses, getUserAnalyses, type HistoryItem } from '@/lib/history';
+import { getSocialByAnalysis, getUserActivityCounts, type AnalysisSocial } from '@/lib/social';
 import { getPublicUser, isUuid } from '@/lib/users';
 
 export const dynamic = 'force-dynamic';
 
 type PageProps = { params: Promise<{ id: string }> };
 
+const STATUS_LABELS: Record<HistoryItem['status'], string> = {
+  queued: 'В очереди',
+  running: 'Считается',
+  done: 'Готово',
+  failed: 'Ошибка',
+};
+
 export default async function UserProfilePage({ params }: PageProps) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
-  const user = await getPublicUser(id);
+  const [user, session] = await Promise.all([getPublicUser(id), auth()]);
   if (!user) notFound();
 
-  const [analyses, counts, session] = await Promise.all([
-    getPublicUserAnalyses(id),
+  const isMe = (session?.user as { id?: string } | undefined)?.id === id;
+
+  const [analyses, counts] = await Promise.all([
+    // Свои прогоны видны все, чужие — только опубликованные.
+    isMe ? getUserAnalyses(id) : getPublicUserAnalyses(id),
     getUserActivityCounts(id),
-    auth(),
   ]);
   const social = await getSocialByAnalysis(analyses.map((a) => a.id));
-  const isMe = (session?.user as { id?: string } | undefined)?.id === id;
+
+  const doneCount = analyses.filter((a) => a.status === 'done').length;
+  const publishedCount = analyses.filter((a) => a.isPublic).length;
 
   return (
     <main className="mx-auto w-full max-w-4xl px-6 py-14">
@@ -63,12 +76,20 @@ export default async function UserProfilePage({ params }: PageProps) {
             С нами с {formatDate(user.createdAt)}
           </p>
           {isMe && (
-            <Link
-              href="/profile"
-              className="mt-4 inline-block rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
-            >
-              Настроить профиль
-            </Link>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href="/profile"
+                className="rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
+              >
+                Настройки профиля
+              </Link>
+              <Link
+                href="/analyze"
+                className="rounded-full border border-[color:var(--line)] px-4 py-2 text-sm text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
+              >
+                Оценить репозиторий
+              </Link>
+            </div>
           )}
         </div>
       </header>
@@ -105,76 +126,166 @@ export default async function UserProfilePage({ params }: PageProps) {
       )}
 
       <div className="rise mt-8 grid gap-px overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--line)] sm:grid-cols-3">
-        <StatCell label="Репозиториев в рейтинге" value={String(analyses.length)} />
-        <StatCell label="Оценок поставлено" value={String(counts.ratings)} />
-        <StatCell label="Комментариев" value={String(counts.comments)} />
+        {isMe ? (
+          <>
+            <StatCell label="Всего запусков" value={String(analyses.length)} />
+            <StatCell label="Посчитано" value={String(doneCount)} />
+            <StatCell label="В рейтинге" value={String(publishedCount)} />
+          </>
+        ) : (
+          <>
+            <StatCell label="Репозиториев в рейтинге" value={String(analyses.length)} />
+            <StatCell label="Оценок поставлено" value={String(counts.ratings)} />
+            <StatCell label="Комментариев" value={String(counts.comments)} />
+          </>
+        )}
       </div>
 
       <section className="mt-12">
-        <h2 className="text-2xl font-semibold tracking-tight">Отправлено на анализ</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">
+          {isMe ? 'Мои оценки' : 'Отправлено на анализ'}
+        </h2>
+        {isMe && (
+          <p className="mt-2 text-sm text-[color:var(--muted)]">
+            Приватные прогоны видны только вам. «Показать в рейтинге» публикует этот прогон и
+            снимает прежний публичный по тому же репозиторию.
+          </p>
+        )}
+
         {analyses.length === 0 ? (
           <EmptyState
             className="mt-6"
-            title="Публичных оценок пока нет"
-            hint="Здесь появятся репозитории, которые пользователь опубликовал в рейтинге."
+            title={isMe ? 'Здесь пока ничего нет' : 'Публичных оценок пока нет'}
+            hint={
+              isMe
+                ? 'Оценённые репозитории появятся здесь вместе с историей прогонов.'
+                : 'Здесь появятся репозитории, которые пользователь опубликовал в рейтинге.'
+            }
+            action={
+              isMe ? (
+                <Link
+                  href="/analyze"
+                  className="mt-2 rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
+                >
+                  Оценить репозиторий
+                </Link>
+              ) : undefined
+            }
           />
         ) : (
           <ol className="mt-6 grid gap-3">
-            {analyses.map((item, idx) => {
-              const stats = social.get(item.id);
-              return (
-                <li
-                  key={item.id}
-                  className="rise"
-                  style={{ animationDelay: `${Math.min(idx, 10) * 25}ms` }}
-                >
-                  <Link
-                    href={`/a/${item.id}`}
-                    className="group grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 rounded-2xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-4 transition hover:border-[color:var(--line-2)] hover:shadow-[var(--shadow-1)] sm:p-5"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate text-[15px] font-medium tracking-tight group-hover:underline">
-                        <span className="text-[color:var(--muted)]">{item.org}/</span>
-                        {item.repo}
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[color:var(--muted)]">
-                        {item.kind === 'material' && <Chip tone="outline">Полезный материал</Chip>}
-                        {item.language && <span>{item.language}</span>}
-                        {item.finishedAt && <span>{formatDate(item.finishedAt)}</span>}
-                        {stats && stats.ratingCount > 0 && (
-                          <span className="inline-flex items-center gap-1 tabular-nums">
-                            <StarIcon /> {stats.ratingAverage?.toFixed(1)} ({stats.ratingCount})
-                          </span>
-                        )}
-                        {stats && stats.commentCount > 0 && (
-                          <span className="inline-flex items-center gap-1 tabular-nums">
-                            <CommentIcon /> {stats.commentCount}
-                          </span>
-                        )}
-                      </div>
-                      {item.kind !== 'material' && (
-                        <CategoryMini values={item.categories} className="mt-3" />
-                      )}
-                    </div>
-                    <div className="text-right">
-                      {item.kind === 'material' ? (
-                        <div className="max-w-[5.5rem] text-[11px] font-semibold leading-tight text-[color:var(--ink-2)]">
-                          Полезный материал
-                        </div>
-                      ) : (
-                        <div className="text-2xl font-semibold leading-none tabular-nums">
-                          {item.score ?? '—'}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
+            {analyses.map((item, idx) => (
+              <li
+                key={item.id}
+                className="rise"
+                style={{ animationDelay: `${Math.min(idx, 10) * 25}ms` }}
+              >
+                <AnalysisCard item={item} stats={social.get(item.id)} showControls={isMe} />
+              </li>
+            ))}
           </ol>
         )}
       </section>
     </main>
+  );
+}
+
+/**
+ * Карточка прогона. Не ссылка, а контейнер с растянутой ссылкой под
+ * содержимым: у хозяина внутри стоит форма публикации, а кнопку внутри <a>
+ * класть нельзя.
+ */
+function AnalysisCard({
+  item,
+  stats,
+  showControls,
+}: {
+  item: HistoryItem;
+  stats: AnalysisSocial | undefined;
+  showControls: boolean;
+}) {
+  const isMaterial = item.kind === 'material';
+
+  return (
+    <div className="group pointer-events-none relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 rounded-2xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-4 transition hover:border-[color:var(--line-2)] hover:shadow-[var(--shadow-1)] sm:p-5">
+      <Link
+        href={`/a/${item.id}`}
+        aria-label={`${item.org}/${item.repo}`}
+        className="pointer-events-auto absolute inset-0 rounded-2xl"
+      />
+
+      <div className="min-w-0">
+        <div className="truncate text-[15px] font-medium tracking-tight group-hover:underline">
+          <span className="text-[color:var(--muted)]">{item.org}/</span>
+          {item.repo}
+        </div>
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[color:var(--muted)]">
+          {showControls && item.status !== 'done' && (
+            <Chip tone="outline">{STATUS_LABELS[item.status]}</Chip>
+          )}
+          {item.isPublic ? (
+            <Chip tone="ink">В рейтинге</Chip>
+          ) : (
+            showControls && item.status === 'done' && <Chip tone="outline">Приватно</Chip>
+          )}
+          {isMaterial && <Chip tone="outline">Полезный материал</Chip>}
+          {item.language && <span>{item.language}</span>}
+          <span>{formatDate(item.finishedAt ?? item.createdAt)}</span>
+          {stats && stats.ratingCount > 0 && (
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <StarIcon /> {stats.ratingAverage?.toFixed(1)} ({stats.ratingCount})
+            </span>
+          )}
+          {stats && stats.commentCount > 0 && (
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <CommentIcon /> {stats.commentCount}
+            </span>
+          )}
+        </div>
+
+        {item.status === 'done' && !isMaterial && (
+          <CategoryMini values={item.categories} className="mt-3" />
+        )}
+
+        {/* Публикация прямо со стены: ради неё и не нужна отдельная вкладка. */}
+        {showControls && item.status === 'done' && (
+          <form action={toggleVisibilityAction} className="pointer-events-auto relative mt-3">
+            <input type="hidden" name="analysisId" value={item.id} />
+            <input type="hidden" name="next" value={item.isPublic ? '0' : '1'} />
+            <button
+              type="submit"
+              className="rounded-full border border-[color:var(--line)] px-3 py-1.5 text-xs text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
+            >
+              {item.isPublic ? 'Скрыть из рейтинга' : 'Показать в рейтинге'}
+            </button>
+          </form>
+        )}
+      </div>
+
+      <div className="text-right">
+        {isMaterial ? (
+          <div className="max-w-[5.5rem] text-[11px] font-semibold leading-tight text-[color:var(--ink-2)]">
+            Полезный материал
+          </div>
+        ) : (
+          <div className="text-2xl font-semibold leading-none tabular-nums">
+            {item.score ?? '—'}
+          </div>
+        )}
+        {item.delta !== null && item.delta !== 0 && (
+          <div
+            className="mt-1 text-xs tabular-nums"
+            style={{
+              color: item.delta > 0 ? 'var(--accent-security)' : 'var(--accent-activity)',
+            }}
+          >
+            {item.delta > 0 ? '+' : ''}
+            {item.delta} к прошлому
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

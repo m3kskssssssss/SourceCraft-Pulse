@@ -1,9 +1,9 @@
 // Верхняя навигация. Sticky, тонкая нижняя граница, справа состояние сессии.
 //
 // На телефоне ссылки уезжают во вторую строку, а не прячутся: раньше нав-блок
-// был `hidden sm:flex`, и с телефона до «Оценить» и «Мои оценки» было просто
-// не добраться — оставался только логотип. Бургер здесь не нужен: три ссылки
-// помещаются в строку, а лишний клик до главного действия не нужен никому.
+// был `hidden sm:flex`, и с телефона до «Оценить» было просто не добраться —
+// оставался только логотип. Бургер здесь не нужен: две ссылки помещаются в
+// строку, а лишний клик до главного действия не нужен никому.
 
 import Link from 'next/link';
 import { auth } from '@/auth';
@@ -21,10 +21,11 @@ export async function UserBar() {
   // входе, и после смены ника в шапке ещё неделю висело бы старое.
   const profile = sessionUser?.id ? await getPublicUser(sessionUser.id) : null;
 
+  // Отдельной вкладки со своими оценками нет: они живут на стене профиля,
+  // куда ведёт имя справа.
   const links = [
     { href: '/', label: 'Рейтинг' },
     { href: '/analyze', label: 'Оценить' },
-    ...(sessionUser ? [{ href: '/my', label: 'Мои оценки' }] : []),
   ];
 
   return (
@@ -48,10 +49,10 @@ export async function UserBar() {
         <div className="flex items-center gap-2">
           {sessionUser ? (
             <>
-              {/* Имя с фото ведут в профиль: там и настройки, и список того,
-                  что человек отправлял на оценку. */}
+              {/* Имя с фото ведут на свою страницу: там и стена с прогонами,
+                  и кнопка в настройки. */}
               <Link
-                href="/profile"
+                href={profile ? `/u/${profile.id}` : '/profile'}
                 className="inline-flex max-w-[190px] items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm text-[color:var(--muted)] transition hover:bg-[color:var(--panel)] hover:text-[color:var(--ink)]"
               >
                 <Avatar user={profile} size={26} />

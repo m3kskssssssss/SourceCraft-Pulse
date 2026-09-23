@@ -72,7 +72,7 @@ src/
 │   └── globals.css
 ├── auth.ts                       # Auth.js v5, Node-конфиг с credentials+argon2
 ├── auth.config.ts                # Edge-safe конфиг (для middleware)
-├── middleware.ts                 # gate для /analyze, /my, /profile
+├── middleware.ts                 # gate для /analyze и /profile
 ├── app/
 │   ├── actions/
 │   │   ├── auth.ts               # signUpAction, signOutAction
@@ -92,7 +92,8 @@ src/
 │   ├── analyze/page.tsx
 │   ├── a/[id]/page.tsx
 │   ├── profile/page.tsx          # свои настройки: ник, ФИО, о себе, контакты, фото, пароль
-│   ├── u/[id]/page.tsx           # чужой профиль: кто это и что отправлял в рейтинг
+│   ├── u/[id]/page.tsx           # профиль: контакты и стена прогонов; хозяину — публикация
+│   ├── my/page.tsx               # старый адрес «Моих оценок», редирект на свою страницу
 │   ├── not-found.tsx             # общий 404
 │   ├── icon.svg                  # ЧБ-логотип-favicon
 │   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
@@ -165,6 +166,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 
 ## Прогресс
 
+- [x] Этап 26 — «Мои оценки» переехали на стену профиля: вкладки в шапке нет, имя ведёт на /u/<id>, публикация и снятие с рейтинга делаются прямо оттуда
 - [x] Этап 25 — контакты профиля по сетям (Telegram, ВКонтакте, GitHub, SourceCraft, почта): добавляются кнопкой, ник разбирается из любой вставленной ссылки, в профиле — значок и кликабельная ссылка
 - [x] Этап 24 — админка удаляет пользователей, оценки и комментарии (раздел «Обсуждение»); из actions/profile.ts убран экспорт константы — из файла с 'use server' наружу можно только async-функции, иначе сохранение профиля отвечает 500
 - [x] Этап 23 — профили (ник/ФИО/о себе/контакты/фото в bytea/смена пароля), оценка анализа пятью звёздами, комментарии с ответами; в рейтинге видно среднюю оценку и число комментариев, «по популярности» сортирует по оценке; рекомендаций девять вместо трёх, приросты считаются по очереди и не обещают больше 100; SECURITY.md из оценки убран
