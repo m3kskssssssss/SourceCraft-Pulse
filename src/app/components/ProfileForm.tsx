@@ -17,8 +17,14 @@ import {
   type ProfileState,
 } from '@/app/actions/profile';
 import type { PublicUser } from '@/lib/user-display';
+import {
+  CONTACT_META,
+  CONTACT_ORDER,
+  type ContactKind,
+  type ContactLink,
+} from '@/lib/contacts';
 import { Avatar } from './Avatar';
-import { Button, CardDiv, Field, Input } from './ui';
+import { Button, CardDiv, ContactBadge, Field, Input } from './ui';
 
 const INITIAL: ProfileState = { ok: true };
 
@@ -143,15 +149,7 @@ function DetailsCard({ user, email }: { user: PublicUser; email: string }) {
             className="w-full resize-y rounded-2xl bg-[color:var(--panel)] px-4 py-3 text-[15px] outline-none transition focus:ring-2 focus:ring-[color:var(--ink)]"
           />
         </Field>
-        <Field label="Контакты" hint="По одному на строку: почта, телеграм, сайт.">
-          <textarea
-            name="contacts"
-            rows={3}
-            maxLength={600}
-            defaultValue={user.contacts.join('\n')}
-            className="w-full resize-y rounded-2xl bg-[color:var(--panel)] px-4 py-3 text-[15px] outline-none transition focus:ring-2 focus:ring-[color:var(--ink)]"
-          />
-        </Field>
+        <ContactsEditor initial={user.contacts} />
 
         <div className="flex flex-wrap items-center gap-4">
           <Button type="submit" size="lg" disabled={pending} className="self-start">
@@ -173,6 +171,93 @@ function DetailsCard({ user, email }: { user: PublicUser; email: string }) {
         контакты, которые вы сами написали.
       </p>
     </CardDiv>
+  );
+}
+
+// ---------- Контакты ----------
+
+/**
+ * Контакты добавляются по кнопке: выбрал сеть — появилось поле под ник.
+ * Свободного текста больше нет, потому что из него нельзя собрать ссылку, а
+ * ради ссылки всё и затевалось.
+ *
+ * Поля уходят двумя параллельными списками (contactKind и contactValue)
+ * внутри общей формы «О себе»: своя форма означала бы вторую кнопку
+ * «Сохранить» рядом с такой же.
+ */
+function ContactsEditor({ initial }: { initial: ContactLink[] }) {
+  const [links, setLinks] = useState<ContactLink[]>(initial);
+
+  const used = new Set(links.map((l) => l.kind));
+  const available = CONTACT_ORDER.filter((kind) => !used.has(kind));
+
+  const add = (kind: ContactKind): void => {
+    setLinks((prev) => [...prev, { kind, value: '' }]);
+  };
+  const change = (kind: ContactKind, value: string): void => {
+    setLinks((prev) => prev.map((l) => (l.kind === kind ? { ...l, value } : l)));
+  };
+  const remove = (kind: ContactKind): void => {
+    setLinks((prev) => prev.filter((l) => l.kind !== kind));
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="text-sm text-[color:var(--ink-2)]">Контакты</span>
+
+      {links.length === 0 && (
+        <p className="text-xs text-[color:var(--muted)]">
+          Пока ни одного. Выберите сеть кнопкой ниже.
+        </p>
+      )}
+
+      {links.map((link) => {
+        const meta = CONTACT_META[link.kind];
+        return (
+          <div key={link.kind} className="flex items-start gap-2">
+            <span className="mt-2.5 flex items-center gap-2 text-sm text-[color:var(--muted)]">
+              <ContactBadge text={meta.badge} size={26} />
+              <span className="hidden w-24 sm:inline">{meta.title}</span>
+            </span>
+            <span className="min-w-0 flex-1">
+              <input type="hidden" name="contactKind" value={link.kind} />
+              <Input
+                name="contactValue"
+                value={link.value}
+                onChange={(event) => change(link.kind, event.target.value)}
+                placeholder={meta.placeholder}
+                maxLength={200}
+                aria-label={meta.title}
+              />
+              <span className="mt-1 block text-xs text-[color:var(--muted)]">{meta.hint}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => remove(link.kind)}
+              aria-label={`Убрать ${meta.title}`}
+              className="mt-2 rounded-full border border-[color:var(--line)] px-3 py-1.5 text-xs text-[color:var(--muted)] transition hover:bg-[color:var(--panel)] hover:text-[color:var(--ink)]"
+            >
+              Убрать
+            </button>
+          </div>
+        );
+      })}
+
+      {available.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {available.map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => add(kind)}
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--line)] py-1.5 pl-1.5 pr-3.5 text-sm text-[color:var(--ink-2)] transition hover:border-[color:var(--line-2)] hover:bg-[color:var(--panel)]"
+            >
+              <ContactBadge text={CONTACT_META[kind].badge} />+ {CONTACT_META[kind].title}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -13,9 +13,16 @@ import {
   CategoryMini,
   Chip,
   CommentIcon,
+  ContactBadge,
   EmptyState,
   StarIcon,
 } from '@/app/components/ui';
+import {
+  CONTACT_META,
+  contactHref,
+  contactLabel,
+  type ContactLink,
+} from '@/lib/contacts';
 import { getPublicUserAnalyses } from '@/lib/history';
 import { getSocialByAnalysis, getUserActivityCounts } from '@/lib/social';
 import { getPublicUser, isUuid } from '@/lib/users';
@@ -74,13 +81,23 @@ export default async function UserProfilePage({ params }: PageProps) {
         </CardDiv>
       )}
 
-      {user.contacts.length > 0 && (
+      {(user.contacts.length > 0 || user.legacyContacts.length > 0) && (
         <section className="rise mt-6">
           <h2 className="text-xs uppercase tracking-widest text-[color:var(--muted)]">Контакты</h2>
           <ul className="mt-3 flex flex-wrap gap-2">
             {user.contacts.map((contact) => (
-              <li key={contact}>
-                <ContactChip value={contact} />
+              <li key={contact.kind}>
+                <ContactChip contact={contact} />
+              </li>
+            ))}
+            {/* Строки из прежнего свободного поля: значка у них нет, потому
+                что неизвестно, что это. Исчезнут при первом сохранении. */}
+            {user.legacyContacts.map((line) => (
+              <li
+                key={line}
+                className="inline-block rounded-full border border-[color:var(--line)] px-3 py-1.5 text-sm text-[color:var(--muted)]"
+              >
+                {line}
               </li>
             ))}
           </ul>
@@ -161,26 +178,21 @@ export default async function UserProfilePage({ params }: PageProps) {
   );
 }
 
-/**
- * Контакт: почта и адрес становятся ссылкой, остальное — просто текстом.
- * Угадывать «телеграм ли это» не берёмся — напишут как напишут.
- */
-function ContactChip({ value }: { value: string }) {
-  const href = contactHref(value);
-  const className =
-    'inline-block rounded-full border border-[color:var(--line)] px-3 py-1.5 text-sm text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]';
-  if (!href) return <span className={className}>{value}</span>;
+/** Контакт: значок сети плюс кликабельный ник. */
+function ContactChip({ contact }: { contact: ContactLink }) {
+  const meta = CONTACT_META[contact.kind];
   return (
-    <a href={href} className={className} target="_blank" rel="noreferrer noopener nofollow">
-      {value}
+    <a
+      href={contactHref(contact)}
+      title={meta.title}
+      className="inline-flex items-center gap-2 rounded-full border border-[color:var(--line)] py-1.5 pl-1.5 pr-3.5 text-sm text-[color:var(--ink-2)] transition hover:border-[color:var(--line-2)] hover:bg-[color:var(--panel)]"
+      target={contact.kind === 'email' ? undefined : '_blank'}
+      rel="noreferrer noopener nofollow"
+    >
+      <ContactBadge text={meta.badge} />
+      {contactLabel(contact)}
     </a>
   );
-}
-
-function contactHref(value: string): string | null {
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return `mailto:${value}`;
-  if (/^https?:\/\/\S+$/i.test(value)) return value;
-  return null;
 }
 
 function StatCell({ label, value }: { label: string; value: string }) {

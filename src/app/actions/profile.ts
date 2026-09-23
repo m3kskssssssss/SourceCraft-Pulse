@@ -14,6 +14,13 @@ import { z } from 'zod';
 import { auth } from '@/auth';
 import { db } from '@/db/client';
 import { users } from '@/db/schema';
+import {
+  CONTACT_META,
+  isContactKind,
+  normalizeContact,
+  sortContacts,
+  type ContactLink,
+} from '@/lib/contacts';
 
 export type ProfileState = { ok: boolean; error?: string; savedAt?: string };
 
@@ -48,12 +55,6 @@ const profileSchema = z.object({
     .max(2000, 'О себе до 2000 символов')
     .optional()
     .transform((v) => (v ? v : null)),
-  contacts: z
-    .string()
-    .trim()
-    .max(600, 'Контакты до 600 символов')
-    .optional()
-    .transform((v) => (v ? v : null)),
 });
 
 async function currentUserId(): Promise<string | null> {
@@ -72,11 +73,13 @@ export async function updateProfileAction(
     nickname: formData.get('nickname')?.toString() ?? undefined,
     name: formData.get('name')?.toString() ?? undefined,
     bio: formData.get('bio')?.toString() ?? undefined,
-    contacts: formData.get('contacts')?.toString() ?? undefined,
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Проверьте форму' };
   }
+
+  const contacts = readContacts(formData);
+  if ('error' in contacts) return { ok: false, error: contacts.error };
 
   await db
     .update(users)
@@ -84,7 +87,9 @@ export async function updateProfileAction(
       nickname: parsed.data.nickname,
       name: parsed.data.name,
       bio: parsed.data.bio,
-      contacts: normalizeContacts(parsed.data.contacts),
+      contactLinks: contacts.links,
+      // Свободный текст больше не ведём: сохранение профиля его и убирает.
+      contacts: null,
     })
     .where(eq(users.id, userId));
 
@@ -171,15 +176,35 @@ export async function changePasswordAction(
   return { ok: true, savedAt: new Date().toISOString() };
 }
 
-/** Контакты храним построчно: не больше десяти строк, пустые выбрасываем. */
-function normalizeContacts(raw: string | null): string | null {
-  if (!raw) return null;
-  const lines = raw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 10);
-  return lines.length > 0 ? lines.join('\n') : null;
+/**
+ * Контакты приходят двумя параллельными списками полей: kind и value. Пустое
+ * значение — это удалённая строка, её просто пропускаем. Неразобранное, в
+ * отличие от пустого, молча не выбрасываем: человек что-то написал, и надо
+ * сказать, что именно не подошло.
+ */
+function readContacts(formData: FormData): { links: ContactLink[] } | { error: string } {
+  const kinds = formData.getAll('contactKind').map(String);
+  const values = formData.getAll('contactValue').map(String);
+
+  const links: ContactLink[] = [];
+  const seen = new Set<string>();
+
+  for (let i = 0; i < kinds.length; i += 1) {
+    const kind = kinds[i] ?? '';
+    const raw = (values[i] ?? '').trim();
+    if (!isContactKind(kind)) continue;
+    if (!raw) continue;
+    if (seen.has(kind)) continue;
+
+    const value = normalizeContact(kind, raw);
+    if (!value) {
+      return { error: `${CONTACT_META[kind].title}: не разобрали «${raw}»` };
+    }
+    seen.add(kind);
+    links.push({ kind, value });
+  }
+
+  return { links: sortContacts(links) };
 }
 
 /**

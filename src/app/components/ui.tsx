@@ -376,6 +376,23 @@ export function CommentIcon({ size = 11 }: { size?: number }) {
   );
 }
 
+/**
+ * Значок сети: скруглённый квадрат с монограммой. Настоящих логотипов здесь
+ * нет намеренно — тема чёрно-белая, а чужие фирменные знаки тянут за собой
+ * свои правила использования и цвета.
+ */
+export function ContactBadge({ text, size = 22 }: { text: string; size?: number }) {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center justify-center rounded-lg border border-[color:var(--line-2)] font-semibold leading-none tracking-tight"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.45) }}
+      aria-hidden
+    >
+      {text}
+    </span>
+  );
+}
+
 // ---------- CategoryMini ----------
 
 /**

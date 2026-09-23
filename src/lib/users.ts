@@ -6,6 +6,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { users } from '@/db/schema';
 import { displayNameOf, splitContacts, isUuid, type PublicUser } from './user-display';
+import { parseContactLinks } from './contacts';
 
 export { displayNameOf, splitContacts, isUuid, initialsOf } from './user-display';
 export type { PublicUser } from './user-display';
@@ -18,6 +19,7 @@ type UserRow = {
   nickname: string | null;
   bio: string | null;
   contacts: string | null;
+  contactLinks: unknown;
   avatarMime: string | null;
   avatarUpdatedAt: Date | null;
   createdAt: Date;
@@ -30,7 +32,9 @@ export function toPublicUser(row: UserRow): PublicUser {
     nickname: row.nickname ?? null,
     name: row.name ?? null,
     bio: row.bio ?? null,
-    contacts: splitContacts(row.contacts),
+    contacts: parseContactLinks(row.contactLinks),
+    // Свободный текст показываем, только пока его не заменили сетями.
+    legacyContacts: splitContacts(row.contacts),
     hasAvatar: Boolean(row.avatarMime),
     avatarVersion: row.avatarUpdatedAt ? String(row.avatarUpdatedAt.getTime()) : null,
     createdAt: row.createdAt.toISOString(),
@@ -44,6 +48,7 @@ const PUBLIC_COLUMNS = {
   nickname: users.nickname,
   bio: users.bio,
   contacts: users.contacts,
+  contactLinks: users.contactLinks,
   avatarMime: users.avatarMime,
   avatarUpdatedAt: users.avatarUpdatedAt,
   createdAt: users.createdAt,

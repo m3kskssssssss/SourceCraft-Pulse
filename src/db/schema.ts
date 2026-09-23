@@ -57,8 +57,11 @@ export const users = pgTable('users', {
   nickname: varchar('nickname', { length: 40 }),
   /** О себе: пара абзацев на странице профиля. */
   bio: text('bio'),
-  /** Контакты одной строкой на строку: почта, телеграм, сайт. */
+  /** Старые контакты свободным текстом. Не пишутся с появления contactLinks,
+   *  но читаются: у кого они уже были, те не должны их потерять. */
   contacts: text('contacts'),
+  /** Контакты по сетям: [{kind, value}], см. lib/contacts.ts. */
+  contactLinks: jsonb('contact_links'),
   avatarUrl: text('avatar_url'),
   /** Сам файл аватара. Отдаётся из /api/users/[id]/avatar. */
   avatarData: bytea('avatar_data'),

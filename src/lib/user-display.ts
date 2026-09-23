@@ -6,6 +6,8 @@
 // почты до собаки: полный адрес — это контакт, а не подпись, и выкладывать
 // его всем читателям ленты незачем.
 
+import type { ContactLink } from './contacts';
+
 export type PublicUser = {
   id: string;
   /** Как подписывать: ник, иначе ФИО, иначе логин. */
@@ -13,8 +15,10 @@ export type PublicUser = {
   nickname: string | null;
   name: string | null;
   bio: string | null;
-  /** Контакты построчно, как их ввёл пользователь. */
-  contacts: string[];
+  /** Контакты по сетям: телеграм, вк, гитхаб, SourceCraft, почта. */
+  contacts: ContactLink[];
+  /** Строки из прежнего свободного поля, пока их не заменили. */
+  legacyContacts: string[];
   /** Есть ли загруженное фото — от этого зависит, рисовать ли заглушку. */
   hasAvatar: boolean;
   /** Метка версии фото: без неё браузер держит старое после замены. */
