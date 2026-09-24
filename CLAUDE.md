@@ -99,7 +99,7 @@ src/
 │   ├── my/page.tsx               # старый адрес «Моих оценок», редирект на свою страницу
 │   ├── not-found.tsx             # общий 404
 │   ├── icon.svg                  # ЧБ-логотип-favicon
-│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, Leaderboard (подиум и строки рейтинга), HeaderNav (вкладки шапки), ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, learn/ (ArticleCard, ArticleBody, PixelScene + scenes.ts — 8-битные сцены на canvas, Figures — SVG-иллюстрации), ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, Leaderboard (подиум и строки рейтинга), HeaderNav (вкладки шапки), HowAnalysisWorks + process-scenes.ts (анимация шагов оценки), ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, learn/ (ArticleCard, ArticleBody, PixelScene + scenes.ts — 8-битные сцены на canvas, Figures — SVG-иллюстрации), ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
@@ -170,6 +170,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 
 ## Прогресс
 
+- [x] Этап 31 — на «Оценить» под формой блок «Как проходит оценка»: семь 8-битных сцен по настоящим фазам прогона, полоса прогресса, описание шага, переход по клику
 - [x] Этап 30 — рейтинг переехал на /rating (сводка: число репозиториев, средний балл, распределение, средние по категориям, языки); главная — форма, статьи и превью рейтинга; в шапке явные вкладки с подсветкой текущей; старые ссылки /?sort=… перенаправляются
 - [x] Этап 29 — мобильная вёрстка анализа и профиля: шапка с баллом столбиком (звёзды больше не уезжают), рекомендации и категории сеткой, длинные имена переносятся по символам; дерево коммитов свёрнуто до 3+3 (на телефоне 2+2) и сжимает дорожки под ширину экрана
 - [x] Этап 28 — раздел «Статьи» (/learn): уровни Junior/Middle/Senior, время чтения считается по тексту, поиск и фильтры; у каждой статьи своя зацикленная ЧБ 8-битная сцена на карточке и 2–3 SVG-иллюстрации внутри; пятнадцать статей: от .gitignore и линтеров до защиты веток и постмортемов, у каждой своя сцена

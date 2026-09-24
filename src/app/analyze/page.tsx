@@ -4,6 +4,7 @@
 // запускаем действие; если без параметра — показываем форму.
 
 import { AnalyzeForm } from '@/app/components/AnalyzeForm';
+import { HowAnalysisWorks } from '@/app/components/HowAnalysisWorks';
 import { Planet } from '@/app/components/Planet';
 import { analyzeRepo } from '@/app/actions/analyze';
 
@@ -32,7 +33,7 @@ export default async function AnalyzePage({ searchParams }: PageProps) {
   }
 
   return (
-    <main className="relative mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-16">
+    <main className="relative mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-6 sm:py-16">
       <div className="pointer-events-none absolute -right-40 -top-24 -z-10 hidden sm:block">
         <Planet size={420} variant="backdrop" />
       </div>
@@ -44,6 +45,9 @@ export default async function AnalyzePage({ searchParams }: PageProps) {
       </div>
       <div className="rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-5">
         <AnalyzeForm />
+      </div>
+      <div className="rise mt-4" style={{ animationDelay: '120ms' }}>
+        <HowAnalysisWorks />
       </div>
     </main>
   );
