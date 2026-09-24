@@ -52,12 +52,9 @@ export default async function UserProfilePage({ params }: PageProps) {
   const [analyses, counts] = await Promise.all([
     // Свои прогоны видны все, чужие — только опубликованные.
     isMe ? getUserAnalyses(id) : getPublicUserAnalyses(id),
-    getUserActivityCounts(id),
+    getUserActivityCounts(id, { includePrivate: isMe }),
   ]);
   const social = await getSocialByAnalysis(analyses.map((a) => a.id));
-
-  const doneCount = analyses.filter((a) => a.status === 'done').length;
-  const publishedCount = analyses.filter((a) => a.isPublic).length;
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-14">
@@ -133,19 +130,9 @@ export default async function UserProfilePage({ params }: PageProps) {
       )}
 
       <div className="rise mt-8 grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--line)]">
-        {isMe ? (
-          <>
-            <StatCell label="Всего запусков" value={String(analyses.length)} />
-            <StatCell label="Посчитано" value={String(doneCount)} />
-            <StatCell label="В рейтинге" value={String(publishedCount)} />
-          </>
-        ) : (
-          <>
-            <StatCell label="Репозиториев в рейтинге" value={String(analyses.length)} />
-            <StatCell label="Оценок поставлено" value={String(counts.ratings)} />
-            <StatCell label="Комментариев" value={String(counts.comments)} />
-          </>
-        )}
+        <StatCell label="Запустил в анализ новых репозиториев" value={String(counts.repos)} />
+        <StatCell label="Оставил комментариев" value={String(counts.comments)} />
+        <StatCell label="Поставил оценок анализа" value={String(counts.ratings)} />
       </div>
 
       <section className="mt-12">
@@ -316,9 +303,9 @@ function ContactChip({ contact }: { contact: ContactLink }) {
 function StatCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-col justify-between bg-[color:var(--paper-2)] px-3 py-3 sm:px-5 sm:py-4">
-      <div className="text-[10px] uppercase leading-tight tracking-wide text-[color:var(--muted)] sm:text-xs sm:tracking-widest">
-        {label}
-      </div>
+      {/* Подписи длинные, фразой: капсом с разрядкой они расползались бы
+          на телефоне на пять строк. */}
+      <div className="text-[11px] leading-snug text-[color:var(--muted)] sm:text-sm">{label}</div>
       <div className="mt-1 text-xl font-semibold tabular-nums sm:text-2xl">{value}</div>
     </div>
   );

@@ -6,7 +6,7 @@
 
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { analysisComments, analysisRatings } from '@/db/schema';
+import { analyses, analysisComments, analysisRatings } from '@/db/schema';
 import { getPublicUsers } from './users';
 import type { PublicUser } from './user-display';
 import { EMPTY_SOCIAL, type AnalysisSocial } from './social-shared';
@@ -177,11 +177,25 @@ export async function getSocialByAnalysis(
   return result;
 }
 
-/** Сколько всего оценок и комментариев оставил пользователь — для профиля. */
+/**
+ * Счётчики профиля: сколько разных репозиториев человек отправил на анализ
+ * (повторный прогон того же репозитория не считается), сколько комментариев
+ * и оценок оставил. Чужому посетителю репозитории считаем только по
+ * опубликованным прогонам — о приватных он знать не должен даже числом.
+ */
 export async function getUserActivityCounts(
   userId: string,
-): Promise<{ ratings: number; comments: number }> {
-  const [ratings, comments] = await Promise.all([
+  { includePrivate }: { includePrivate: boolean },
+): Promise<{ repos: number; ratings: number; comments: number }> {
+  const [repos, ratings, comments] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(distinct ${analyses.repositoryId})::int` })
+      .from(analyses)
+      .where(
+        includePrivate
+          ? eq(analyses.requestedBy, userId)
+          : and(eq(analyses.requestedBy, userId), eq(analyses.isPublic, true)),
+      ),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(analysisRatings)
@@ -191,7 +205,11 @@ export async function getUserActivityCounts(
       .from(analysisComments)
       .where(and(eq(analysisComments.userId, userId), isNull(analysisComments.deletedAt))),
   ]);
-  return { ratings: ratings[0]?.count ?? 0, comments: comments[0]?.count ?? 0 };
+  return {
+    repos: repos[0]?.count ?? 0,
+    ratings: ratings[0]?.count ?? 0,
+    comments: comments[0]?.count ?? 0,
+  };
 }
 
 function round1(value: number): number {
