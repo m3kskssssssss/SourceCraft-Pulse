@@ -1,7 +1,3 @@
-<div align="center">
-
-<img src="public/pulse-icon-512.png" width="96" alt="Pulse" />
-
 # Pulse
 
 **Оценка здоровья открытых репозиториев SourceCraft**
