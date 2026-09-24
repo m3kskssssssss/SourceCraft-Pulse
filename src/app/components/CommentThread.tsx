@@ -192,7 +192,7 @@ function Comment({
           {comment.author ? (
             <Link
               href={`/u/${comment.author.id}`}
-              className="text-[15px] font-medium tracking-tight hover:underline"
+              className="text-[15px] font-medium tracking-tight [overflow-wrap:anywhere] hover:underline"
             >
               {comment.author.displayName}
             </Link>
@@ -205,7 +205,7 @@ function Comment({
           </span>
         </div>
 
-        <p className="mt-1.5 whitespace-pre-wrap text-[15px] leading-relaxed text-[color:var(--ink-2)]">
+        <p className="mt-1.5 whitespace-pre-wrap text-[15px] leading-relaxed text-[color:var(--ink-2)] [overflow-wrap:anywhere]">
           {comment.body}
         </p>
 

@@ -218,14 +218,16 @@ export default async function AnalysisPage({ params }: PageProps) {
     <PageShell title={title} org={repo?.orgSlug} repo={repo?.repoSlug}>
       {/* Sunny score card */}
       <section className="rise overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
-        <div className="flex flex-wrap items-center gap-8 p-8 sm:p-10">
+        {/* На телефоне круг и текст идут столбиком: в одну строку с кругом
+            колонке оставалось около 80 пикселей, и звёзды уезжали за экран. */}
+        <div className="flex flex-col items-start gap-6 p-5 sm:flex-row sm:items-center sm:gap-8 sm:p-10">
           {!isMaterial && <ScoreDial value={analysis.score} size={168} stroke={14} label="pulse" />}
-          <div className="min-w-0 flex-1">
+          <div className="w-full min-w-0 sm:flex-1">
             <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
               {isMaterial ? 'Что это' : 'Итоговая оценка'}
             </div>
             {isMaterial ? (
-              <div className="mt-1 text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+              <div className="mt-1 text-3xl font-semibold leading-tight tracking-tight sm:text-5xl">
                 Полезный материал
               </div>
             ) : (
@@ -278,13 +280,13 @@ export default async function AnalysisPage({ params }: PageProps) {
 
         {/* мини-разбивка по категориям: материалу не показываем вовсе */}
         {!isMaterial && sortedCategories.length > 0 && (
-          <div className="grid gap-px border-t border-[color:var(--line)] bg-[color:var(--line)] sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-px border-t border-[color:var(--line)] bg-[color:var(--line)] sm:grid-cols-4">
             {sortedCategories.map((c) => (
               <div
                 key={c.key}
-                className={`${CATEGORY_ACCENT_CLASS[c.key] ?? ''} bg-[color:var(--paper-2)] px-5 py-4`}
+                className={`${CATEGORY_ACCENT_CLASS[c.key] ?? ''} min-w-0 bg-[color:var(--paper-2)] px-4 py-3 sm:px-5 sm:py-4`}
               >
-                <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
+                <div className="truncate text-xs uppercase tracking-wider text-[color:var(--muted)] sm:tracking-widest">
                   {CATEGORY_TITLES[c.key] ?? c.key}
                 </div>
                 <div className="mt-1 flex items-baseline gap-2">
@@ -346,12 +348,15 @@ export default async function AnalysisPage({ params }: PageProps) {
           <ol className="mt-6 grid gap-3">
             {recommendations.map((r, idx) => (
               <li key={r.key}>
-                <CardDiv tone="outline" className="flex flex-wrap items-center gap-5 p-5">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--ink)] text-sm font-semibold text-[color:var(--paper)]">
+                <CardDiv
+                  tone="outline"
+                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 p-4 sm:items-center sm:gap-x-5 sm:p-5"
+                >
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--ink)] text-sm font-semibold text-[color:var(--paper)] sm:h-9 sm:w-9">
                     {idx + 1}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[15px] font-medium">{r.title}</div>
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-medium leading-snug">{r.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted)]">
                       <Chip tone="default">
                         {CATEGORY_TITLES[r.category] ?? r.category}
@@ -361,7 +366,7 @@ export default async function AnalysisPage({ params }: PageProps) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-semibold tabular-nums">+{r.gain.toFixed(1)}</div>
+                    <div className="text-xl font-semibold tabular-nums sm:text-2xl">+{r.gain.toFixed(1)}</div>
                     <div className="text-[10px] uppercase tracking-widest text-[color:var(--muted)]">
                       к оценке
                     </div>
@@ -446,7 +451,7 @@ export default async function AnalysisPage({ params }: PageProps) {
                 <li key={note.raw} className="flex flex-wrap items-baseline gap-x-2">
                   <span className="text-[color:var(--ink-2)]">{note.text}</span>
                   {note.detail && (
-                    <span className="font-mono text-xs text-[color:var(--muted-2)]">
+                    <span className="break-all font-mono text-xs text-[color:var(--muted-2)]">
                       {note.detail}
                     </span>
                   )}
@@ -543,8 +548,8 @@ function PageShell({
   children: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto w-full max-w-4xl px-6 py-12">
-      <nav className="text-sm text-[color:var(--muted)]">
+    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
+      <nav className="text-sm text-[color:var(--muted)] [overflow-wrap:anywhere]">
         <Link href="/" className="hover:text-[color:var(--ink)]">
           Рейтинг
         </Link>
@@ -561,9 +566,13 @@ function PageShell({
       </nav>
       <header className="mt-4">
         <Chip tone="outline">Отчёт Pulse</Chip>
-        <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight">{title}</h1>
+        {/* Имя репозитория — одно длинное «слово»: без переноса по символам
+            оно раздвигало страницу вбок. */}
+        <h1 className="mt-3 text-3xl font-semibold leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
+          {title}
+        </h1>
       </header>
-      <div className="mt-10 flex flex-col gap-2">{children}</div>
+      <div className="mt-6 flex flex-col gap-2 sm:mt-10">{children}</div>
     </main>
   );
 }
@@ -614,9 +623,9 @@ function CategoryBlock({
 
   return (
     <CardDiv tone="outline" className={`${accentClass} p-0`}>
-      <div className="flex flex-wrap items-center gap-4 border-b border-[color:var(--line)] p-6">
+      <div className="flex items-center gap-3 border-b border-[color:var(--line)] p-4 sm:gap-4 sm:p-6">
         <span
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold sm:h-10 sm:w-10"
           style={{
             background: 'var(--accent-soft, var(--panel))',
             color: 'var(--accent, var(--ink))',
@@ -628,8 +637,8 @@ function CategoryBlock({
           <div className="text-lg font-medium">{title}</div>
           {blurb && <div className="text-xs text-[color:var(--muted)]">{blurb}</div>}
         </div>
-        <div className="text-right">
-          <div className="text-3xl font-semibold tabular-nums leading-none">
+        <div className="shrink-0 text-right">
+          <div className="text-2xl font-semibold tabular-nums leading-none sm:text-3xl">
             {category.value != null ? Math.round(category.value) : '—'}
           </div>
           <div className="text-[10px] uppercase tracking-widest text-[color:var(--muted)]">
@@ -637,8 +646,8 @@ function CategoryBlock({
           </div>
         </div>
       </div>
-      <div className="p-6">
-        <Bar value={category.value} className="mb-6" height={6} accent />
+      <div className="p-4 sm:p-6">
+        <Bar value={category.value} className="mb-4 sm:mb-6" height={6} accent />
 
         <ul className="divide-y divide-[color:var(--line)]">
           {known.map((m) => (
@@ -695,7 +704,7 @@ function CategoryBlock({
             <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
               Измерено по исходникам
             </div>
-            <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+            <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 md:grid-cols-3">
               {stats.map((stat) => (
                 <div key={stat.label} className="flex items-baseline justify-between gap-3">
                   <dt className="text-[color:var(--muted)]">{stat.label}</dt>

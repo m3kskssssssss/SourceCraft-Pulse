@@ -8,16 +8,42 @@
 // Середина длинной истории в фактах выброшена (см. git/graph.ts), поэтому
 // разрыв показываем явной отбивкой, а не склеиваем концы молча.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import type { GitGraph, GraphCommit } from '@/lib/git/graph';
 
 const ROW = 38;
 const LANE = 18;
 const PAD_X = 16;
-/** Сколько свежих коммитов видно до нажатия «показать весь путь». */
-const COLLAPSED_RECENT = 24;
-/** И сколько самых первых — начало пути видно сразу. */
-const COLLAPSED_ROOT = 6;
+/**
+ * Сколько коммитов с каждого конца видно до «показать весь путь»: начало и
+ * последние изменения, середина — в разрыве. На телефоне по два.
+ */
+const COLLAPSED_ENDS = 3;
+const COLLAPSED_ENDS_PHONE = 2;
+/**
+ * Предельная ширина графа. Широкое дерево не раздвигает строки, а сжимает
+ * расстояние между дорожками: на телефоне под граф отдаём меньше.
+ */
+const MAX_GRAPH_WIDTH = 220;
+const MAX_GRAPH_WIDTH_PHONE = 88;
+const MIN_LANE = 5;
+
+const PHONE_QUERY = '(max-width: 639px)';
+
+/** Узкий ли экран. На сервере считаем, что нет, — после гидрации уточнится. */
+function usePhone(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(PHONE_QUERY);
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    },
+    () => window.matchMedia(PHONE_QUERY).matches,
+    () => false,
+  );
+}
+
+type Geometry = { lane: number; pad: number };
 
 /** Цвет дорожки. Основная линия — чернила, ветки разбираются по акцентам. */
 const LANE_COLORS = [
@@ -35,8 +61,10 @@ type Row =
 export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | null }) {
   const [expanded, setExpanded] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const phone = usePhone();
+  const ends = phone ? COLLAPSED_ENDS_PHONE : COLLAPSED_ENDS;
 
-  const rows = useMemo(() => buildRows(graph, expanded), [graph, expanded]);
+  const rows = useMemo(() => buildRows(graph, expanded, ends), [graph, expanded, ends]);
   const commitRows = rows.filter((r): r is Extract<Row, { kind: 'commit' }> => r.kind === 'commit');
 
   // Номер строки по коммиту — нужен, чтобы дотянуть ребро до родителя.
@@ -48,7 +76,16 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
     return map;
   }, [rows]);
 
-  const width = PAD_X * 2 + Math.max(0, graph.laneCount - 1) * LANE;
+  // Ширину считаем по дорожкам, которые реально видны: в свёрнутом виде
+  // дерево на десяток веток часто занимает одну-две.
+  const maxLane = commitRows.reduce((m, row) => Math.max(m, row.commit.lane), 0);
+  const pad = phone ? 10 : PAD_X;
+  const maxWidth = phone ? MAX_GRAPH_WIDTH_PHONE : MAX_GRAPH_WIDTH;
+  const geo: Geometry = {
+    pad,
+    lane: maxLane === 0 ? LANE : Math.max(MIN_LANE, Math.min(LANE, (maxWidth - pad * 2) / maxLane)),
+  };
+  const width = Math.ceil(geo.pad * 2 + maxLane * geo.lane);
   const height = rows.length * ROW;
   const merges = graph.commits.filter((c) => c.parents.length > 1).length;
   const hidden = graph.commits.length - commitRows.length;
@@ -56,7 +93,7 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[color:var(--line)]">
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-b border-[color:var(--line)] bg-[color:var(--paper-2)] px-5 py-4 text-sm">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-[color:var(--line)] bg-[color:var(--paper-2)] px-4 py-3 text-sm sm:gap-x-6 sm:px-5 sm:py-4">
         <span>
           <strong className="tabular-nums">{graph.totalRead}</strong>{' '}
           {plural(graph.totalRead, 'коммит', 'коммита', 'коммитов')} в пути
@@ -94,8 +131,8 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
                     key={`${row.commit.oid}-${parent}-${parentIndex}`}
                     d={
                       to === undefined
-                        ? stubPath(row.commit.lane, from)
-                        : edgePath(row.commit.lane, from, lane, to)
+                        ? stubPath(geo, row.commit.lane, from)
+                        : edgePath(geo, row.commit.lane, from, lane, to)
                     }
                     fill="none"
                     stroke={laneColor(lane)}
@@ -117,7 +154,7 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
               return (
                 <circle
                   key={row.commit.oid}
-                  cx={laneX(row.commit.lane)}
+                  cx={laneX(geo, row.commit.lane)}
                   cy={index * ROW + ROW / 2}
                   r={isSelected ? 6 : isMerge ? 5 : 4}
                   fill={isMerge ? 'var(--paper)' : laneColor(row.commit.lane)}
@@ -135,11 +172,11 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
               row.kind === 'gap' ? (
                 <li
                   key={`gap-${index}`}
-                  className="flex items-center gap-3 px-4 text-xs text-[color:var(--muted-2)]"
+                  className="flex items-center gap-2 px-2 text-xs text-[color:var(--muted-2)] sm:gap-3 sm:px-4"
                   style={{ height: ROW }}
                 >
                   <span className="h-px flex-1 bg-[repeating-linear-gradient(90deg,var(--line)_0_6px,transparent_6px_12px)]" />
-                  <span>
+                  <span className="shrink-0">
                     пропущено {row.count}{' '}
                     {plural(row.count, 'коммит', 'коммита', 'коммитов')}
                   </span>
@@ -155,7 +192,7 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
                       )
                     }
                     aria-pressed={row.commit.oid === selected}
-                    className={`flex h-full w-full items-center gap-3 px-4 text-left transition hover:bg-[color:var(--panel)] ${
+                    className={`flex h-full w-full items-center gap-2 px-2 text-left transition hover:bg-[color:var(--panel)] sm:gap-3 sm:px-4 ${
                       row.commit.oid === selected ? 'bg-[color:var(--panel)]' : ''
                     }`}
                   >
@@ -173,7 +210,7 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
                     <span className="hidden w-32 shrink-0 truncate text-xs text-[color:var(--muted)] md:inline">
                       {row.commit.author}
                     </span>
-                    <span className="w-20 shrink-0 text-right text-xs tabular-nums text-[color:var(--muted-2)]">
+                    <span className="shrink-0 text-right text-[11px] tabular-nums text-[color:var(--muted-2)] sm:w-20 sm:text-xs">
                       {formatDate(row.commit.date)}
                     </span>
                   </button>
@@ -185,10 +222,10 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
       </div>
 
       {selectedCommit && (
-        <div className="border-t border-[color:var(--line)] bg-[color:var(--paper-2)] px-5 py-4">
-          <div className="text-sm leading-relaxed">{selectedCommit.subject}</div>
+        <div className="border-t border-[color:var(--line)] bg-[color:var(--paper-2)] px-4 py-3 sm:px-5 sm:py-4">
+          <div className="text-sm leading-relaxed [overflow-wrap:anywhere]">{selectedCommit.subject}</div>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[color:var(--muted)]">
-            <span className="font-mono">{selectedCommit.oid}</span>
+            <span className="break-all font-mono">{selectedCommit.oid}</span>
             <span>{selectedCommit.author}</span>
             <span>{formatDateTime(selectedCommit.date)}</span>
             {selectedCommit.parents.length > 1 && <span>слияние</span>}
@@ -207,7 +244,7 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
       )}
 
       {hidden > 0 && (
-        <div className="border-t border-[color:var(--line)] px-5 py-3">
+        <div className="border-t border-[color:var(--line)] px-4 py-3 sm:px-5">
           <button
             type="button"
             onClick={() => setExpanded((value) => !value)}
@@ -226,7 +263,7 @@ export function GitTree({ graph, webUrl }: { graph: GitGraph; webUrl?: string | 
 // ---------- раскладка ----------
 
 /** Строки к показу: свежая часть, разрыв, начало пути. */
-function buildRows(graph: GitGraph, expanded: boolean): Row[] {
+function buildRows(graph: GitGraph, expanded: boolean, ends: number): Row[] {
   const rows: Row[] = [];
   const pushCommits = (list: GraphCommit[]) => {
     for (const commit of list) rows.push({ kind: 'commit', commit });
@@ -246,13 +283,13 @@ function buildRows(graph: GitGraph, expanded: boolean): Row[] {
   }
 
   // Свёрнутый вид: оба конца пути видно сразу, середина — в разрыве.
-  if (commits.length <= COLLAPSED_RECENT + COLLAPSED_ROOT) {
+  if (commits.length <= ends * 2 && gapAfterIndex === null) {
     pushCommits(commits);
     return rows;
   }
 
-  const recent = commits.slice(0, COLLAPSED_RECENT);
-  const root = commits.slice(commits.length - COLLAPSED_ROOT);
+  const recent = commits.slice(0, ends);
+  const root = commits.slice(Math.max(ends, commits.length - ends));
   pushCommits(recent);
   rows.push({
     kind: 'gap',
@@ -262,8 +299,8 @@ function buildRows(graph: GitGraph, expanded: boolean): Row[] {
   return rows;
 }
 
-function laneX(lane: number): number {
-  return PAD_X + lane * LANE;
+function laneX(geo: Geometry, lane: number): number {
+  return geo.pad + lane * geo.lane;
 }
 
 function laneColor(lane: number): string {
@@ -275,10 +312,10 @@ function parentLane(graph: GitGraph, parentOid: string, fallback: number): numbe
   return graph.commits.find((c) => c.oid === parentOid)?.lane ?? fallback;
 }
 
-function edgePath(fromLane: number, fromRow: number, toLane: number, toRow: number): string {
-  const x1 = laneX(fromLane);
+function edgePath(geo: Geometry, fromLane: number, fromRow: number, toLane: number, toRow: number): string {
+  const x1 = laneX(geo, fromLane);
   const y1 = fromRow * ROW + ROW / 2;
-  const x2 = laneX(toLane);
+  const x2 = laneX(geo, toLane);
   const y2 = toRow * ROW + ROW / 2;
   if (x1 === x2) return `M ${x1} ${y1} L ${x2} ${y2}`;
   const bend = Math.min((y2 - y1) / 2, ROW);
@@ -286,8 +323,8 @@ function edgePath(fromLane: number, fromRow: number, toLane: number, toRow: numb
 }
 
 /** Родителя в выборке нет: обрываем линию вниз — путь продолжается за кадром. */
-function stubPath(lane: number, fromRow: number): string {
-  const x = laneX(lane);
+function stubPath(geo: Geometry, lane: number, fromRow: number): string {
+  const x = laneX(geo, lane);
   const y = fromRow * ROW + ROW / 2;
   return `M ${x} ${y} L ${x} ${y + ROW * 0.55}`;
 }

@@ -60,17 +60,24 @@ export default async function UserProfilePage({ params }: PageProps) {
   const publishedCount = analyses.filter((a) => a.isPublic).length;
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-6 py-14">
-      <header className="rise flex flex-wrap items-start gap-6">
-        <Avatar user={user} size={96} />
+    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-14">
+      {/* Ник — одно слово любой длины: на телефоне он переносится по
+          символам и не раздвигает страницу вбок. */}
+      <header className="rise flex items-start gap-4 sm:gap-6">
+        <span className="shrink-0 sm:hidden">
+          <Avatar user={user} size={64} />
+        </span>
+        <span className="hidden shrink-0 sm:block">
+          <Avatar user={user} size={96} />
+        </span>
         <div className="min-w-0 flex-1">
-          <h1 className="text-4xl font-semibold leading-tight tracking-tight">
+          <h1 className="text-[28px] font-semibold leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
             {user.displayName}
           </h1>
           {/* ФИО под ником показываем только если ник задан — иначе это была
               бы та же строка дважды. */}
           {user.nickname && user.name && (
-            <p className="mt-1 text-sm text-[color:var(--muted)]">{user.name}</p>
+            <p className="mt-1 text-sm text-[color:var(--muted)] [overflow-wrap:anywhere]">{user.name}</p>
           )}
           <p className="mt-2 text-sm text-[color:var(--muted)]">
             С нами с {formatDate(user.createdAt)}
@@ -96,7 +103,7 @@ export default async function UserProfilePage({ params }: PageProps) {
 
       {user.bio && (
         <CardDiv tone="outline" className="rise mt-8">
-          <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[color:var(--ink-2)]">
+          <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[color:var(--ink-2)] [overflow-wrap:anywhere]">
             {user.bio}
           </p>
         </CardDiv>
@@ -116,7 +123,7 @@ export default async function UserProfilePage({ params }: PageProps) {
             {user.legacyContacts.map((line) => (
               <li
                 key={line}
-                className="inline-block rounded-full border border-[color:var(--line)] px-3 py-1.5 text-sm text-[color:var(--muted)]"
+                className="inline-block max-w-full rounded-full border border-[color:var(--line)] px-3 py-1.5 text-sm text-[color:var(--muted)] [overflow-wrap:anywhere]"
               >
                 {line}
               </li>
@@ -125,7 +132,7 @@ export default async function UserProfilePage({ params }: PageProps) {
         </section>
       )}
 
-      <div className="rise mt-8 grid gap-px overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--line)] sm:grid-cols-3">
+      <div className="rise mt-8 grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--line)]">
         {isMe ? (
           <>
             <StatCell label="Всего запусков" value={String(analyses.length)} />
@@ -296,21 +303,23 @@ function ContactChip({ contact }: { contact: ContactLink }) {
     <a
       href={contactHref(contact)}
       title={meta.title}
-      className="inline-flex items-center gap-2 rounded-full border border-[color:var(--line)] py-1.5 pl-1.5 pr-3.5 text-sm text-[color:var(--ink-2)] transition hover:border-[color:var(--line-2)] hover:bg-[color:var(--panel)]"
+      className="inline-flex max-w-full items-center gap-2 rounded-full border border-[color:var(--line)] py-1.5 pl-1.5 pr-3.5 text-sm text-[color:var(--ink-2)] transition hover:border-[color:var(--line-2)] hover:bg-[color:var(--panel)]"
       target={contact.kind === 'email' ? undefined : '_blank'}
       rel="noreferrer noopener nofollow"
     >
       <ContactBadge text={meta.badge} />
-      {contactLabel(contact)}
+      <span className="min-w-0 truncate">{contactLabel(contact)}</span>
     </a>
   );
 }
 
 function StatCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-[color:var(--paper-2)] px-5 py-4">
-      <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+    <div className="flex min-w-0 flex-col justify-between bg-[color:var(--paper-2)] px-3 py-3 sm:px-5 sm:py-4">
+      <div className="text-[10px] uppercase leading-tight tracking-wide text-[color:var(--muted)] sm:text-xs sm:tracking-widest">
+        {label}
+      </div>
+      <div className="mt-1 text-xl font-semibold tabular-nums sm:text-2xl">{value}</div>
     </div>
   );
 }
