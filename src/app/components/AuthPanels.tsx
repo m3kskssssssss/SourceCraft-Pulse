@@ -65,7 +65,7 @@ export function SignUpPanel({ inModal = false }: { inModal?: boolean }) {
       <div className="flex flex-col gap-5">
         {yandexEnabled && (
           <>
-            <YandexButton label="Продолжить с Яндекс ID" />
+            <YandexButton />
             <OrDivider />
           </>
         )}
