@@ -14,7 +14,6 @@ export const VIEW_H = 120;
 
 const INK = 'var(--ink)';
 const PAPER = 'var(--paper-2)';
-const MUTED = 'var(--muted)';
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const prog = (t: number, a: number, b: number): number => clamp01((t - a) / (b - a));
@@ -29,14 +28,6 @@ const thin = (opacity = 0.55, dash?: string) => ({
   strokeDasharray: dash,
   vectorEffect: 'non-scaling-stroke' as const,
 });
-
-function Label({ x, y, children, anchor = 'middle' }: { x: number; y: number; children: ReactNode; anchor?: 'start' | 'middle' | 'end' }) {
-  return (
-    <text x={x} y={y} textAnchor={anchor} fontSize={6.5} fill={MUTED} style={{ fontFamily: 'var(--font-sans)' }}>
-      {children}
-    </text>
-  );
-}
 
 /**
  * Проволочный глобус, как логотип: параллели стоят, меридианы сжимаются по
@@ -105,12 +96,10 @@ function ApiScene({ t }: { t: number }) {
         <rect x={36} y={44} width={18} height={18} strokeOpacity={0.4} />
         <path d="M30 50 L36 44 M48 50 L54 44 M48 68 L54 62 M30 68 L36 62" strokeOpacity={0.4} />
       </g>
-      <Label x={42} y={84}>Pulse</Label>
 
       <Globe cx={176} cy={58} r={34} t={t} />
       <ellipse cx={176} cy={58} rx={50} ry={13} {...thin(0.35, '2 3')} />
       <circle cx={176 + 50 * Math.cos(t * 1.4)} cy={58 + 13 * Math.sin(t * 1.4)} r={1.8} fill={INK} />
-      <Label x={176} y={108}>SourceCraft</Label>
 
       {/* запросы туда по верхней дуге, ответы обратно по нижней */}
       <path d={`M${from[0]} ${from[1]} Q 96 18 ${to[0]} ${to[1]}`} {...thin(0.3, '2 3')} />
@@ -134,13 +123,11 @@ function CloneScene({ t }: { t: number }) {
   return (
     <g>
       <Globe cx={56} cy={56} r={32} t={t} />
-      <Label x={56} y={104}>SourceCraft</Label>
       <line x1={92} y1={56} x2={148} y2={56} {...thin(0.35, '2 3')} />
       {[0, 1, 2, 3].map((i) => (
         <circle key={i} cx={92 + ((t * 30 + i * 14) % 56)} cy={56} r={1.4} fill={INK} />
       ))}
       <Globe cx={184} cy={56} r={32} t={t} reveal={k} />
-      <Label x={184} y={104}>одна ветка · 90 дней</Label>
     </g>
   );
 }
@@ -172,11 +159,9 @@ function ReadScene({ t }: { t: number }) {
           <g key={i}>
             <line x1={x} y1={y} x2={x + w} y2={y} {...thin(active ? 0.95 : 0.3)} />
             {active && <circle cx={116} cy={y} r={1.8} fill={INK} />}
-            {i === 5 && <Label x={x + w + 6} y={y + 2} anchor="start">TODO</Label>}
           </g>
         );
       })}
-      <Label x={124} y={110} anchor="start">тесты · длина файлов · пояснения</Label>
     </g>
   );
 }
@@ -208,8 +193,6 @@ function HistoryScene({ t }: { t: number }) {
       })}
       {/* комета — «сейчас» на ленте истории */}
       <circle cx={head[0]} cy={head[1]} r={4} {...thin(0.5)} />
-      <Label x={20} y={110} anchor="start">● самый активный автор</Label>
-      <Label x={220} y={110} anchor="end">○ □ остальные</Label>
     </g>
   );
 }
@@ -245,7 +228,6 @@ function SecurityScene({ t }: { t: number }) {
           </g>
         );
       })}
-      <Label x={120} y={116}>lock-файлы против базы OSV · секреты в истории</Label>
     </g>
   );
 }
@@ -317,8 +299,6 @@ function ScoreScene({ t }: { t: number }) {
           </text>
         </>
       )}
-      {/* Кольца изнутри наружу — в порядке подписи. */}
-      <Label x={cx} y={116}>{CATEGORIES.map((c) => c.label).join(' · ')}</Label>
     </g>
   );
 }
