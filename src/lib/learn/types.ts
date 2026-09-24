@@ -12,7 +12,16 @@ export const LEVEL_LABEL: Record<Level, string> = {
 };
 
 /** Сцены 8-битных анимаций для карточек — см. components/learn/scenes.ts. */
-export type SceneId = 'tank-wall' | 'signpost' | 'block-tower' | 'bus-pulse';
+export type SceneId =
+  | 'tank-wall'
+  | 'signpost'
+  | 'block-tower'
+  | 'bus-pulse'
+  | 'footprints'
+  | 'bridge'
+  | 'tightrope'
+  | 'parcel-slot'
+  | 'chain-lift';
 
 /** Иллюстрации внутри статей — см. components/learn/Figures.tsx. */
 export type FigureId =
@@ -26,7 +35,20 @@ export type FigureId =
   | 'update-cadence'
   | 'bus-factor-share'
   | 'activity-shapes'
-  | 'metric-loop';
+  | 'metric-loop'
+  | 'commit-anatomy'
+  | 'commit-log-compare'
+  | 'atomic-commits'
+  | 'license-default'
+  | 'license-spectrum'
+  | 'test-pyramid'
+  | 'test-risk-map'
+  | 'flaky-trust'
+  | 'pr-size-attention'
+  | 'pr-split'
+  | 'ci-trust-map'
+  | 'pin-tag-vs-sha'
+  | 'token-scope';
 
 export type Block =
   | { type: 'p'; text: string }

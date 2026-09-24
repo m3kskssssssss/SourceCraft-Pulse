@@ -370,6 +370,395 @@ function MetricLoop() {
   );
 }
 
+// ---------- коммиты ----------
+
+function CommitAnatomy() {
+  const body = [
+    'Токен обновлялся сразу в двух вкладках,',
+    'и вторая затирала новую сессию старой.',
+    'Теперь обновление идёт под блокировкой.',
+  ];
+  return (
+    <Svg h={176} label="Сообщение коммита: заголовок, пустая строка и тело с объяснением">
+      <rect x={4} y={6} width={392} height={164} rx={10} fill={PANEL} stroke={INK} strokeWidth={1.5} />
+      <T x={20} y={30} size={10} fill={MUTED}>заголовок — что изменилось, до 72 символов</T>
+      <T x={20} y={48} mono size={11} weight={600}>fix: не терять сессию при обновлении токена</T>
+      <rect x={16} y={58} width={368} height={18} rx={4} fill="none" stroke={LINE} strokeDasharray="4 3" />
+      <T x={24} y={71} size={10} fill={MUTED}>пустая строка</T>
+      <T x={20} y={96} size={10} fill={MUTED}>тело — почему так и как проверить</T>
+      {body.map((l, i) => (
+        <T key={l} x={20} y={116 + i * 17} mono size={11}>{l}</T>
+      ))}
+    </Svg>
+  );
+}
+
+function CommitLogCompare() {
+  const bad = ['fix', 'wip', 'правки', 'fix again', 'final final'];
+  const good = ['fix: пустой фильтр', 'feat: экспорт в CSV', 'refactor: парсер дат', 'docs: пример запуска', 'test: регрессия поиска'];
+  const hashes = ['e41', 'b09', '7c2', 'a5d', '3f8'];
+  const col = (x: number, title: string, rows: string[], dark: boolean) => (
+    <g>
+      <T x={x + 96} y={18} anchor="middle" size={12} weight={600}>{title}</T>
+      <rect x={x} y={28} width={192} height={134} rx={10} fill={dark ? INK : PANEL} stroke={INK} strokeWidth={1.5} />
+      {rows.map((r, i) => (
+        <g key={r}>
+          <T x={x + 12} y={54 + i * 24} mono size={10} fill={dark ? 'var(--line-2)' : MUTED}>{hashes[i]}</T>
+          <T x={x + 40} y={54 + i * 24} mono size={10} fill={dark ? PAPER : INK}>{r}</T>
+        </g>
+      ))}
+    </g>
+  );
+  return (
+    <Svg h={168} label="Две истории из пяти коммитов: слева безликие сообщения, справа понятные">
+      {col(4, 'Через год непонятно', bad, false)}
+      {col(204, 'Через год понятно', good, true)}
+    </Svg>
+  );
+}
+
+function AtomicCommits() {
+  const parts = ['исправление бага', 'переименование', 'новая функция'];
+  return (
+    <Svg h={196} label="Один коммит с тремя изменениями разделён на три коммита, каждый можно откатить отдельно">
+      <T x={4} y={22} size={12} weight={600}>Было: один коммит</T>
+      <rect x={4} y={34} width={150} height={110} rx={10} fill={INK} />
+      {parts.map((p, i) => (
+        <T key={p} x={18} y={66 + i * 28} size={12} fill={PAPER}>{p}</T>
+      ))}
+      <Arrow x1={160} y1={89} x2={190} y2={89} />
+      <T x={200} y={22} size={12} weight={600}>Стало: три</T>
+      <line x1={206} y1={52} x2={206} y2={128} stroke={INK} strokeWidth={2} />
+      {parts.map((p, i) => (
+        <g key={p}>
+          <circle cx={206} cy={52 + i * 38} r={7} fill={i === 2 ? INK : PAPER} stroke={INK} strokeWidth={2} />
+          <T x={222} y={56 + i * 38} size={12}>{p}</T>
+        </g>
+      ))}
+      <T x={396} y={132} anchor="end" mono size={10} fill={MUTED}>revert</T>
+      <T x={200} y={178} anchor="middle" size={11} fill={MUTED}>каждое изменение можно откатить или перенести отдельно</T>
+    </Svg>
+  );
+}
+
+// ---------- лицензия ----------
+
+function Check({ x, y }: { x: number; y: number }) {
+  return <path d={`M${x - 7} ${y} l5 5 l9 -11`} fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />;
+}
+
+function Cross({ x, y }: { x: number; y: number }) {
+  return <path d={`M${x - 5} ${y - 6} l10 10 M${x + 5} ${y - 6} l-10 10`} fill="none" stroke={MUTED} strokeWidth={2} strokeLinecap="round" />;
+}
+
+function LicenseDefault() {
+  const rows: Array<[string, boolean]> = [
+    ['смотреть код на странице', true],
+    ['скопировать к себе', false],
+    ['изменить', false],
+    ['раздавать дальше', false],
+    ['использовать в продукте', false],
+  ];
+  return (
+    <Svg h={206} label="Без файла лицензии код можно только смотреть; с MIT можно копировать, менять, раздавать и использовать">
+      <rect x={300} y={6} width={96} height={166} rx={10} fill={PANEL} />
+      <T x={240} y={26} anchor="middle" size={12} weight={600}>без LICENSE</T>
+      <T x={348} y={26} anchor="middle" size={12} weight={600}>MIT</T>
+      {rows.map(([label, withoutOk], i) => {
+        const y = 58 + i * 26;
+        return (
+          <g key={label}>
+            <line x1={4} y1={y - 16} x2={396} y2={y - 16} stroke={LINE} />
+            <T x={8} y={y} size={12}>{label}</T>
+            {withoutOk ? <Check x={240} y={y - 4} /> : <Cross x={240} y={y - 4} />}
+            <Check x={348} y={y - 4} />
+          </g>
+        );
+      })}
+      <T x={8} y={196} size={11} fill={MUTED}>условие MIT: сохранить текст лицензии и копирайт</T>
+    </Svg>
+  );
+}
+
+function LicenseSpectrum() {
+  const items = [
+    { x: 44, name: 'MIT', a: 'сохранить', b: 'уведомление', fill: PAPER },
+    { x: 122, name: 'Apache-2.0', a: '+ патенты', b: 'и NOTICE', fill: PAPER },
+    { x: 200, name: 'MPL-2.0', a: 'открыть', b: 'свои файлы', fill: MUTED },
+    { x: 278, name: 'GPL-3.0', a: 'открыть всё', b: 'при раздаче', fill: INK },
+    { x: 356, name: 'AGPL-3.0', a: 'и при работе', b: 'по сети', fill: INK },
+  ];
+  return (
+    <Svg h={150} label="Шкала лицензий от разрешительных MIT и Apache к копилефту GPL и AGPL">
+      <T x={8} y={22} size={11} weight={600}>разрешительные</T>
+      <T x={392} y={22} anchor="end" size={11} weight={600}>копилефт</T>
+      <Arrow x1={8} y1={50} x2={394} y2={50} />
+      {items.map((it) => (
+        <g key={it.name}>
+          <circle cx={it.x} cy={50} r={8} fill={it.fill} stroke={INK} strokeWidth={2} />
+          <T x={it.x} y={80} anchor="middle" mono size={11} weight={600}>{it.name}</T>
+          <T x={it.x} y={102} anchor="middle" size={10} fill={MUTED}>{it.a}</T>
+          <T x={it.x} y={116} anchor="middle" size={10} fill={MUTED}>{it.b}</T>
+        </g>
+      ))}
+      <T x={200} y={142} anchor="middle" size={11} fill={MUTED}>правее — больше обязательств у тех, кто берёт код</T>
+    </Svg>
+  );
+}
+
+// ---------- тесты ----------
+
+function TestPyramid() {
+  // вершина (110, 20), основание y = 190 от 10 до 210
+  const hw = (y: number): number => (100 * (y - 20)) / 170;
+  const band = (y0: number, y1: number): string =>
+    [[110 - hw(y0), y0], [110 + hw(y0), y0], [110 + hw(y1), y1], [110 - hw(y1), y1]].map((p) => p.join(',')).join(' ');
+  const notes = [
+    { y: 50, a: 'мало, минуты', b: 'вся система целиком' },
+    { y: 106, a: 'десятки, секунды', b: 'модули вместе' },
+    { y: 162, a: 'сотни, миллисекунды', b: 'одна функция' },
+  ];
+  return (
+    <Svg h={200} label="Пирамида тестов: много модульных внизу, меньше интеграционных, немного сквозных сверху">
+      <polygon points={band(20, 77)} fill={PANEL} stroke={INK} strokeWidth={1.5} />
+      <polygon points={band(77, 134)} fill={MUTED} stroke={INK} strokeWidth={1.5} />
+      <polygon points={band(134, 190)} fill={INK} stroke={INK} strokeWidth={1.5} />
+      <T x={110} y={66} anchor="middle" size={11} weight={600}>e2e</T>
+      <T x={110} y={112} anchor="middle" size={11} weight={600} fill={PAPER}>интеграционные</T>
+      <T x={110} y={168} anchor="middle" size={12} weight={600} fill={PAPER}>модульные</T>
+      {notes.map((n) => (
+        <g key={n.a}>
+          <line x1={214} y1={n.y + 3} x2={222} y2={n.y + 3} stroke={LINE} />
+          <T x={226} y={n.y} size={11}>{n.a}</T>
+          <T x={226} y={n.y + 14} size={11} fill={MUTED}>{n.b}</T>
+        </g>
+      ))}
+    </Svg>
+  );
+}
+
+function TestRiskMap() {
+  const X0 = 30, X1 = 394, Y0 = 26, Y1 = 206, MX = (X0 + X1) / 2, MY = (Y0 + Y1) / 2;
+  const dots = [
+    { x: 330, y: 50, t: 'оплата' },
+    { x: 280, y: 84, t: 'права доступа' },
+    { x: 90, y: 66, t: 'миграции БД' },
+    { x: 260, y: 152, t: 'формат дат' },
+    { x: 70, y: 160, t: 'страница «О нас»' },
+  ];
+  return (
+    <Svg h={236} label="Карта рисков: чем чаще меняется код и дороже ошибка, тем раньше его стоит покрыть тестами">
+      <T x={X0} y={16} size={11} fill={MUTED}>↑ цена ошибки</T>
+      <rect x={MX} y={Y0} width={X1 - MX} height={MY - Y0} fill={INK} />
+      <rect x={X0} y={Y0} width={X1 - X0} height={Y1 - Y0} fill="none" stroke={INK} strokeWidth={1.5} />
+      <line x1={MX} y1={Y0} x2={MX} y2={Y1} stroke={INK} strokeWidth={1} />
+      <line x1={X0} y1={MY} x2={X1} y2={MY} stroke={INK} strokeWidth={1} />
+      <T x={MX + 10} y={Y0 + 18} size={11} weight={600} fill={PAPER}>тестировать первым</T>
+      <T x={X0 + 10} y={Y0 + 18} size={11} weight={600}>пара надёжных тестов</T>
+      <T x={MX + 10} y={MY + 18} size={11} weight={600}>быстрые проверки</T>
+      <T x={X0 + 10} y={MY + 18} size={11} weight={600}>можно подождать</T>
+      {dots.map((d) => {
+        const dark = d.x > MX && d.y < MY;
+        return (
+          <g key={d.t}>
+            <circle cx={d.x} cy={d.y + 10} r={3.5} fill={dark ? PAPER : INK} />
+            <T x={d.x + 8} y={d.y + 14} size={10} fill={dark ? 'var(--line-2)' : MUTED}>{d.t}</T>
+          </g>
+        );
+      })}
+      <T x={X1} y={226} anchor="end" size={11} fill={MUTED}>как часто меняется код →</T>
+    </Svg>
+  );
+}
+
+function FlakyTrust() {
+  // p — прошёл, m — случайное падение, i — настоящая ошибка
+  const before = 'ppmpmpimppmp';
+  const after = 'pppppppipppp';
+  const row = (y: number, pattern: string) =>
+    pattern.split('').map((k, i) => (
+      <rect
+        key={i}
+        x={16 + i * 31}
+        y={y}
+        width={24}
+        height={22}
+        rx={4}
+        fill={k === 'p' ? PAPER : k === 'm' ? MUTED : INK}
+        stroke={INK}
+        strokeWidth={1.5}
+      />
+    ));
+  return (
+    <Svg h={206} label="Две ленты прогонов CI: с нестабильными тестами настоящая ошибка тонет среди случайных падений, после карантина она заметна сразу">
+      <T x={16} y={18} size={12} weight={600}>С нестабильными тестами</T>
+      {row(28, before)}
+      <path d={`M${16 + 6 * 31 + 12} 54 v8`} stroke={INK} strokeWidth={1.5} />
+      <T x={16} y={78} size={11} fill={MUTED}>настоящее падение теряется среди случайных</T>
+      <T x={16} y={108} size={12} weight={600}>После карантина</T>
+      {row(118, after)}
+      <T x={16} y={162} size={11} fill={MUTED}>красное редко, и его разбирают сразу</T>
+      <rect x={16} y={180} width={14} height={14} rx={3} fill={MUTED} stroke={INK} />
+      <T x={36} y={192} size={11}>случайное падение</T>
+      <rect x={180} y={180} width={14} height={14} rx={3} fill={INK} />
+      <T x={200} y={192} size={11}>настоящая ошибка</T>
+    </Svg>
+  );
+}
+
+// ---------- pull request ----------
+
+function PrSizeAttention() {
+  const bars = [
+    { l: '50', v: 1 },
+    { l: '200', v: 0.72 },
+    { l: '400', v: 0.46 },
+    { l: '800', v: 0.26 },
+    { l: '1500+', v: 0.12 },
+  ];
+  return (
+    <Svg h={200} label="Условная схема: чем больше pull request, тем меньше внимания ревьюера достаётся каждой строке">
+      <T x={4} y={16} size={11} fill={MUTED}>внимание ревьюера на строку, условно</T>
+      <line x1={24} y1={160} x2={396} y2={160} stroke={INK} strokeWidth={1.5} />
+      {bars.map((b, i) => {
+        const x = 40 + i * 72;
+        const h = 120 * b.v;
+        return (
+          <g key={b.l}>
+            <rect x={x} y={160 - h} width={44} height={h} rx={4} fill={i === 0 ? INK : i < 3 ? MUTED : PANEL} stroke={INK} strokeWidth={1.2} />
+            <T x={x + 22} y={178} anchor="middle" mono size={11}>{b.l}</T>
+          </g>
+        );
+      })}
+      <T x={200} y={196} anchor="middle" size={11} fill={MUTED}>размер pull request, строк</T>
+    </Svg>
+  );
+}
+
+function PrSplit() {
+  const steps = [
+    { n: '#1', a: 'чистка', b: 'без логики', s: '300 строк' },
+    { n: '#2', a: 'модель', b: 'и миграция', s: '250 строк' },
+    { n: '#3', a: 'API', b: 'и тесты', s: '400 строк' },
+    { n: '#4', a: 'интерфейс', b: '', s: '450 строк' },
+  ];
+  return (
+    <Svg h={200} label="Большой pull request на 1400 строк разбит на четыре последовательных поменьше">
+      <rect x={4} y={6} width={392} height={34} rx={8} fill={INK} />
+      <T x={200} y={28} anchor="middle" size={12} fill={PAPER}>один PR на 1400 строк: одобрят не глядя</T>
+      <Arrow x1={200} y1={44} x2={200} y2={68} />
+      {steps.map((st, i) => {
+        const x = 4 + i * 102;
+        return (
+          <g key={st.n}>
+            <rect x={x} y={74} width={84} height={82} rx={8} fill={PANEL} stroke={INK} strokeWidth={1.5} />
+            <T x={x + 8} y={92} size={12} weight={600}>{st.n}</T>
+            <T x={x + 8} y={110} size={10}>{st.a}</T>
+            {st.b && <T x={x + 8} y={124} size={10}>{st.b}</T>}
+            <T x={x + 8} y={146} mono size={10} fill={MUTED}>{st.s}</T>
+            {i < 3 && <Arrow x1={x + 86} y1={115} x2={x + 100} y2={115} />}
+          </g>
+        );
+      })}
+      <T x={200} y={186} anchor="middle" size={11} fill={MUTED}>каждый проверяют за один подход и вливают по очереди</T>
+    </Svg>
+  );
+}
+
+// ---------- CI ----------
+
+function CiTrustMap() {
+  const inputs = [
+    { t: 'ваш код', own: true },
+    { t: 'сторонние шаги', own: false },
+    { t: 'пакеты из реестра', own: false },
+    { t: 'базовый образ', own: false },
+  ];
+  const outputs = ['прод', 'реестр пакетов'];
+  return (
+    <Svg h={250} label="CI-задача получает на вход ваш код, сторонние шаги, пакеты и образ, видит секреты и пишет в прод и реестр">
+      {inputs.map((inp, i) => {
+        const y = 12 + i * 52;
+        return (
+          <g key={inp.t}>
+            <rect x={4} y={y} width={124} height={36} rx={8} fill={PAPER} stroke={INK} strokeWidth={1.5} strokeDasharray={inp.own ? undefined : '5 3'} />
+            <T x={66} y={y + 22} anchor="middle" size={11}>{inp.t}</T>
+            <Arrow x1={130} y1={y + 18} x2={158} y2={96 + i * 12} dashed={!inp.own} />
+          </g>
+        );
+      })}
+      <rect x={160} y={80} width={96} height={70} rx={10} fill={INK} />
+      <T x={208} y={106} anchor="middle" size={12} weight={600} fill={PAPER}>CI-задача</T>
+      <T x={208} y={124} anchor="middle" size={10} fill={PAPER}>видит секреты</T>
+      <T x={208} y={138} anchor="middle" size={10} fill={PAPER}>и токен</T>
+      {outputs.map((o, i) => {
+        const y = 62 + i * 70;
+        return (
+          <g key={o}>
+            <Arrow x1={258} y1={104 + i * 22} x2={284} y2={y + 18} />
+            <rect x={286} y={y} width={110} height={36} rx={8} fill={PANEL} stroke={INK} strokeWidth={1.5} />
+            <T x={341} y={y + 22} anchor="middle" size={11}>{o}</T>
+          </g>
+        );
+      })}
+      <rect x={4} y={226} width={26} height={14} rx={3} fill="none" stroke={INK} strokeDasharray="5 3" />
+      <T x={38} y={237} size={11} fill={MUTED}>чужой код, который исполняется с вашими правами</T>
+    </Svg>
+  );
+}
+
+function PinTagVsSha() {
+  return (
+    <Svg h={190} label="Тег v4 после подмены указывает на вредный коммит, ссылка по хешу остаётся на проверенном">
+      <rect x={4} y={24} width={170} height={36} rx={8} fill={PANEL} stroke={INK} strokeWidth={1.5} />
+      <T x={16} y={46} mono size={11}>uses: tool@v4</T>
+      <rect x={4} y={124} width={170} height={36} rx={8} fill={INK} />
+      <T x={16} y={146} mono size={11} fill={PAPER}>uses: tool@a1b2c3d</T>
+      <circle cx={290} cy={42} r={10} fill={INK} />
+      <T x={290} y={47} anchor="middle" size={12} weight={700} fill={PAPER}>!</T>
+      <T x={308} y={38} mono size={11}>e9f0a17</T>
+      <T x={308} y={54} size={10} fill={MUTED}>с бэкдором</T>
+      <circle cx={290} cy={142} r={10} fill={PAPER} stroke={INK} strokeWidth={2} />
+      <T x={308} y={138} mono size={11}>a1b2c3d</T>
+      <T x={308} y={154} size={10} fill={MUTED}>проверен</T>
+      <Arrow x1={176} y1={42} x2={278} y2={42} />
+      <T x={226} y={34} anchor="middle" size={10} fill={MUTED}>стало</T>
+      <Arrow x1={176} y1={52} x2={280} y2={134} dashed />
+      <T x={206} y={100} size={10} fill={MUTED}>было</T>
+      <Arrow x1={176} y1={142} x2={278} y2={142} />
+      <T x={226} y={134} anchor="middle" size={10} fill={MUTED}>всегда</T>
+      <T x={4} y={184} size={11} fill={MUTED}>тег можно перевесить, хеш коммита — нельзя</T>
+    </Svg>
+  );
+}
+
+function TokenScope() {
+  const jobs = ['тесты', 'линтер', 'деплой'];
+  const cell = (x: number, y: number, a: string, b: string, dark: boolean) => (
+    <g>
+      <rect x={x} y={y} width={80} height={42} rx={8} fill={dark ? INK : PAPER} stroke={INK} strokeWidth={1.5} />
+      <T x={x + 40} y={y + 18} anchor="middle" mono size={10} fill={dark ? PAPER : INK}>{a}</T>
+      <T x={x + 40} y={y + 32} anchor="middle" mono size={10} fill={dark ? PAPER : MUTED}>{b}</T>
+    </g>
+  );
+  return (
+    <Svg h={196} label="По умолчанию у всех задач полный доступ и все секреты; по минимуму секреты видит только деплой">
+      {jobs.map((j, i) => (
+        <T key={j} x={170 + i * 90} y={20} anchor="middle" size={12} weight={600}>{j}</T>
+      ))}
+      <T x={4} y={60} size={11}>по умолчанию</T>
+      <T x={4} y={128} size={11}>по минимуму</T>
+      {jobs.map((j, i) => (
+        <g key={j}>
+          {cell(130 + i * 90, 34, 'write-all', 'все секреты', true)}
+          {i < 2 ? cell(130 + i * 90, 102, 'read', 'без секретов', false) : cell(130 + i * 90, 102, 'deploy', '1 секрет', true)}
+        </g>
+      ))}
+      <T x={200} y={176} anchor="middle" size={11} fill={MUTED}>утечка из тестов больше не даёт доступа к проду</T>
+    </Svg>
+  );
+}
+
 const FIGURES: Record<FigureId, () => ReactNode> = {
   'secret-history': SecretHistory,
   'secret-flow': SecretFlow,
@@ -382,6 +771,19 @@ const FIGURES: Record<FigureId, () => ReactNode> = {
   'bus-factor-share': BusFactorShare,
   'activity-shapes': ActivityShapes,
   'metric-loop': MetricLoop,
+  'commit-anatomy': CommitAnatomy,
+  'commit-log-compare': CommitLogCompare,
+  'atomic-commits': AtomicCommits,
+  'license-default': LicenseDefault,
+  'license-spectrum': LicenseSpectrum,
+  'test-pyramid': TestPyramid,
+  'test-risk-map': TestRiskMap,
+  'flaky-trust': FlakyTrust,
+  'pr-size-attention': PrSizeAttention,
+  'pr-split': PrSplit,
+  'ci-trust-map': CiTrustMap,
+  'pin-tag-vs-sha': PinTagVsSha,
+  'token-scope': TokenScope,
 };
 
 export function Figure({ id }: { id: FigureId }) {

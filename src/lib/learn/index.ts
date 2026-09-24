@@ -1,15 +1,30 @@
 // Каталог статей и фильтры списка. Всё считается на сервере из объектов в коде.
 
+import { ciSupplyChain } from './articles/ci-supply-chain';
+import { commitsWorthReading } from './articles/commits-worth-reading';
 import { dependenciesWithoutSurprises } from './articles/dependencies-without-surprises';
 import { healthMetricsThatDontLie } from './articles/health-metrics-that-dont-lie';
+import { licenseInFiveMinutes } from './articles/license-in-five-minutes';
 import { readmeFirstScreen } from './articles/readme-first-screen';
 import { secretsInGit } from './articles/secrets-in-git';
+import { smallPullRequests } from './articles/small-pull-requests';
+import { testsYouCanTrust } from './articles/tests-you-can-trust';
 import { readingMinutes, timeBucket, type TimeBucket } from './reading-time';
 import { LEVELS, type Article, type Level } from './types';
 
 export type ArticleSummary = Omit<Article, 'body'> & { minutes: number };
 
-const ALL: Article[] = [secretsInGit, readmeFirstScreen, dependenciesWithoutSurprises, healthMetricsThatDontLie];
+const ALL: Article[] = [
+  secretsInGit,
+  readmeFirstScreen,
+  commitsWorthReading,
+  licenseInFiveMinutes,
+  dependenciesWithoutSurprises,
+  testsYouCanTrust,
+  smallPullRequests,
+  healthMetricsThatDontLie,
+  ciSupplyChain,
+];
 
 function summarize(article: Article): ArticleSummary {
   const { body, ...rest } = article;

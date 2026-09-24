@@ -82,6 +82,8 @@ const GLYPHS: Record<string, readonly string[]> = {
   M: ['#.#', '###', '###', '#.#', '#.#'],
   '!': ['#', '#', '#', '.', '#'],
   '?': ['##.', '..#', '.#.', '...', '.#.'],
+  I: ['###', '.#.', '.#.', '.#.', '###'],
+  T: ['###', '.#.', '.#.', '.#.', '.#.'],
 };
 
 function text(c: Ctx, s: string, x: number, y: number): void {
@@ -391,9 +393,340 @@ const busPulse: Scene = {
   },
 };
 
+// ---------- следы: путник идёт, над ним растёт история коммитов ----------
+
+const RING = ['.###.', '#...#', '#...#', '#...#', '.###.'];
+const DOT = ['.###.', '#####', '#####', '#####', '.###.'];
+const NODES = [14, 38, 62, 86, 110];
+const TRACK_Y = 12;
+const firstWalkX = (f: number): number => -6 + 132 * prog(f, 0, 70);
+const secondWalkX = (f: number): number => -6 + 132 * prog(f, 80, 150);
+/** Кадр, на котором первый путник дошёл до узла x (центр спрайта — x + 2). */
+const reachFrame = (x: number): number => (70 * (x + 4)) / 132;
+
+const footprints: Scene = {
+  frames: 168,
+  still: 118,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, 49);
+    const w1 = firstWalkX(f);
+    const w2 = secondWalkX(f);
+    // следы на снегу остаются позади первого путника
+    paper(c);
+    for (let x = 1; x < Math.min(w1, SW); x += 5) px(c, x, x % 10 < 5 ? 47 : 48, 2, 1);
+    // линия истории до последнего узла и пунктирная «голова» к путнику
+    const reached = NODES.filter((x) => f >= reachFrame(x));
+    const lastNode = reached[reached.length - 1];
+    if (lastNode !== undefined) {
+      line(c, NODES[0] ?? 0, TRACK_Y + 2, lastNode, TRACK_Y + 2);
+      if (f < 72) line(c, lastNode, TRACK_Y + 2, Math.min(w1 + 2, SW - 1), TRACK_Y + 2, 2);
+    }
+    for (const x of reached) {
+      const age = f - reachFrame(x);
+      // колышек от узла к земле — где был сделан шаг
+      paper(c);
+      line(c, x, TRACK_Y + 6, x, 45, 2);
+      ink(c);
+      px(c, x - 2, TRACK_Y, 5, 5);
+      paper(c);
+      const read = f >= 80 && w2 + 2 >= x;
+      sprite(c, read ? DOT : RING, x - 2, TRACK_Y);
+      if (age < 3) {
+        px(c, x, TRACK_Y - 3); px(c, x, TRACK_Y + 7); px(c, x - 4, TRACK_Y + 2); px(c, x + 4, TRACK_Y + 2);
+      }
+      if (read && w2 + 2 - x < 4) { px(c, x - 4, TRACK_Y - 2); px(c, x + 4, TRACK_Y - 2); }
+    }
+    if (f < 72) walker(c, w1, 48, f, true);
+    if (f >= 80 && f < 152) walker(c, w2, 48, f, true);
+    curtain(c, prog(f, 152, 166));
+  },
+};
+
+// ---------- обрыв: сверху падает доска-лицензия, по ней проходят все ----------
+
+const GAP = { x0: 50, x1: 74 };
+const PLANK = { x: 48, w: 28, h: 7 };
+
+const bridge: Scene = {
+  frames: 180,
+  still: 118,
+  draw(c, f) {
+    clear(c);
+    paper(c);
+    px(c, 0, 49, GAP.x0, 1);
+    px(c, GAP.x1, 49, SW - GAP.x1, 1);
+    dither(c, 0, 51, GAP.x0, 9);
+    dither(c, GAP.x1 + 1, 51, SW - GAP.x1 - 1, 9);
+    px(c, GAP.x0 - 1, 49, 1, 11);
+    px(c, GAP.x1, 49, 1, 11);
+    // доска с MIT падает в обрыв и встаёт мостом
+    if (f >= 44) {
+      let y = 49;
+      if (f < 56) y = -8 + 57 * easeIn(prog(f, 44, 56));
+      else if (f < 60) y = 49 - Math.round(2 * Math.sin(Math.PI * prog(f, 56, 60)));
+      paper(c);
+      px(c, PLANK.x, y, PLANK.w, PLANK.h);
+      ink(c);
+      text(c, 'MIT', PLANK.x + 9, y + 1);
+      if (f >= 56 && f < 60) {
+        paper(c);
+        px(c, PLANK.x - 3, 47); px(c, PLANK.x - 5, 45); px(c, PLANK.x + PLANK.w + 2, 47); px(c, PLANK.x + PLANK.w + 4, 45);
+      }
+    }
+    // первый путник доходит до края, ждёт и переходит
+    if (f < 30) walker(c, -6 + 48 * (f / 30), 48, f, true);
+    else if (f < 62) {
+      walker(c, 42, 48, f, false);
+      if (f < 44 && Math.floor(f / 3) % 2) { paper(c); text(c, '?', 43, 33); }
+    } else if (f < 100) walker(c, 42 + 84 * prog(f, 62, 100), 48, f, true);
+    // за ним — остальные, уже не останавливаясь
+    if (f >= 92 && f < 146) walker(c, -6 + 132 * prog(f, 92, 146), 48, f, true);
+    if (f >= 108 && f < 162) walker(c, -6 + 132 * prog(f, 108, 162), 48, f + 1, true);
+    curtain(c, prog(f, 162, 176));
+  },
+};
+
+// ---------- канатоходец: срывается, сетка ловит и возвращает на канат ----------
+
+const ACRO = ['.#.', '###', '.#.', '.#.', '#.#'];
+const ROPE_Y = 18;
+const NET_Y = 46;
+const FALL_X = 58;
+
+function netSag(f: number): number {
+  return f >= 62 && f < 76 ? 5 * Math.sin(Math.PI * prog(f, 62, 76)) : 0;
+}
+
+/** Где стоят ноги канатоходца и насколько наклонён шест. */
+function acrobat(f: number): { x: number; feet: number; tilt: number; cheer: boolean } {
+  const onRope = ROPE_Y - 1;
+  if (f < 40) return { x: 14 + (FALL_X - 14) * prog(f, 0, 40), feet: onRope, tilt: 0, cheer: false };
+  if (f < 50) return { x: FALL_X, feet: onRope, tilt: Math.round(Math.sin(f * 1.4) * 2 * (1 + prog(f, 40, 50))), cheer: false };
+  if (f < 62) return { x: FALL_X, feet: onRope + (NET_Y - ROPE_Y) * easeIn(prog(f, 50, 62)), tilt: f % 2 ? 3 : -3, cheer: false };
+  if (f < 74) return { x: FALL_X, feet: NET_Y - 1 + netSag(f), tilt: 0, cheer: false };
+  if (f < 90) return { x: FALL_X, feet: NET_Y - 1 - (NET_Y - ROPE_Y) * easeOut(prog(f, 74, 90)), tilt: 0, cheer: false };
+  if (f < 126) return { x: FALL_X + 46 * prog(f, 90, 126), feet: onRope, tilt: 0, cheer: false };
+  return { x: 104, feet: onRope, tilt: 0, cheer: true };
+}
+
+const tightrope: Scene = {
+  frames: 160,
+  still: 70,
+  draw(c, f) {
+    clear(c);
+    paper(c);
+    // столбы
+    px(c, 8, ROPE_Y, 3, SH - ROPE_Y); px(c, 6, ROPE_Y - 1, 7, 1);
+    px(c, 109, ROPE_Y, 3, SH - ROPE_Y); px(c, 107, ROPE_Y - 1, 7, 1);
+    const a = acrobat(f);
+    const onRope = Math.round(a.feet) === ROPE_Y - 1;
+    // канат прогибается под человеком и дрожит, когда тот сорвался
+    const shake = f >= 50 && f < 74 ? Math.round(2 * Math.sin(f * 1.3) * (1 - prog(f, 50, 74))) : 0;
+    const midX = onRope ? Math.round(a.x + 1) : FALL_X + 1;
+    const midY = onRope ? ROPE_Y + 1 : ROPE_Y + shake;
+    line(c, 11, ROPE_Y, midX, midY);
+    line(c, midX, midY, 108, ROPE_Y);
+    // сетка: ячейки крестом, провисает в месте падения
+    const sag = netSag(f);
+    line(c, 11, NET_Y - 6, 14, NET_Y);
+    line(c, 108, NET_Y - 6, 105, NET_Y);
+    for (let x = 14; x <= 105; x++) {
+      const y = NET_Y + Math.round(sag * Math.max(0, 1 - Math.abs(x - FALL_X) / 34));
+      px(c, x, y);
+      for (let j = 1; j <= 3; j++) if ((x + j) % 4 === 0 || (x - j) % 4 === 0) px(c, x, y + j);
+    }
+    // человек и шест
+    const top = Math.round(a.feet) - 4;
+    const ax = Math.round(a.x);
+    sprite(c, ACRO, ax, top);
+    if (a.cheer && Math.floor(f / 6) % 2) line(c, ax - 5, top - 2, ax + 7, top - 2);
+    else line(c, ax - 5, top + 1 + a.tilt, ax + 7, top + 1 - a.tilt);
+    if (f >= 44 && f < 62 && Math.floor(f / 3) % 2) text(c, '!', ax + 1, top - 9);
+    curtain(c, prog(f, 144, 158));
+  },
+};
+
+// ---------- рамка ревью: мелкие посылки проходят, большой ящик застревает ----------
+
+const BELT_Y = 44;
+const BELT_END = 106;
+const GATE = { l: 66, r: 77, beam: 22 };
+const SPEED = 1.5;
+const CHECK = ['....#', '...#.', '#.#..', '.#...'];
+
+type Parcel = { x: number; y: number; w: number; h: number };
+
+function drawParcel(c: Ctx, p: Parcel): void {
+  paper(c);
+  px(c, p.x, p.y, p.w, p.h);
+  ink(c);
+  px(c, p.x + 1, p.y + Math.floor(p.h / 2), p.w - 2, 1);
+}
+
+/** Посылка на ленте: едет вправо, за краем ленты падает в корзину. */
+function beltParcel(x: number): Parcel | null {
+  if (x > SW) return null;
+  if (x <= BELT_END) return { x, y: BELT_Y - 5, w: 6, h: 5 };
+  const t = (x - BELT_END) / SPEED;
+  const y = BELT_Y - 5 + 0.3 * t * t;
+  return y > SH ? null : { x, y, w: 6, h: 5 };
+}
+
+const CRATE_STOP = GATE.l - 2 - 24;
+const CRATE_ARRIVE = 50 + (CRATE_STOP + 26) / SPEED;
+const SPLIT_AT = 116;
+const PIECES_X = [24, 34, 44, 54];
+
+const parcelSlot: Scene = {
+  frames: 192,
+  still: 100,
+  draw(c, f) {
+    clear(c);
+    paper(c);
+    // лента и корзина
+    px(c, 0, BELT_Y, BELT_END + 6, 1);
+    px(c, 0, BELT_Y + 3, BELT_END + 6, 1);
+    const shift = Math.floor(f * SPEED);
+    for (let x = 0; x < BELT_END + 6; x++) if ((x - shift + 600) % 6 < 3) px(c, x, BELT_Y + 1, 1, 2);
+    dither(c, 0, BELT_Y + 6, BELT_END + 6, SH - BELT_Y - 6);
+    px(c, 110, 50, 1, 10); px(c, 119, 50, 1, 10);
+    // рамка сканера
+    px(c, GATE.l, GATE.beam, 1, BELT_Y - GATE.beam);
+    px(c, GATE.r, GATE.beam, 1, BELT_Y - GATE.beam);
+    px(c, GATE.l - 2, GATE.beam - 3, GATE.r - GATE.l + 5, 3);
+
+    const parcels: Parcel[] = [];
+    for (const t of [0, 14, 28]) {
+      if (f < t) continue;
+      const p = beltParcel(-8 + SPEED * (f - t));
+      if (p) parcels.push(p);
+    }
+    let crate: Parcel | null = null;
+    if (f >= 50 && f < SPLIT_AT) {
+      let x = Math.min(CRATE_STOP, -26 + SPEED * (f - 50));
+      if (f >= CRATE_ARRIVE && f < CRATE_ARRIVE + 10) x += f % 2 ? 1 : -1;
+      crate = { x, y: BELT_Y - 20, w: 24, h: 20 };
+    }
+    // ящик разваливается на четыре посылки, и они едут дальше
+    if (f >= SPLIT_AT) {
+      PIECES_X.forEach((tx, i) => {
+        const k = easeOut(prog(f, SPLIT_AT, SPLIT_AT + 8));
+        const sx = CRATE_STOP + (i % 2) * 12, sy = BELT_Y - 20 + Math.floor(i / 2) * 10;
+        if (f < SPLIT_AT + 8) {
+          parcels.push({ x: sx + (tx - sx) * k, y: sy + (BELT_Y - 5 - sy) * k, w: Math.round(12 - 6 * k), h: Math.round(10 - 5 * k) });
+        } else {
+          const p = beltParcel(tx + SPEED * (f - SPLIT_AT - 8));
+          if (p) parcels.push(p);
+        }
+      });
+    }
+
+    // луч горит, пока под рамкой посылка
+    const scanned = parcels.find((p) => p.w === 6 && p.x + 3 >= GATE.l && p.x + 3 <= GATE.r);
+    if (scanned) {
+      paper(c);
+      px(c, GATE.l + 3, GATE.beam - 5, 5, 2);
+      for (let y = GATE.beam; y < scanned.y - 1; y += 2) px(c, GATE.l + 5, y + (f % 2));
+    }
+    // галочка над рамкой — посылка только что прошла
+    if (parcels.some((p) => p.w === 6 && p.x > GATE.r && p.x < GATE.r + 12)) { paper(c); sprite(c, CHECK, GATE.l + 3, 8); }
+    for (const p of parcels) drawParcel(c, p);
+    if (crate) {
+      paper(c);
+      px(c, crate.x, crate.y, crate.w, crate.h);
+      ink(c);
+      px(c, crate.x + 2, crate.y + 2, crate.w - 4, 1);
+      px(c, crate.x + 2, crate.y + crate.h - 3, crate.w - 4, 1);
+      line(c, crate.x + 3, crate.y + 4, crate.x + crate.w - 4, crate.y + crate.h - 5);
+      line(c, crate.x + crate.w - 4, crate.y + 4, crate.x + 3, crate.y + crate.h - 5);
+      if (f >= CRATE_ARRIVE && Math.floor(f / 3) % 2) { paper(c); text(c, '!', GATE.l + 5, 8); }
+    }
+    curtain(c, prog(f, 178, 190));
+  },
+};
+
+// ---------- цепь: груз поднимают, слабое звено запирают замком ----------
+
+const LINK = ['.#.', '#.#', '#.#', '#.#', '.#.'];
+const LOCK = ['.###.', '#...#', '#####', '##.##', '#####'];
+const BOX_X = 52;
+const WEAK = 2;
+
+function boxTop(f: number): number {
+  if (f < 20) return 38;
+  if (f < 106) return 38 - 6 * prog(f, 20, 60);
+  return 32 - 8 * prog(f, 106, 150);
+}
+
+const chainLift: Scene = {
+  frames: 180,
+  still: 112,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, 50);
+    paper(c);
+    // балка на двух фермах и блок
+    px(c, 20, 3, 80, 2);
+    for (let y = 5; y < 50; y += 3) { px(c, 21, y); px(c, 98, y); }
+    for (let y = 6; y < 50; y += 3) { px(c, 23, y); px(c, 96, y); }
+    sprite(c, RING, 58, 5);
+    const top = Math.round(boxTop(f));
+    const jitter = f >= 60 && f < 84 ? (f % 2 ? 1 : -1) : 0;
+    const fixed = f >= 100;
+    // звенья считаем от груза вверх — так они едут вместе с ним
+    let weakY = -99;
+    for (let k = 0; ; k++) {
+      const y = top - 5 - 4 * k;
+      if (y < 10) break;
+      const x = 59 + jitter;
+      paper(c);
+      if (k === WEAK) weakY = y;
+      if (k % 2 === 1 && k !== WEAK) { px(c, x + 1, y, 1, 5); continue; }
+      if (k !== WEAK || fixed) { sprite(c, LINK, x, y); continue; }
+      // слабое звено: полутон, а когда начинает рваться — ещё и разомкнуто
+      const open = f >= 60 && Math.floor(f / 3) % 2 === 0;
+      LINK.forEach((row, j) => {
+        for (let i = 0; i < row.length; i++) {
+          if (row[i] !== '#' || ((i + j) % 2 !== 0 && !open) || (open && i === 2)) continue;
+          px(c, x + i, y + j);
+        }
+      });
+      if (f >= 60 && f < 84 && Math.floor(f / 3) % 2) text(c, '!', x + 6, y - 1);
+    }
+    // груз
+    paper(c);
+    px(c, BOX_X + jitter, top, 16, 12);
+    ink(c);
+    px(c, BOX_X + jitter, top + 3, 16, 1);
+    px(c, BOX_X + 6 + jitter, top + 6, 4, 3);
+    // замок подлетает справа и защёлкивается на слабом звене
+    if (f >= 84 && weakY > 0) {
+      const lx = f < 100 ? 120 - (120 - 63) * easeOut(prog(f, 84, 100)) : 63;
+      paper(c);
+      sprite(c, LOCK, lx, weakY);
+      if (f >= 100 && f < 105) {
+        const r = 3 + (f - 100) * 2;
+        for (let a = 0; a < 8; a++) px(c, 65 + Math.cos(a * 0.785) * r, weakY + 2 + Math.sin(a * 0.785) * r);
+      }
+    }
+    if (f >= 150 && f < 164 && Math.floor(f / 2) % 2) {
+      paper(c);
+      sprite(c, ['.#.', '###', '.#.'], BOX_X - 6, top + 2);
+      sprite(c, ['.#.', '###', '.#.'], BOX_X + 19, top + 6);
+    }
+    curtain(c, prog(f, 164, 178));
+  },
+};
+
 export const SCENES: Record<SceneId, Scene> = {
   'tank-wall': tankWall,
   signpost,
   'block-tower': blockTower,
   'bus-pulse': busPulse,
+  footprints,
+  bridge,
+  tightrope,
+  'parcel-slot': parcelSlot,
+  'chain-lift': chainLift,
 };
