@@ -84,6 +84,9 @@ const GLYPHS: Record<string, readonly string[]> = {
   '?': ['##.', '..#', '.#.', '...', '.#.'],
   I: ['###', '.#.', '.#.', '.#.', '###'],
   T: ['###', '.#.', '.#.', '.#.', '.#.'],
+  '1': ['.#.', '##.', '.#.', '.#.', '###'],
+  '2': ['##.', '..#', '.#.', '#..', '###'],
+  '3': ['##.', '..#', '.#.', '..#', '##.'],
 };
 
 function text(c: Ctx, s: string, x: number, y: number): void {
@@ -719,6 +722,547 @@ const chainLift: Scene = {
   },
 };
 
+// ---------- общее для экшен-сцен ----------
+
+/** Разлёт осколков: n точек по кругу, радиус растёт с возрастом вспышки. */
+function burst(c: Ctx, x: number, y: number, age: number, n = 8, speed = 1.6): void {
+  if (age < 0 || age > 8) return;
+  paper(c);
+  for (let a = 0; a < n; a++) {
+    const ang = (a / n) * Math.PI * 2 + a * 0.3;
+    const r = 1 + age * speed * (0.7 + rand(a) * 0.6);
+    px(c, x + Math.cos(ang) * r, y + Math.sin(ang) * r);
+  }
+}
+
+/** Текст вдвое крупнее — для цифр обратного отсчёта. */
+function bigText(c: Ctx, s: string, x: number, y: number): void {
+  let cx = x;
+  for (const ch of s) {
+    const g = GLYPHS[ch];
+    if (!g) { cx += 8; continue; }
+    g.forEach((row, j) => {
+      for (let i = 0; i < row.length; i++) if (row[i] === '#') px(c, cx + i * 2, y + j * 2, 2, 2);
+    });
+    cx += (g[0]?.length ?? 0) * 2 + 2;
+  }
+}
+
+/** Кусочно-линейная траектория по опорным точкам [кадр, значение]. */
+function track(points: Array<[number, number]>, f: number): number {
+  const first = points[0];
+  if (!first) return 0;
+  if (f <= first[0]) return first[1];
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    if (a && b && f <= b[0]) return a[1] + (b[1] - a[1]) * prog(f, a[0], b[0]);
+  }
+  return points[points.length - 1]?.[1] ?? 0;
+}
+
+// ---------- космический тир: корабль сбивает мусор, нужный файл ловит ----------
+
+const SHIP = ['...#...', '..###..', '.#####.', '#######', '##.#.##'];
+const JUNK = [
+  ['####', '#..#', '####', '#..#'],
+  ['.##.', '####', '####', '.##.'],
+  ['#.#.', '.#.#', '#.#.', '.#.#'],
+];
+const KEEP = ['###.', '#.##', '#..#', '####'];
+const SHIP_Y = 51;
+const FALL = 0.5;
+const BULLET = 3;
+type Target = { spawn: number; x: number; shot?: number; kind: number };
+const TARGETS: Target[] = [
+  { spawn: 0, x: 20, shot: 30, kind: 0 },
+  { spawn: 10, x: 70, shot: 50, kind: 1 },
+  { spawn: 40, x: 45, kind: -1 },
+  { spawn: 60, x: 95, shot: 90, kind: 2 },
+  { spawn: 80, x: 30, shot: 112, kind: 0 },
+  { spawn: 100, x: 80, shot: 132, kind: 1 },
+];
+const SHIP_PATH: Array<[number, number]> = [
+  [0, 50], [26, 20], [30, 20], [46, 70], [50, 70], [86, 95], [90, 95],
+  [108, 30], [112, 30], [128, 80], [132, 80], [142, 45], [180, 45],
+];
+const fallY = (t: Target, f: number): number => -6 + FALL * (f - t.spawn);
+/** Кадр встречи пули и цели: пуля летит вверх от носа, цель падает. */
+const hitFrame = (t: Target): number => (SHIP_Y - 5 + 6 + BULLET * (t.shot ?? 0) + FALL * t.spawn) / (BULLET + FALL);
+
+const spaceShooter: Scene = {
+  frames: 192,
+  still: 42,
+  draw(c, f) {
+    clear(c);
+    paper(c);
+    for (let i = 0; i < 18; i++) {
+      const y = (rand(i) * 60 + f * (0.4 + (i % 3) * 0.3)) % 60;
+      px(c, rand(i + 50) * 120, y);
+    }
+    const sx = Math.round(track(SHIP_PATH, f));
+    for (const t of TARGETS) {
+      if (f < t.spawn) continue;
+      const y = fallY(t, f);
+      const cx = t.x + 2;
+      if (t.shot !== undefined) {
+        const hit = hitFrame(t);
+        // пуля
+        if (f >= t.shot && f < hit) { paper(c); px(c, cx, SHIP_Y - 6 - BULLET * (f - t.shot), 1, 3); }
+        if (f < hit) { paper(c); sprite(c, JUNK[t.kind] ?? [], t.x, y); }
+        else burst(c, cx, fallY(t, hit) + 2, f - hit);
+        continue;
+      }
+      // нужный файл: не стреляем, а ловим на корабль
+      const caught = y >= SHIP_Y - 9;
+      if (!caught) { paper(c); sprite(c, KEEP, t.x, y); }
+      else if (f < 164) {
+        const age = f - (t.spawn + (SHIP_Y - 9 + 6) / FALL);
+        if (age < 10 && Math.floor(age / 2) % 2 === 0) { paper(c); sprite(c, ['.#.', '###', '.#.'], sx + 1, SHIP_Y - 12); }
+        paper(c);
+        sprite(c, KEEP, sx + 1, SHIP_Y - 9);
+      }
+    }
+    // корабль и выхлоп
+    paper(c);
+    sprite(c, SHIP, sx - 1, SHIP_Y - 5);
+    if (f % 2) px(c, sx + 2, SHIP_Y, 1, 2);
+    const firing = TARGETS.some((t) => t.shot !== undefined && f >= t.shot && f < t.shot + 2);
+    if (firing) sprite(c, ['#.#', '.#.'], sx + 1, SHIP_Y - 8);
+    curtain(c, prog(f, 176, 190));
+  },
+};
+
+// ---------- молоток: бьём предупреждения по одному, потом их сносит волна ----------
+
+const HOLES = [12, 34, 56, 78, 100];
+const HOLE_Y = 48;
+const MOLE = ['.####.', '######', '#.##.#', '######', '######', '######'];
+const HAMMER = ['########', '########', '########', '###..###'];
+type Pop = { hole: number; up: number; hit: number };
+const POPS: Pop[] = [
+  { hole: 0, up: 4, hit: 20 }, { hole: 3, up: 16, hit: 34 }, { hole: 1, up: 28, hit: 48 },
+  { hole: 4, up: 42, hit: 60 }, { hole: 2, up: 54, hit: 72 },
+  { hole: 0, up: 80, hit: 88 }, { hole: 2, up: 82, hit: 98 }, { hole: 4, up: 86, hit: 108 },
+  { hole: 1, up: 96, hit: 118 }, { hole: 3, up: 100, hit: 128 },
+];
+const WAVE_POPS = [0, 1, 2, 3, 4].map((hole) => ({ hole, up: 132 + hole * 2 }));
+const WAVE = { from: 146, to: 160 };
+
+/** Высота вылезшего крота: 0 — в норе, 6 — целиком снаружи. */
+function moleHeight(up: number, down: number, f: number): number {
+  if (f < up || f >= down + 5) return 0;
+  if (f < down) return Math.min(6, (f - up) * 2);
+  return Math.max(0, 6 - (f - down) * 2);
+}
+
+const whackAMole: Scene = {
+  frames: 180,
+  still: 58,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, HOLE_Y + 1);
+    // норы
+    for (const hx of HOLES) { paper(c); px(c, hx - 1, HOLE_Y, 10, 1); ink(c); px(c, hx, HOLE_Y, 8, 1); }
+    // кроты (предупреждения линтера): «!» над каждым
+    const waveX = f >= WAVE.from ? -10 + 140 * prog(f, WAVE.from, WAVE.to) : -99;
+    const moles: Array<{ x: number; h: number; squash: boolean }> = [];
+    for (const p of POPS) moles.push({ x: HOLES[p.hole] ?? 0, h: moleHeight(p.up, p.hit, f), squash: f >= p.hit && f < p.hit + 3 });
+    for (const p of WAVE_POPS) {
+      const hx = HOLES[p.hole] ?? 0;
+      const down = WAVE.from + ((hx + 10) / 140) * (WAVE.to - WAVE.from);
+      moles.push({ x: hx, h: moleHeight(p.up, down, f), squash: false });
+    }
+    for (const m of moles) {
+      if (m.h <= 0) continue;
+      const rows = MOLE.slice(0, m.h);
+      paper(c);
+      sprite(c, rows, m.x + 1, HOLE_Y - m.h);
+      if (m.h === 6 && !m.squash && Math.floor(f / 4) % 2) text(c, '!', m.x + 3, HOLE_Y - 13);
+      if (m.squash) sprite(c, ['#.....#', '.#...#.'], m.x + 1, HOLE_Y - m.h - 4);
+    }
+    // молоток: едет к следующей норе, бьёт, поднимается
+    if (f < (WAVE_POPS[0]?.up ?? 0)) {
+      const next = POPS.find((p) => p.hit + 4 > f) ?? POPS[POPS.length - 1] ?? { hole: 0, up: 0, hit: 0 };
+      const prevIdx = POPS.indexOf(next) - 1;
+      const prev = POPS[prevIdx];
+      const fromX = prev ? (HOLES[prev.hole] ?? 0) : 60;
+      const toX = HOLES[next.hole] ?? 0;
+      const x = prev && f < next.hit - 4 ? fromX + (toX - fromX) * easeOut(prog(f, prev.hit + 4, next.hit - 4)) : toX;
+      const d = next.hit - f;
+      const drop = d <= 2 && d >= 0 ? (2 - d) * 12 + 8 : d < 0 ? Math.max(0, 32 + d * 8) : 0;
+      const hy = 6 + drop;
+      paper(c);
+      sprite(c, HAMMER, x, hy);
+      px(c, x + 12, hy - 4, 1, 1);
+      line(c, x + 7, hy + 1, x + 16, hy - 5);
+      if (d <= 0 && d > -3) burst(c, x + 4, HOLE_Y - 3, 2 - d, 6, 2);
+    }
+    // волна автоисправления сносит всех разом
+    if (f >= WAVE.from && f < WAVE.to + 4) {
+      paper(c);
+      for (let y = 18; y < HOLE_Y; y++) {
+        const off = Math.round(Math.sin(y * 0.6 + f) * 2);
+        px(c, waveX + off, y, 2, 1);
+        if (y % 3 === 0) px(c, waveX + off - 4, y);
+      }
+    }
+    curtain(c, prog(f, 164, 178));
+  },
+};
+
+// ---------- ракета: отсчёт, старт, отделение ступеней ----------
+
+const CAPSULE = ['...#...', '..###..', '.#####.', '.##.##.', '.#####.', '.#####.', '#######', '#.....#'];
+const STAGE = ['.#####.', '.#.#.#.', '.#####.', '.#####.', '.#####.', '.#####.', '.#####.', '##...##'];
+const ROCKET_X = 56;
+const PAD_Y = 50;
+
+/** Смещение камеры: после того как ракета ушла вверх, едет фон. */
+function camera(f: number): number {
+  return f < 80 ? 0 : (f - 80) * 1.2 + 0.01 * (f - 80) ** 2;
+}
+
+function rocketTop(f: number): number {
+  const base = PAD_Y - 24;
+  if (f < 50) return base + (f >= 40 ? (f % 2 ? 1 : 0) : 0);
+  return Math.max(12, base - 0.016 * (f - 50) ** 2);
+}
+
+function flame(c: Ctx, x: number, y: number, f: number, big: boolean): void {
+  paper(c);
+  const h = (big ? 5 : 3) + (f % 3);
+  for (let j = 0; j < h; j++) {
+    const w = Math.max(1, (big ? 5 : 3) - Math.floor(j / 2));
+    px(c, x + 3 - Math.floor(w / 2), y + j, w, 1);
+  }
+  ink(c);
+  if (big) px(c, x + 3, y + 1, 1, 2);
+}
+
+const rocketLaunch: Scene = {
+  frames: 200,
+  still: 118,
+  draw(c, f) {
+    clear(c);
+    const cam = camera(f);
+    // звёзды едут вниз, когда камера следует за ракетой
+    paper(c);
+    for (let i = 0; i < 20; i++) {
+      const y = (rand(i + 9) * 60 + cam * (0.5 + (i % 2) * 0.5)) % 60;
+      const x = rand(i + 90) * 120;
+      if (cam > 0 && i % 3 === 0) px(c, x, y, 1, 2);
+      else px(c, x, y);
+    }
+    // земля, вышка и стол уходят вниз
+    if (cam < 30) {
+      const g = PAD_Y + Math.round(cam);
+      paper(c);
+      px(c, 0, g, SW, 1);
+      dither(c, 0, g + 2, SW, SH);
+      px(c, 44, g - 2, 32, 2);
+      for (let y = g - 30; y < g; y += 3) { px(c, 38, y, 1, 2); px(c, 42, y + 1, 1, 2); line(c, 38, y, 42, y + 2); }
+      if (f < 50) px(c, 42, g - 18, ROCKET_X - 42, 1); // рукав обслуживания
+    }
+    // отсчёт
+    const digits: Array<[number, string]> = [[6, '3'], [18, '2'], [30, '1']];
+    for (const [at, d] of digits) if (f >= at && f < at + 10) { paper(c); bigText(c, d, 14, 10); }
+    // дым при старте
+    if (f >= 40 && f < 110) {
+      const g = PAD_Y + Math.round(cam);
+      paper(c);
+      for (let k = 0; k < 10; k++) {
+        const age = f - 40 - k * 2;
+        if (age < 0) continue;
+        const r = 2 + age * 0.35;
+        const cx = ROCKET_X + 3 + (k % 2 ? 1 : -1) * (4 + age * 0.9);
+        const cy = g - 3 - rand(k) * 3 + age * 0.05;
+        for (let a = 0; a < 10; a++) if ((a + f) % 2) px(c, cx + Math.cos(a * 0.63) * r, cy + Math.sin(a * 0.63) * r * 0.6);
+      }
+    }
+    // ракета и отделившиеся ступени
+    const top = Math.round(rocketTop(f));
+    const sep1 = 108, sep2 = 138;
+    paper(c);
+    sprite(c, CAPSULE, ROCKET_X, top);
+    if (f < sep2) sprite(c, STAGE, ROCKET_X, top + 8);
+    if (f < sep1) sprite(c, STAGE, ROCKET_X, top + 16);
+    const tail = f < sep1 ? top + 24 : f < sep2 ? top + 16 : top + 8;
+    if (f >= 40) flame(c, ROCKET_X, tail, f, f >= 50);
+    for (const [at, off] of [[sep1, 16], [sep2, 8]] as const) {
+      if (f < at) continue;
+      const t = f - at;
+      const y = top + off + 1.4 * t + 0.03 * t * t;
+      if (y > SH) continue;
+      paper(c);
+      sprite(c, STAGE, ROCKET_X + Math.round(t * (off === 16 ? -0.4 : 0.4)), y);
+      burst(c, ROCKET_X + 3, top + off, t, 6, 1.2);
+    }
+    curtain(c, prog(f, 184, 198));
+  },
+};
+
+// ---------- пожар в стойке: сирена, пожарный, шланг ----------
+
+const RACK = { x: 82, y: 16, w: 22, h: 34 };
+const NOZZLE = { x: 44, y: 38 };
+
+function fireLevel(f: number): number {
+  if (f < 10) return 0;
+  if (f < 70) return prog(f, 10, 40);
+  return 1 - prog(f, 70, 120);
+}
+
+const fireHose: Scene = {
+  frames: 180,
+  still: 84,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, 50);
+    // стойка с дисками и огоньками
+    paper(c);
+    px(c, RACK.x, RACK.y, RACK.w, RACK.h);
+    ink(c);
+    for (let r = 0; r < 5; r++) {
+      const y = RACK.y + 3 + r * 6;
+      px(c, RACK.x + 2, y, RACK.w - 4, 4);
+      paper(c);
+      const alarm = f >= 10 && f < 120;
+      const blink = alarm ? (f + r) % 4 < 2 : (Math.floor(f / 5) + r) % 3 !== 0;
+      if (blink) px(c, RACK.x + RACK.w - 5, y + 1, 2, 2);
+      px(c, RACK.x + 4, y + 1, 8, 1);
+      ink(c);
+    }
+    // сирена на крыше
+    paper(c);
+    px(c, RACK.x + 8, RACK.y - 3, 6, 3);
+    if (f >= 10 && f < 120 && Math.floor(f / 3) % 2) {
+      line(c, RACK.x + 4, RACK.y - 6, RACK.x + 2, RACK.y - 8);
+      line(c, RACK.x + 17, RACK.y - 6, RACK.x + 19, RACK.y - 8);
+      line(c, RACK.x + 11, RACK.y - 6, RACK.x + 11, RACK.y - 9);
+    }
+    // огонь поверх стойки
+    const lvl = fireLevel(f);
+    if (lvl > 0) {
+      for (let x = RACK.x - 2; x < RACK.x + RACK.w + 2; x++) {
+        const h = Math.round(lvl * (8 + 10 * rand(x * 3 + Math.floor(f / 2) * 7)));
+        for (let j = 0; j < h; j++) {
+          const y = RACK.y + 14 - j;
+          if (j > h - 3 ? (x + j + f) % 2 === 0 : true) { paper(c); px(c, x, y); }
+          else { ink(c); px(c, x, y); }
+        }
+        if (h > 4 && (x + f) % 3 === 0) { ink(c); px(c, x, RACK.y + 14 - Math.floor(h / 2)); }
+      }
+    }
+    // пар поднимается там, где вода встречает огонь
+    if (f >= 64 && f < 140) {
+      paper(c);
+      for (let k = 0; k < 6; k++) {
+        const age = (f - 64 + k * 9) % 36;
+        const r = 1 + age * 0.25;
+        const cx = RACK.x + 4 + k * 3 + Math.sin(age * 0.3 + k) * 2;
+        const cy = RACK.y + 6 - age * 0.6;
+        for (let a = 0; a < 8; a++) if ((a + k) % 2) px(c, cx + Math.cos(a * 0.8) * r, cy + Math.sin(a * 0.8) * r);
+      }
+    }
+    // пожарный: бежит со шлангом, тушит, уходит
+    const fx = f < 30 ? -8 : f < 52 ? -8 + (NOZZLE.x - 10) * prog(f, 30, 52) : f < 140 ? NOZZLE.x - 2 : NOZZLE.x - 2 - 50 * prog(f, 140, 160);
+    if (f >= 30 && f < 160) {
+      walker(c, fx - 6, 49, f, f < 52 || f >= 140);
+      paper(c);
+      px(c, fx - 6, 38, 4, 3); // каска
+      // шланг тянется от левого края
+      line(c, 0, 48, fx - 6, 46);
+      line(c, fx - 4, 45, fx + 1, 43);
+    }
+    // струя: капли по параболе от ствола к огню
+    if (f >= 54 && f < 128) {
+      paper(c);
+      for (let k = 0; k < 14; k++) {
+        const p = ((f * 0.05 + k / 14) % 1);
+        const x = NOZZLE.x - 1 + (RACK.x + 6 - NOZZLE.x) * p;
+        const y = NOZZLE.y + 5 + (RACK.y + 10 - NOZZLE.y - 5) * p - 26 * p * (1 - p);
+        px(c, x, y);
+        if (k % 3 === 0) px(c, x, y + 1);
+      }
+    }
+    if (f >= 10 && f < 60 && Math.floor(f / 3) % 2) { paper(c); text(c, '!', RACK.x - 8, RACK.y); }
+    curtain(c, prog(f, 164, 178));
+  },
+};
+
+// ---------- страж ворот: стрелы отскакивают от щита, гонца со свитком пускают ----------
+
+const KNIGHT = ['.###.', '#####', '#.#.#', '.###.', '#####', '#####', '.###.', '.#.#.', '.#.#.', '##.##'];
+const WALL_X = 92;
+const GATE_X = [98, 112] as const;
+const GROUND = 50;
+type Shot = { at: number; y: number };
+const SHOTS: Shot[] = [{ at: 6, y: 42 }, { at: 22, y: 45 }, { at: 36, y: 41 }, { at: 150, y: 44 }];
+const SHIELD_X = 82;
+const ARROW_SPEED = 3;
+
+function arrowHit(s: Shot): number {
+  return s.at + (SHIELD_X - 8) / ARROW_SPEED;
+}
+
+function portcullisLift(f: number): number {
+  if (f < 108) return 0;
+  if (f < 120) return 18 * easeOut(prog(f, 108, 120));
+  if (f < 142) return 18;
+  return 18 * (1 - prog(f, 142, 152));
+}
+
+const gateGuard: Scene = {
+  frames: 190,
+  still: 104,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, GROUND);
+    // стена с зубцами и проёмом
+    paper(c);
+    for (let y = 14; y < GROUND; y += 4) {
+      for (let x = WALL_X + ((y / 4) % 2 ? 2 : 0); x < SW; x += 5) {
+        if (x + 4 > GATE_X[0] && x < GATE_X[1] && y >= 30) continue;
+        px(c, x, y, 4, 3);
+      }
+    }
+    for (let x = WALL_X; x < SW; x += 6) px(c, x, 10, 4, 4);
+    // решётка ворот поднимается
+    const lift = Math.round(portcullisLift(f));
+    for (let x = GATE_X[0] + 1; x < GATE_X[1]; x += 3) px(c, x, 30, 1, Math.max(0, GROUND - 30 - lift));
+    for (let y = 32; y < GROUND - lift; y += 4) px(c, GATE_X[0] + 1, y, GATE_X[1] - GATE_X[0] - 1, 1);
+    // гонец со свитком: подходит, ждёт проверки, проходит внутрь
+    const mx = track([[60, -8], [96, 64], [120, 64], [150, 124]], f);
+    if (f >= 60 && f < 150) {
+      walker(c, mx, GROUND - 1, f, f < 96 || f >= 120);
+      paper(c);
+      if (f < 104) px(c, mx + 1, GROUND - 12, 4, 2);
+    }
+    if (f >= 96 && f < 104 && Math.floor(f / 3) % 2) { paper(c); text(c, '?', 74, 26); }
+    if (f >= 104 && f < 118) { paper(c); sprite(c, ['....#', '...#.', '#.#..', '.#...'], 73, 26); }
+    // рыцарь; щит поднят, пока летят стрелы, и опущен при проверке
+    paper(c);
+    sprite(c, KNIGHT, 84, GROUND - 10);
+    const guarding = f < 90 || f >= 140;
+    if (guarding) px(c, SHIELD_X, GROUND - 13, 3, 9);
+    else px(c, 89, GROUND - 6, 3, 5);
+    line(c, 88, GROUND - 16, 88, GROUND - 11); // копьё
+    // стрелы и рикошет
+    for (const s of SHOTS) {
+      if (f < s.at) continue;
+      const hit = arrowHit(s);
+      paper(c);
+      if (f < hit) {
+        const x = -8 + ARROW_SPEED * (f - s.at);
+        sprite(c, ['#....#.', '#######', '#....#.'], x, s.y - 1);
+        continue;
+      }
+      const t = f - hit;
+      const x = SHIELD_X - 4 - 1.4 * t;
+      const y = s.y - 2 * t + 0.22 * t * t;
+      if (y < GROUND - 1) {
+        const a = t * 0.9;
+        line(c, x - Math.cos(a) * 3, y - Math.sin(a) * 3, x + Math.cos(a) * 3, y + Math.sin(a) * 3);
+      } else {
+        const landT = (2 + Math.sqrt(4 + 0.88 * (GROUND - 1 - s.y))) / 0.44;
+        px(c, SHIELD_X - 4 - 1.4 * landT - 3, GROUND - 1, 6, 1);
+      }
+      if (t < 4) burst(c, SHIELD_X - 1, s.y, t, 5, 1.4);
+    }
+    curtain(c, prog(f, 174, 188));
+  },
+};
+
+// ---------- пит-стоп: взрыв шины, замена колеса, снова на трассе ----------
+
+const CAR = [
+  '..........###...........',
+  '........#######.........',
+  '###....###########....##',
+  '########################',
+  '.######################.',
+];
+const WHEEL = ['.####.', '#....#', '#.##.#', '#.##.#', '#....#', '.####.'];
+const FLAT = ['.####.', '#.##.#', '######', '.####.'];
+const ROAD_Y = 52;
+
+/** Скорость трассы по кадрам: разгон, торможение в боксе, снова разгон. */
+function roadSpeed(f: number): number {
+  if (f < 40) return 4;
+  if (f < 60) return 4 * (1 - prog(f, 40, 60));
+  if (f < 110) return 0;
+  if (f < 140) return 4 * prog(f, 110, 140);
+  return 4;
+}
+
+function roadShift(f: number): number {
+  let d = 0;
+  for (let i = 0; i < f; i++) d += roadSpeed(i);
+  return d;
+}
+
+function carX(f: number): number {
+  if (f < 40) return 40;
+  if (f < 60) return 40 + 10 * prog(f, 40, 60);
+  if (f < 110) return 50;
+  if (f < 140) return 50 + 90 * easeIn(prog(f, 110, 140));
+  return -30 + 5 * (f - 140);
+}
+
+const pitStop: Scene = {
+  frames: 200,
+  still: 88,
+  draw(c, f) {
+    clear(c);
+    const shift = roadShift(f);
+    paper(c);
+    // трасса и разметка
+    px(c, 0, ROAD_Y + 1, SW, 1);
+    for (let x = 0; x < SW + 12; x += 12) px(c, ((x - shift) % 132 + 132) % 132 - 12, ROAD_Y + 5, 6, 1);
+    dither(c, 0, ROAD_Y + 7, SW, SH);
+    // бокс: навес с лампой
+    const boxX = 44 - (f < 60 || f >= 110 ? shift - roadShift(60) : 0);
+    if (boxX > -40 && boxX < SW) {
+      px(c, boxX, 14, 38, 1);
+      for (let y = 15; y < ROAD_Y; y += 2) { px(c, boxX, y); px(c, boxX + 37, y); }
+      const go = f >= 100 && f < 112;
+      if (go) px(c, boxX + 16, 16, 6, 3);
+      else { px(c, boxX + 16, 16, 6, 1); px(c, boxX + 16, 18, 6, 1); px(c, boxX + 16, 16, 1, 3); px(c, boxX + 21, 16, 1, 3); }
+    }
+    // линии скорости
+    if (roadSpeed(f) > 2) for (let k = 0; k < 6; k++) px(c, ((rand(k) * 200 - shift * 1.5) % 140 + 140) % 140 - 10, 20 + k * 5, 8, 1);
+    // машина
+    const x = Math.round(carX(f));
+    const lifted = f >= 70 && f < 100 ? 2 : 0;
+    const wobble = f >= 40 && f < 60 ? (f % 2 ? 1 : 0) : 0;
+    const body = ROAD_Y - 9 - lifted + wobble;
+    paper(c);
+    sprite(c, CAR, x, body);
+    const rear = x + 2, front = x + 16;
+    const spin = Math.floor(shift / 3) % 2;
+    const wheel = (wx: number, y: number): void => {
+      paper(c); sprite(c, WHEEL, wx, y);
+      ink(c); if (spin) px(c, wx + 2, y + 2, 2, 2);
+    };
+    wheel(rear, ROAD_Y - 5 - lifted);
+    if (f < 40 || f >= 94) wheel(front, ROAD_Y - 5 - lifted);
+    else if (f < 74) { paper(c); sprite(c, FLAT, front, ROAD_Y - 3 - lifted); }
+    if (f >= 40 && f < 48) { burst(c, front + 3, ROAD_Y - 2, f - 40, 10, 1.8); if (f % 2) { paper(c); text(c, '!', front + 2, body - 9); } }
+    // старое колесо укатывается, новое прикатывают
+    if (f >= 74 && f < 90) { paper(c); sprite(c, FLAT, front + 60 * prog(f, 74, 90), ROAD_Y - 3); }
+    if (f >= 80 && f < 94) wheel(Math.round(front + 50 * (1 - prog(f, 80, 94))), ROAD_Y - 5);
+    if (f >= 94 && f < 100 && f % 2) { paper(c); sprite(c, ['.#.', '###', '.#.'], front + 1, ROAD_Y - 12); }
+    // механики
+    if (f >= 62 && f < 112) {
+      const cx1 = track([[62, 130], [72, front + 8], [100, front + 8], [112, 130]], f);
+      const cx2 = track([[62, 140], [74, rear - 8], [100, rear - 8], [112, -10]], f);
+      walker(c, cx1, ROAD_Y, f, f < 72 || f >= 100);
+      walker(c, cx2, ROAD_Y, f + 1, f < 74 || f >= 100);
+    }
+    curtain(c, prog(f, 186, 198));
+  },
+};
+
 export const SCENES: Record<SceneId, Scene> = {
   'tank-wall': tankWall,
   signpost,
@@ -729,4 +1273,10 @@ export const SCENES: Record<SceneId, Scene> = {
   tightrope,
   'parcel-slot': parcelSlot,
   'chain-lift': chainLift,
+  'space-shooter': spaceShooter,
+  'whack-a-mole': whackAMole,
+  'rocket-launch': rocketLaunch,
+  'fire-hose': fireHose,
+  'gate-guard': gateGuard,
+  'pit-stop': pitStop,
 };

@@ -1,11 +1,17 @@
 // Каталог статей и фильтры списка. Всё считается на сервере из объектов в коде.
 
+import { branchProtection } from './articles/branch-protection';
 import { ciSupplyChain } from './articles/ci-supply-chain';
 import { commitsWorthReading } from './articles/commits-worth-reading';
 import { dependenciesWithoutSurprises } from './articles/dependencies-without-surprises';
+import { errorsAndLogs } from './articles/errors-and-logs';
+import { gitignoreCleanup } from './articles/gitignore-cleanup';
 import { healthMetricsThatDontLie } from './articles/health-metrics-that-dont-lie';
+import { incidentPostmortem } from './articles/incident-postmortem';
 import { licenseInFiveMinutes } from './articles/license-in-five-minutes';
+import { lintersAndFormatters } from './articles/linters-and-formatters';
 import { readmeFirstScreen } from './articles/readme-first-screen';
+import { releasesAndChangelog } from './articles/releases-and-changelog';
 import { secretsInGit } from './articles/secrets-in-git';
 import { smallPullRequests } from './articles/small-pull-requests';
 import { testsYouCanTrust } from './articles/tests-you-can-trust';
@@ -19,11 +25,17 @@ const ALL: Article[] = [
   readmeFirstScreen,
   commitsWorthReading,
   licenseInFiveMinutes,
+  gitignoreCleanup,
+  lintersAndFormatters,
   dependenciesWithoutSurprises,
   testsYouCanTrust,
   smallPullRequests,
+  releasesAndChangelog,
+  errorsAndLogs,
   healthMetricsThatDontLie,
   ciSupplyChain,
+  branchProtection,
+  incidentPostmortem,
 ];
 
 function summarize(article: Article): ArticleSummary {

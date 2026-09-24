@@ -21,7 +21,13 @@ export type SceneId =
   | 'bridge'
   | 'tightrope'
   | 'parcel-slot'
-  | 'chain-lift';
+  | 'chain-lift'
+  | 'space-shooter'
+  | 'whack-a-mole'
+  | 'rocket-launch'
+  | 'fire-hose'
+  | 'gate-guard'
+  | 'pit-stop';
 
 /** Иллюстрации внутри статей — см. components/learn/Figures.tsx. */
 export type FigureId =
@@ -48,7 +54,22 @@ export type FigureId =
   | 'pr-split'
   | 'ci-trust-map'
   | 'pin-tag-vs-sha'
-  | 'token-scope';
+  | 'token-scope'
+  | 'gitignore-layers'
+  | 'repo-weight'
+  | 'lint-vs-format'
+  | 'lint-pipeline'
+  | 'semver-bump'
+  | 'changelog-sections'
+  | 'release-flow'
+  | 'error-paths'
+  | 'log-levels'
+  | 'structured-log'
+  | 'protected-branch'
+  | 'codeowners-map'
+  | 'incident-timeline'
+  | 'five-whys'
+  | 'action-items';
 
 export type Block =
   | { type: 'p'; text: string }
