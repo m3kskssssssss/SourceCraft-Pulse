@@ -1,76 +1,66 @@
 'use client';
 
-// «Как проходит оценка»: 8-битная сцена на каждый шаг прогона, шаги идут по
-// кругу. Под сценой — полоса прогресса по шагам и описание текущего, ниже —
-// список, по которому можно перейти к любому шагу.
+// «Как проходит оценка»: сцена в стиле логотипа на каждый шаг прогона, шаги
+// идут по кругу. Под сценой — полоса прогресса по шагам и описание текущего,
+// ниже — список, по которому можно перейти к любому шагу.
 //
-// Кадр живёт в ref и рисуется в requestAnimationFrame; React перерисовывается
-// только при смене шага, чтобы текст не дёргался 12 раз в секунду. Вне экрана
-// анимация стоит, при «уменьшении движения» шаги переключаются только руками.
+// Время идёт в requestAnimationFrame, картинка перерисовывается около 30 раз
+// в секунду и только пока блок на экране. При «уменьшении движения» шаги
+// переключаются только руками, а сцена стоит на выразительном моменте.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FPS } from './learn/scenes';
-import { PROCESS_H, PROCESS_STEPS, PROCESS_W, STEP_FRAMES } from './process-scenes';
+import { useEffect, useRef, useState } from 'react';
+import { PROCESS_STEPS, STEP_SECONDS, VIEW_H, VIEW_W } from './process-scenes';
 import { cx } from './ui';
 
-const TOTAL = PROCESS_STEPS.length * STEP_FRAMES;
+const TOTAL = PROCESS_STEPS.length * STEP_SECONDS;
+/** С какого момента показывать шаг, выбранный кликом: начало часто пустое. */
+const JUMP_AT = 0.55;
 
 export function HowAnalysisWorks() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
-  const frameRef = useRef(0);
-  const [step, setStep] = useState(0);
-
-  const paint = useCallback((frame: number) => {
-    const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx) return;
-    const index = Math.floor(frame / STEP_FRAMES) % PROCESS_STEPS.length;
-    PROCESS_STEPS[index]?.draw(ctx, frame % STEP_FRAMES);
-    if (barRef.current) barRef.current.style.width = `${((frame % STEP_FRAMES) / (STEP_FRAMES - 1)) * 100}%`;
-  }, []);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const timeRef = useRef(STEP_SECONDS * JUMP_AT);
+  const [time, setTime] = useState(STEP_SECONDS * JUMP_AT);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    paint(frameRef.current);
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const root = rootRef.current;
+    if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     let raf = 0;
     let last = 0;
     let visible = false;
     const tick = (now: number): void => {
       if (!visible) return;
-      if (now - last >= 1000 / FPS) {
+      if (last === 0) last = now;
+      const dt = Math.min(0.1, (now - last) / 1000);
+      if (dt >= 1 / 30) {
         last = now;
-        const next = (frameRef.current + 1) % TOTAL;
-        frameRef.current = next;
-        paint(next);
-        const index = Math.floor(next / STEP_FRAMES);
-        setStep((current) => (current === index ? current : index));
+        timeRef.current = (timeRef.current + dt) % TOTAL;
+        setTime(timeRef.current);
       }
       raf = requestAnimationFrame(tick);
     };
     const io = new IntersectionObserver(([entry]) => {
       visible = entry?.isIntersecting ?? false;
       cancelAnimationFrame(raf);
+      last = 0;
       if (visible) raf = requestAnimationFrame(tick);
     });
-    io.observe(canvas);
+    io.observe(root);
     return () => {
       io.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [paint]);
+  }, []);
+
+  const step = Math.floor(time / STEP_SECONDS) % PROCESS_STEPS.length;
+  const local = time - step * STEP_SECONDS;
+  const current = PROCESS_STEPS[step] ?? PROCESS_STEPS[0]!;
+  const Scene = current.Scene;
 
   const jump = (index: number): void => {
-    // С середины сцены: начало у многих шагов почти пустое.
-    const frame = index * STEP_FRAMES + Math.floor(STEP_FRAMES * 0.55);
-    frameRef.current = frame;
-    setStep(index);
-    paint(frame);
+    timeRef.current = index * STEP_SECONDS + STEP_SECONDS * JUMP_AT;
+    setTime(timeRef.current);
   };
-
-  const current = PROCESS_STEPS[step] ?? PROCESS_STEPS[0]!;
 
   return (
     <section aria-labelledby="how-title">
@@ -81,34 +71,38 @@ export function HowAnalysisWorks() {
         Всё считается в одном запросе. Пока идёт прогон, страница анализа показывает, на каком он шаге.
       </p>
 
-      <div className="mt-5 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
-        <canvas
-          ref={canvasRef}
-          width={PROCESS_W}
-          height={PROCESS_H}
-          aria-hidden="true"
-          className="block w-full bg-[#0a0a0a]"
-          style={{ imageRendering: 'pixelated', aspectRatio: `${PROCESS_W} / ${PROCESS_H}` }}
-        />
+      <div
+        ref={rootRef}
+        className="mt-5 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]"
+      >
+        <svg
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          className="block h-auto w-full"
+          role="img"
+          aria-label={`Шаг ${step + 1}: ${current.title}`}
+        >
+          <Scene t={local} />
+        </svg>
 
         {/* Полоса по шагам: пройденные закрашены, текущий заполняется. */}
-        <div className="flex gap-1 px-5 pt-4 sm:px-6">
+        <div className="flex gap-1 px-5 sm:px-6">
           {PROCESS_STEPS.map((s, i) => (
             <div key={s.key} className="h-1 flex-1 overflow-hidden rounded-full bg-[color:var(--line)]">
-              {i < step && <div className="h-full w-full bg-[color:var(--ink)]" />}
-              {i === step && <div ref={barRef} className="h-full w-0 bg-[color:var(--ink)]" />}
+              <div
+                className="h-full bg-[color:var(--ink)]"
+                style={{ width: i < step ? '100%' : i === step ? `${(local / STEP_SECONDS) * 100}%` : '0%' }}
+              />
             </div>
           ))}
         </div>
 
-        {/* Высота текста фиксирована по самому длинному описанию, чтобы блок
-            не прыгал при смене шага. */}
+        {/* Высота текста — по самому длинному описанию, чтобы блок не прыгал. */}
         <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6" aria-live="polite">
           <div className="text-xs tabular-nums text-[color:var(--muted)]">
             Шаг {step + 1} из {PROCESS_STEPS.length}
           </div>
           <div className="mt-1 text-lg font-semibold tracking-tight">{current.title}</div>
-          <p className="mt-2 min-h-[7.5rem] text-[15px] leading-relaxed text-[color:var(--ink-2)] sm:min-h-[5rem]">
+          <p className="mt-2 min-h-[10rem] text-[15px] leading-relaxed text-[color:var(--ink-2)] sm:min-h-[6.5rem]">
             {current.text}
           </p>
         </div>

@@ -13,43 +13,43 @@ export const FPS = 12;
 const INK = '#0a0a0a';
 const PAPER = '#f5f5f5';
 
-export type Ctx = CanvasRenderingContext2D;
+type Ctx = CanvasRenderingContext2D;
 
 export type Scene = { frames: number; still: number; draw: (c: Ctx, f: number) => void };
 
 // ---------- примитивы ----------
 
-export function clear(c: Ctx): void {
+function clear(c: Ctx): void {
   c.fillStyle = INK;
   c.fillRect(0, 0, SW, SH);
   c.fillStyle = PAPER;
 }
 
-export function px(c: Ctx, x: number, y: number, w = 1, h = 1): void {
+function px(c: Ctx, x: number, y: number, w = 1, h = 1): void {
   c.fillRect(Math.round(x), Math.round(y), w, h);
 }
 
-export function ink(c: Ctx): void {
+function ink(c: Ctx): void {
   c.fillStyle = INK;
 }
 
-export function paper(c: Ctx): void {
+function paper(c: Ctx): void {
   c.fillStyle = PAPER;
 }
 
 /** Спрайт из строк: '#' — пиксель цвета бумаги, остальное прозрачно. */
-export function sprite(c: Ctx, rows: readonly string[], x: number, y: number): void {
+function sprite(c: Ctx, rows: readonly string[], x: number, y: number): void {
   rows.forEach((row, j) => {
     for (let i = 0; i < row.length; i++) if (row[i] === '#') px(c, x + i, y + j);
   });
 }
 
 /** Шахматный полутон — единственный «серый», который есть у двух цветов. */
-export function dither(c: Ctx, x: number, y: number, w: number, h: number, phase = 0): void {
+function dither(c: Ctx, x: number, y: number, w: number, h: number, phase = 0): void {
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if ((i + j + phase) % 2 === 0) px(c, x + i, y + j);
 }
 
-export function line(c: Ctx, x0: number, y0: number, x1: number, y1: number, dash = 0): void {
+function line(c: Ctx, x0: number, y0: number, x1: number, y1: number, dash = 0): void {
   x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
   const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
@@ -64,24 +64,17 @@ export function line(c: Ctx, x0: number, y0: number, x1: number, y1: number, das
   }
 }
 
-export const rand = (n: number): number => {
+const rand = (n: number): number => {
   const s = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
   return s - Math.floor(s);
 };
-export const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
-export const prog = (f: number, a: number, b: number): number => clamp01((f - a) / (b - a));
-export const easeOut = (x: number): number => 1 - (1 - x) * (1 - x);
-export const easeIn = (x: number): number => x * x;
+const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
+const prog = (f: number, a: number, b: number): number => clamp01((f - a) / (b - a));
+const easeOut = (x: number): number => 1 - (1 - x) * (1 - x);
+const easeIn = (x: number): number => x * x;
 
 // шрифт 3×5 — только нужные буквы
 const GLYPHS: Record<string, readonly string[]> = {
-  '0': ['###', '#.#', '#.#', '#.#', '###'],
-  '4': ['#.#', '#.#', '###', '..#', '..#'],
-  '5': ['###', '#..', '##.', '..#', '##.'],
-  '6': ['.##', '#..', '###', '#.#', '###'],
-  '7': ['###', '..#', '.#.', '.#.', '.#.'],
-  '8': ['###', '#.#', '###', '#.#', '###'],
-  '9': ['###', '#.#', '###', '..#', '##.'],
   R: ['##.', '#.#', '##.', '#.#', '#.#'],
   E: ['###', '#..', '##.', '#..', '###'],
   A: ['.#.', '#.#', '###', '#.#', '#.#'],
@@ -96,7 +89,7 @@ const GLYPHS: Record<string, readonly string[]> = {
   '3': ['##.', '..#', '.#.', '..#', '##.'],
 };
 
-export function text(c: Ctx, s: string, x: number, y: number): void {
+function text(c: Ctx, s: string, x: number, y: number): void {
   let cx = x;
   for (const ch of s) {
     const g = GLYPHS[ch];
@@ -106,14 +99,14 @@ export function text(c: Ctx, s: string, x: number, y: number): void {
   }
 }
 
-export function groundLine(c: Ctx, y: number): void {
+function groundLine(c: Ctx, y: number): void {
   paper(c);
   px(c, 0, y, SW, 1);
   dither(c, 0, y + 2, SW, SH - y - 2);
 }
 
 /** Шторка: тёмная полоса с полутоновым краем закрывает кадр слева направо. */
-export function curtain(c: Ctx, k: number): void {
+function curtain(c: Ctx, k: number): void {
   if (k <= 0) return;
   const w = Math.round(k * (SW + 6));
   ink(c);
@@ -212,7 +205,7 @@ const WALK = [
   [' ### ', ' ### ', '  #  ', ' ### ', '# # #', '  #  ', ' # # ', ' # # '],
 ] as const;
 
-export function walker(c: Ctx, x: number, feetY: number, f: number, moving: boolean): void {
+function walker(c: Ctx, x: number, feetY: number, f: number, moving: boolean): void {
   paper(c);
   sprite(c, WALK[moving ? Math.floor(f / 2) % 2 : 1] ?? WALK[1], x, feetY - 7);
 }
@@ -743,7 +736,7 @@ function burst(c: Ctx, x: number, y: number, age: number, n = 8, speed = 1.6): v
 }
 
 /** Текст вдвое крупнее — для цифр обратного отсчёта. */
-export function bigText(c: Ctx, s: string, x: number, y: number): void {
+function bigText(c: Ctx, s: string, x: number, y: number): void {
   let cx = x;
   for (const ch of s) {
     const g = GLYPHS[ch];
