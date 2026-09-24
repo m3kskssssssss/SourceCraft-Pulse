@@ -2,10 +2,15 @@
 // и в /api/public/leaderboard. Возвращает уже подготовленные для UI/JSON
 // сущности без внутренних полей вроде requestedBy.
 
-import { and, desc, eq, ilike, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { analyses, analysisComments, analysisRatings, repositories } from '@/db/schema';
-import { pickCategoryValues, type CategoryValues } from '@/lib/category-meta';
+import {
+  CATEGORY_ORDER,
+  EMPTY_CATEGORY_VALUES,
+  pickCategoryValues,
+  type CategoryValues,
+} from '@/lib/category-meta';
 
 /**
  * 'score' — балл здоровья, 'forks' — «по популярности».
@@ -182,6 +187,102 @@ export async function getLanguageFacets(limit = 40): Promise<LanguageFacet[]> {
   return rows
     .filter((r): r is { name: string; count: number } => Boolean(r.name))
     .map((r) => ({ name: r.name, count: r.count }));
+}
+
+/** Диапазоны баллов для распределения на странице рейтинга. */
+export const SCORE_BUCKETS = [
+  { from: 0, to: 29, label: '0–29' },
+  { from: 30, to: 49, label: '30–49' },
+  { from: 50, to: 69, label: '50–69' },
+  { from: 70, to: 84, label: '70–84' },
+  { from: 85, to: 100, label: '85–100' },
+] as const;
+
+export type LeaderboardOverview = {
+  /** Репозиториев в рейтинге: проекты и материалы вместе. */
+  total: number;
+  projects: number;
+  materials: number;
+  averageScore: number | null;
+  medianScore: number | null;
+  /** Сколько проектов в каждом диапазоне SCORE_BUCKETS. */
+  buckets: number[];
+  /** Средний балл каждой категории по проектам, где он посчитан. */
+  categoryAverages: CategoryValues;
+  ratings: number;
+  comments: number;
+  lastPublishedAt: string | null;
+};
+
+/**
+ * Сводка по всему рейтингу. Строк в рейтинге немного (по одной публичной на
+ * репозиторий), поэтому считаем в коде по одной выборке, а не пятью
+ * агрегатами по jsonb с баллами категорий.
+ */
+export async function getLeaderboardOverview(): Promise<LeaderboardOverview> {
+  const publicDone = and(eq(analyses.isPublic, true), eq(analyses.status, 'done'));
+  const [rows, ratings, comments] = await Promise.all([
+    db
+      .select({
+        kind: analyses.kind,
+        score: analyses.score,
+        categoryScores: analyses.categoryScores,
+        finishedAt: analyses.finishedAt,
+      })
+      .from(analyses)
+      .where(publicDone)
+      .limit(5000),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(analysisRatings)
+      .innerJoin(analyses, eq(analyses.id, analysisRatings.analysisId))
+      .where(publicDone),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(analysisComments)
+      .innerJoin(analyses, eq(analyses.id, analysisComments.analysisId))
+      .where(and(publicDone, isNull(analysisComments.deletedAt))),
+  ]);
+
+  const projects = rows.filter((r) => r.kind !== 'material');
+  const scores = projects
+    .map((r) => r.score)
+    .filter((v): v is number => typeof v === 'number')
+    .sort((a, b) => a - b);
+  const buckets = SCORE_BUCKETS.map((b) => scores.filter((v) => v >= b.from && v <= b.to).length);
+
+  const categoryAverages: CategoryValues = { ...EMPTY_CATEGORY_VALUES };
+  for (const key of CATEGORY_ORDER) {
+    const values = projects
+      .map((r) => pickCategoryValues(r.categoryScores)[key])
+      .filter((v): v is number => typeof v === 'number');
+    categoryAverages[key] = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null;
+  }
+
+  const last = rows.reduce<Date | null>(
+    (acc, r) => (r.finishedAt && (!acc || r.finishedAt > acc) ? r.finishedAt : acc),
+    null,
+  );
+
+  return {
+    total: rows.length,
+    projects: projects.length,
+    materials: rows.length - projects.length,
+    averageScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
+    medianScore: scores.length ? median(scores) : null,
+    buckets,
+    categoryAverages,
+    ratings: ratings[0]?.count ?? 0,
+    comments: comments[0]?.count ?? 0,
+    lastPublishedAt: last ? last.toISOString() : null,
+  };
+}
+
+/** Медиана уже отсортированного списка. */
+function median(sorted: number[]): number {
+  const mid = Math.floor(sorted.length / 2);
+  const value = sorted.length % 2 ? sorted[mid] : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+  return Math.round(value ?? 0);
 }
 
 /** Последний опубликованный анализ для конкретной пары org/repo. */

@@ -15,6 +15,7 @@ import { usePathname } from 'next/navigation';
 import { signOutAction } from '@/app/actions/auth';
 import type { PublicUser } from '@/lib/user-display';
 import { Avatar } from './Avatar';
+import { isActivePath } from './HeaderNav';
 import { cx } from './ui';
 
 export type MenuLink = { href: string; label: string };
@@ -90,7 +91,12 @@ export function MobileMenu({
 
           <nav className="grid py-1">
             {links.map((link) => (
-              <MenuItem key={link.href} href={link.href} onNavigate={() => setOpen(false)}>
+              <MenuItem
+                key={link.href}
+                href={link.href}
+                active={isActivePath(pathname, link.href)}
+                onNavigate={() => setOpen(false)}
+              >
                 {link.label}
               </MenuItem>
             ))}
@@ -132,17 +138,23 @@ function MenuItem({
   href,
   children,
   onNavigate,
+  active = false,
 }: {
   href: string;
   children: React.ReactNode;
   onNavigate: () => void;
+  active?: boolean;
 }) {
   return (
     <Link
       href={href}
       role="menuitem"
       onClick={onNavigate}
-      className="rounded-xl px-3 py-2.5 text-sm text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
+      aria-current={active ? 'page' : undefined}
+      className={cx(
+        'rounded-xl px-3 py-2.5 text-sm transition hover:bg-[color:var(--panel)]',
+        active ? 'bg-[color:var(--panel)] font-medium text-[color:var(--ink)]' : 'text-[color:var(--ink-2)]',
+      )}
     >
       {children}
     </Link>

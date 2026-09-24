@@ -550,7 +550,7 @@ function PageShell({
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
       <nav className="text-sm text-[color:var(--muted)] [overflow-wrap:anywhere]">
-        <Link href="/" className="hover:text-[color:var(--ink)]">
+        <Link href="/rating" className="hover:text-[color:var(--ink)]">
           Рейтинг
         </Link>
         {org && repo && (

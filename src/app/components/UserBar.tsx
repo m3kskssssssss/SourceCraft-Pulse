@@ -10,6 +10,7 @@ import { auth } from '@/auth';
 import { signOutAction } from '@/app/actions/auth';
 import { getPublicUser } from '@/lib/users';
 import { Avatar } from './Avatar';
+import { HeaderNav } from './HeaderNav';
 import { MobileMenu } from './MobileMenu';
 import { Button } from './ui';
 import { Planet } from './Planet';
@@ -25,9 +26,10 @@ export async function UserBar() {
   // Отдельной вкладки со своими оценками нет: они живут на стене профиля,
   // куда ведёт имя справа.
   const links = [
-    { href: '/', label: 'Рейтинг' },
-    { href: '/analyze', label: 'Оценить' },
+    { href: '/', label: 'Главная' },
+    { href: '/rating', label: 'Рейтинг' },
     { href: '/learn', label: 'Статьи' },
+    { href: '/analyze', label: 'Оценить' },
   ];
 
   return (
@@ -40,13 +42,7 @@ export async function UserBar() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-1 text-sm sm:flex">
-          {links.map((link) => (
-            <NavLink key={link.href} href={link.href}>
-              {link.label}
-            </NavLink>
-          ))}
-        </nav>
+        <HeaderNav links={links} />
 
         {/* Телефон: одна кнопка, за ней и ссылки, и вход с выходом. */}
         <MobileMenu links={links} user={profile} />
@@ -88,16 +84,5 @@ export async function UserBar() {
         </div>
       </div>
     </header>
-  );
-}
-
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-full px-3 py-1.5 text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
-    >
-      {children}
-    </Link>
   );
 }
