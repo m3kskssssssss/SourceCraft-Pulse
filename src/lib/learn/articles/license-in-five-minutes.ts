@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const licenseInFiveMinutes: Article = {
   slug: 'license-in-five-minutes',
-  title: 'Лицензия за пять минут: без неё открытый код брать нельзя',
+  title: 'Зачем проекту лицензия и какую из них выбрать',
   summary: 'Почему публичный репозиторий без LICENSE по умолчанию закрыт для использования и как выбрать лицензию, не будучи юристом.',
   level: 'junior',
   tags: ['лицензия', 'open source', 'документация'],

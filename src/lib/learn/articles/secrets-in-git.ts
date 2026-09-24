@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const secretsInGit: Article = {
   slug: 'secrets-in-git',
-  title: 'Секретам не место в git: как не слить ключи',
+  title: 'Как не выложить пароли и ключи в git по ошибке',
   summary: 'Почему удалённый ключ всё ещё в истории, куда его класть вместо кода и что делать, если он уже утёк.',
   level: 'junior',
   tags: ['безопасность', 'git', 'секреты'],

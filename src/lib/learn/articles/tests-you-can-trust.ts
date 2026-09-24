@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const testsYouCanTrust: Article = {
   slug: 'tests-you-can-trust',
-  title: 'Тесты, которым верят: с чего начинать и когда остановиться',
+  title: 'Какие тесты писать первыми и сколько их нужно',
   summary: 'Какие тесты писать первыми, почему процент покрытия плохая цель и что делать с тестами, которые падают через раз.',
   level: 'middle',
   tags: ['тесты', 'качество', 'CI'],

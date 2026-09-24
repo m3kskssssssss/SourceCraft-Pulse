@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const readmeFirstScreen: Article = {
   slug: 'readme-first-screen',
-  title: 'README, который дочитывают: первый экран за 15 минут',
+  title: 'Как написать README, который прочитают до конца',
   summary: 'Что человек должен понять за первые полминуты на странице репозитория и как уложить это в один экран.',
   level: 'junior',
   tags: ['документация', 'README'],

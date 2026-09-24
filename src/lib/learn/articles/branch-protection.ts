@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const branchProtection: Article = {
   slug: 'branch-protection',
-  title: 'Защита веток и CODEOWNERS: ревью как система, а не привычка',
+  title: 'Как запретить изменения в main без проверки',
   summary: 'Как сделать так, чтобы в основную ветку нельзя было попасть в обход проверок, и распределить ответственность за код по владельцам.',
   level: 'senior',
   tags: ['ревью', 'безопасность', 'процессы'],

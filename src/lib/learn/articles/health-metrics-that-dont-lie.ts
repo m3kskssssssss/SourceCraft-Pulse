@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const healthMetricsThatDontLie: Article = {
   slug: 'health-metrics-that-dont-lie',
-  title: 'Метрики здоровья, которые не врут: активность и bus factor',
+  title: 'Как по цифрам понять, жив ли проект на самом деле',
   summary: 'Почему число коммитов почти ничего не говорит, как читать концентрацию знаний и как не превратить метрики в цель.',
   level: 'senior',
   tags: ['метрики', 'активность', 'команда'],

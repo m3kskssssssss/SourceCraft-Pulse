@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const releasesAndChangelog: Article = {
   slug: 'releases-and-changelog',
-  title: 'Релизы и changelog: версии, которым доверяют',
+  title: 'Как выпускать версии и вести список изменений',
   summary: 'Как выбрать номер версии, вести список изменений для людей и выпускать релизы так, чтобы их можно было воспроизвести.',
   level: 'middle',
   tags: ['релизы', 'semver', 'документация'],

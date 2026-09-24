@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const lintersAndFormatters: Article = {
   slug: 'linters-and-formatters',
-  title: 'Линтер и форматтер: спорить о запятых дорого',
+  title: 'Линтер и форматтер: пусть стиль проверяет машина',
   summary: 'Чем форматтер отличается от линтера, как подключить их так, чтобы они не мешали, и почему ревью не должно обсуждать отступы.',
   level: 'junior',
   tags: ['качество', 'линтер', 'процессы'],

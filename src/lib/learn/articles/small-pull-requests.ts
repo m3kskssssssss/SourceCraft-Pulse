@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const smallPullRequests: Article = {
   slug: 'small-pull-requests',
-  title: 'Маленькие pull request: ревью, которое успевает',
+  title: 'Почему маленькие pull request проверяют лучше',
   summary: 'Почему большой PR одобряют не читая, как нарезать работу на части и что делать, чтобы ревью не висело по три дня.',
   level: 'middle',
   tags: ['ревью', 'pull request', 'процессы'],

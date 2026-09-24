@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const errorsAndLogs: Article = {
   slug: 'errors-and-logs',
-  title: 'Ошибки и логи: как не потерять сбой',
+  title: 'Как обрабатывать ошибки и писать полезные логи',
   summary: 'Почему пустой catch опаснее падения, какие уровни логов нужны и как писать логи, по которым потом можно найти причину.',
   level: 'middle',
   tags: ['надёжность', 'логи', 'качество'],

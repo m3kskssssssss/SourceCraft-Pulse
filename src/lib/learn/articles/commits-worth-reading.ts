@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const commitsWorthReading: Article = {
   slug: 'commits-worth-reading',
-  title: 'Коммиты, которые можно прочитать через год',
+  title: 'Как писать коммиты, понятные даже через год',
   summary: 'Как писать сообщения коммитов и нарезать изменения так, чтобы история отвечала на вопрос «почему», а не только «что».',
   level: 'junior',
   tags: ['git', 'коммиты', 'процессы'],

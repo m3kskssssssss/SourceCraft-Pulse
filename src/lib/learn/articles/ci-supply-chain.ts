@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const ciSupplyChain: Article = {
   slug: 'ci-supply-chain',
-  title: 'CI как дверь в прод: закрываем цепочку поставки',
+  title: 'Как защитить CI от взлома через чужой код',
   summary: 'Почему сборочный конвейер — самая ценная цель для атаки, чему научили истории tj-actions, Codecov и xz и какие меры дают больше всего.',
   level: 'senior',
   tags: ['безопасность', 'CI', 'supply chain'],

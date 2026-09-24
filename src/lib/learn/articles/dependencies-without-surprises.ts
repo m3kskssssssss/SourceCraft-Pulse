@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const dependenciesWithoutSurprises: Article = {
   slug: 'dependencies-without-surprises',
-  title: 'Зависимости без сюрпризов: lock-файлы, обновления и CVE',
+  title: 'Как обновлять зависимости и не сломать проект',
   summary: 'Как диапазоны версий, lock-файл и ритм обновлений делают сборку воспроизводимой, а уязвимости — заметными.',
   level: 'middle',
   tags: ['безопасность', 'зависимости', 'npm'],
