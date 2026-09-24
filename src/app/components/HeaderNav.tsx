@@ -12,13 +12,15 @@ export type NavItem = { href: string; label: string };
 /** Главная активна только на «/», остальные — и на вложенных адресах. */
 export function isActivePath(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/';
+  // Профиль человека — часть раздела «Пользователи», хоть адрес у него короче.
+  if (href === '/users' && pathname.startsWith('/u/')) return true;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function HeaderNav({ links }: { links: NavItem[] }) {
   const pathname = usePathname();
   return (
-    <nav className="hidden items-center gap-1 text-sm sm:flex">
+    <nav className="hidden items-center gap-1 text-sm md:flex">
       {links.map((link) => {
         const active = isActivePath(pathname, link.href);
         return (

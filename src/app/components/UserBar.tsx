@@ -29,6 +29,7 @@ export async function UserBar() {
     { href: '/', label: 'Главная' },
     { href: '/rating', label: 'Рейтинг' },
     { href: '/learn', label: 'Статьи' },
+    { href: '/users', label: 'Пользователи' },
     { href: '/analyze', label: 'Оценить' },
   ];
 
@@ -47,7 +48,7 @@ export async function UserBar() {
         {/* Телефон: одна кнопка, за ней и ссылки, и вход с выходом. */}
         <MobileMenu links={links} user={profile} />
 
-        <div className="hidden items-center gap-2 sm:flex">
+        <div className="hidden items-center gap-2 md:flex">
           {sessionUser ? (
             <>
               {/* Имя с фото ведут на свою страницу: там и стена с прогонами,

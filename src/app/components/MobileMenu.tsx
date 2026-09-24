@@ -55,7 +55,7 @@ export function MobileMenu({
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative sm:hidden">
+    <div ref={rootRef} className="relative md:hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

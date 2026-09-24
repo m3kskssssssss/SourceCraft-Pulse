@@ -95,11 +95,12 @@ src/
 │   ├── profile/page.tsx          # свои настройки: ник, ФИО, о себе, контакты, фото, пароль
 │   ├── learn/page.tsx            # статьи: поиск, фильтры по уровню и времени чтения (в URL)
 │   ├── learn/[slug]/page.tsx     # статья: сцена, текст с иллюстрациями, соседние статьи
+│   ├── users/page.tsx            # пользователи: сводка, тройка самых активных, поиск, звания
 │   ├── u/[id]/page.tsx           # профиль: контакты и стена прогонов; хозяину — публикация
 │   ├── my/page.tsx               # старый адрес «Моих оценок», редирект на свою страницу
 │   ├── not-found.tsx             # общий 404
 │   ├── icon.svg                  # ЧБ-логотип-favicon
-│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, Leaderboard (подиум и строки рейтинга), HeaderNav (вкладки шапки), HowAnalysisWorks + process-scenes.tsx (анимация шагов оценки в стиле планеты), ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, learn/ (ArticleCard, ArticleBody, PixelScene + scenes.ts — 8-битные сцены на canvas, Figures — SVG-иллюстрации), ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, Leaderboard (подиум и строки рейтинга), HeaderNav (вкладки шапки), UserDirectory (карточки пользователей), HowAnalysisWorks + process-scenes.tsx (анимация шагов оценки в стиле планеты), ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, learn/ (ArticleCard, ArticleBody, PixelScene + scenes.ts — 8-битные сцены на canvas, Figures — SVG-иллюстрации), ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
@@ -170,6 +171,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 
 ## Прогресс
 
+- [x] Этап 32 — вкладка «Пользователи» (/users): сводка по сообществу, подиум самых активных, карточки со званием, последней активностью и тремя счётчиками, поиск по имени без почты, «Это вы»; полная шапка с md, ниже — меню
 - [x] Этап 31 — на «Оценить» под формой блок «Как проходит оценка»: семь сцен в стиле проволочной планеты (SVG, тонкие линии) по настоящим фазам прогона, полоса прогресса, описание шага, переход по клику
 - [x] Этап 30 — рейтинг переехал на /rating (сводка: число репозиториев, средний балл, распределение, средние по категориям, языки); главная — форма, статьи и превью рейтинга; в шапке явные вкладки с подсветкой текущей; старые ссылки /?sort=… перенаправляются
 - [x] Этап 29 — мобильная вёрстка анализа и профиля: шапка с баллом столбиком (звёзды больше не уезжают), рекомендации и категории сеткой, длинные имена переносятся по символам; дерево коммитов свёрнуто до 3+3 (на телефоне 2+2) и сжимает дорожки под ширину экрана
