@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children, modal }: { children: ReactNode; modal: ReactNode }) {
   return (
     <html lang="ru" className="h-full antialiased">
       <body className="min-h-full bg-[color:var(--paper)] text-[color:var(--ink)] font-sans">
@@ -35,6 +35,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </div>
         {/* Веб-аналитика Vercel: без этого скрипта панель в дашборде остаётся
             пустой, сколько бы её ни включали в настройках проекта. */}
+        {/* Окно входа и регистрации поверх страницы (app/@modal). */}
+        {modal}
         <Analytics />
       </body>
     </html>
