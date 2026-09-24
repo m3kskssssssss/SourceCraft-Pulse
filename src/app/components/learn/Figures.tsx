@@ -93,9 +93,10 @@ function SecretFlow() {
       <line x1={118} y1={95} x2={142} y2={95} stroke={INK} strokeWidth={1.5} strokeDasharray="4 3" />
       <path d="M124 87 l12 16 M136 87 l-12 16" stroke={INK} strokeWidth={2} />
       <Arrow x1={282} y1={120} x2={258} y2={120} />
-      <T x={60} y={178} anchor="middle" fill={MUTED} size={11}>не коммитится</T>
-      <T x={200} y={178} anchor="middle" fill={MUTED} size={11}>только имена</T>
-      <T x={340} y={178} anchor="middle" fill={MUTED} size={11}>подставляется при запуске</T>
+      <T x={60} y={172} anchor="middle" fill={MUTED} size={11}>не коммитится</T>
+      <T x={200} y={172} anchor="middle" fill={MUTED} size={11}>только имена</T>
+      <T x={340} y={172} anchor="middle" fill={MUTED} size={11}>подставляется</T>
+      <T x={340} y={186} anchor="middle" fill={MUTED} size={11}>при запуске</T>
     </Svg>
   );
 }
@@ -209,7 +210,12 @@ function SemverRanges() {
           <g key={r.r}>
             <T x={4} y={y + 13} size={13} mono weight={600}>{r.r}</T>
             <rect x={110} y={y} width={Math.max(4, r.to - 110)} height={18} rx={9} fill={i === 0 ? INK : i === 1 ? MUTED : INK} />
-            <T x={r.to + 8} y={y + 13} size={11} fill={MUTED}>{r.d}</T>
+            {/* у каретки полоса доходит до края — подпись внутри неё */}
+            {i === 0 ? (
+              <T x={r.to - 10} y={y + 13} anchor="end" size={11} fill={PAPER}>{r.d}</T>
+            ) : (
+              <T x={r.to + 8} y={y + 13} size={11} fill={MUTED}>{r.d}</T>
+            )}
           </g>
         );
       })}
