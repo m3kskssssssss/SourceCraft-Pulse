@@ -1,5 +1,6 @@
 # Pulse
 
+
 **Оценка здоровья открытых репозиториев SourceCraft**
 
 Вводите `org/repo` и получаете Repo Health Score от 0 до 100, объяснение по каждой метрике,
@@ -13,13 +14,11 @@
 [![Postgres](https://img.shields.io/badge/Postgres-Neon-0a0a0a?style=flat-square&logo=postgresql)](https://neon.tech)
 [![Vercel](https://img.shields.io/badge/deploy-Vercel-0a0a0a?style=flat-square&logo=vercel)](https://source-craft-pulse.vercel.app)
 
-<a href="docs/media/pulse-promo.mp4">
-  <img src="docs/media/pulse-teaser.gif" width="820" alt="Промо-ролик Pulse: ввод репозитория, этапы анализа, оценка" />
-</a>
-
-▶ [Смотреть промо-ролик целиком (55 с, со звуком)](docs/media/pulse-promo.mp4)
-
 </div>
+
+  [https://github.com/user-attachments/assets/1a2b3c4d-....](https://github.com/user-attachments/assets/43c152ea-81cd-4412-a9fc-8416caf37a7f)
+
+<div align="center">
 
 ---
 
@@ -45,7 +44,7 @@
 
 | | Роль |
 |---|---|
-| **Стрельников Михаил** · [@m3kskssssssss](https://github.com/m3kskssssssss) | Fullstack-разработчик |
+| **Стрельников Михаил** | Fullstack-разработчик |
 | **Лесунов Илья** | Fullstack-разработчик |
 
 ## Как шла разработка
@@ -227,10 +226,6 @@ src/
 ├── db/                  # схема Drizzle и миграции
 └── worker/              # ручной прогон очереди
 ```
-
-Подробное устройство и история этапов описаны в [`CLAUDE.md`](./CLAUDE.md).
-
----
 
 <div align="center">
 <sub>Хакатон ЛЦТ 2026 · 16–28 сентября · Стрельников Михаил и Лесунов Илья</sub>
