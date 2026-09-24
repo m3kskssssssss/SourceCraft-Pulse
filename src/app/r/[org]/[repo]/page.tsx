@@ -28,8 +28,8 @@ export default async function RepositoryPage({ params }: PageProps) {
   const scUrl = `https://sourcecraft.dev/${org}/${repo}`;
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-6 py-14">
-      <nav className="mb-6 text-sm text-[color:var(--muted)]">
+    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-14">
+      <nav className="mb-6 text-sm text-[color:var(--muted)] [overflow-wrap:anywhere]">
         <Link href="/" className="hover:text-[color:var(--ink)]">
           Рейтинг
         </Link>
@@ -37,10 +37,11 @@ export default async function RepositoryPage({ params }: PageProps) {
         <span className="text-[color:var(--ink-2)]">{org}/{repo}</span>
       </nav>
 
-      <header className="flex flex-wrap items-start justify-between gap-6">
-        <div>
+      <header>
+        <div className="min-w-0">
           <Chip tone="outline">Карточка репозитория</Chip>
-          <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight">
+          {/* Имя репозитория — одно длинное «слово»: переносим по символам. */}
+          <h1 className="mt-3 text-3xl font-semibold leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
             {org}
             <span className="text-[color:var(--muted-2)]">/</span>
             {repo}
@@ -59,23 +60,31 @@ export default async function RepositoryPage({ params }: PageProps) {
       </header>
 
       {latest ? (
-        <section className="rise mt-10 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
-          <div className="flex flex-wrap items-center gap-8 p-8 sm:p-10">
+        <section className="rise mt-6 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] sm:mt-10">
+          {/* Та же раскладка, что у шапки анализа: на телефоне круг сверху,
+              текст под ним на всю ширину. В одну строку с кругом колонке
+              оставалось меньше сотни пикселей. */}
+          <div className="flex flex-col items-start gap-6 p-5 sm:flex-row sm:items-center sm:gap-8 sm:p-10">
             {latest.kind !== 'material' && (
-              <ScoreDial value={latest.score} size={144} stroke={12} label="pulse" />
+              <ScoreDial value={latest.score} size={168} stroke={14} label="pulse" />
             )}
-            <div className="min-w-0 flex-1">
-              <div className="text-sm uppercase tracking-widest text-[color:var(--muted)]">
+            <div className="w-full min-w-0 sm:flex-1">
+              <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
                 Последний публичный анализ
               </div>
-              <div className="mt-1 text-2xl font-semibold tracking-tight">
-                {latest.kind === 'material'
-                  ? 'Полезный материал'
-                  : latest.score != null
-                    ? `${latest.score} из 100`
-                    : 'Нет данных'}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-sm text-[color:var(--muted)]">
+              {latest.kind === 'material' ? (
+                <div className="mt-1 text-3xl font-semibold leading-tight tracking-tight sm:text-5xl">
+                  Полезный материал
+                </div>
+              ) : (
+                <div className="mt-1 flex items-baseline gap-3">
+                  <span className="text-5xl font-semibold tabular-nums leading-none">
+                    {latest.score ?? '—'}
+                  </span>
+                  <span className="text-lg text-[color:var(--muted)]">/ 100</span>
+                </div>
+              )}
+              <div className="mt-5 flex flex-wrap gap-2 text-sm text-[color:var(--muted)]">
                 {latest.kind === 'material' && <Chip tone="ink">Материал</Chip>}
                 <Chip tone="default">{latest.language ?? 'Язык не определён'}</Chip>
                 {latest.publishedAt && (
@@ -102,7 +111,7 @@ export default async function RepositoryPage({ params }: PageProps) {
             </div>
           </div>
 
-          <div className="border-t border-[color:var(--line)] bg-[color:var(--paper)] p-6 sm:p-8">
+          <div className="border-t border-[color:var(--line)] bg-[color:var(--paper)] p-5 sm:p-8">
             <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
               SVG-бейдж для README
             </div>
@@ -124,14 +133,14 @@ export default async function RepositoryPage({ params }: PageProps) {
           </div>
         </section>
       ) : (
-        <div className="mt-10">
+        <div className="mt-6 sm:mt-10">
           <EmptyState
             title="Этот репозиторий ещё не оценивали"
             hint="Публичного анализа нет. Запустите оценку — опубликованный результат появится здесь."
             action={
               <Link
                 href={`/analyze?target=${encodeURIComponent(`${org}/${repo}`)}`}
-                className="mt-2 rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm text-[color:var(--paper)]"
+                className="mt-2 max-w-full rounded-full bg-[color:var(--ink)] px-4 py-2 text-center text-sm text-[color:var(--paper)] [overflow-wrap:anywhere]"
               >
                 Оценить {org}/{repo}
               </Link>
