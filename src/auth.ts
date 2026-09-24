@@ -3,20 +3,49 @@
 
 import NextAuth, { type User } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import Yandex from 'next-auth/providers/yandex';
 import { eq } from 'drizzle-orm';
 import argon2 from 'argon2';
 import { z } from 'zod';
 import { db } from '@/db/client';
 import { users } from '@/db/schema';
 import { authConfig } from './auth.config';
+import { upsertYandexUser } from '@/lib/yandex-auth';
 
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(200),
 });
 
+/** Вход через Яндекс ID включается, только когда заданы ключи приложения. */
+export const yandexEnabled = Boolean(process.env.AUTH_YANDEX_ID && process.env.AUTH_YANDEX_SECRET);
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    // Яндекс: заводим или находим пользователя до выдачи сессии. Вернуть
+    // false — значит не пускать: так отказываем заблокированным.
+    async signIn({ account, profile }) {
+      if (account?.provider !== 'yandex') return true;
+      const user = await upsertYandexUser(profile);
+      return Boolean(user && !user.blocked);
+    },
+    // В токен кладём id из нашей базы, а не из Яндекса: всё остальное в
+    // приложении ищет пользователя по нему. Повторный upsert идемпотентен —
+    // он просто находит запись, созданную шагом выше.
+    async jwt(params) {
+      if (params.account?.provider === 'yandex') {
+        const user = await upsertYandexUser(params.profile);
+        if (user) {
+          params.token.userId = user.id;
+          params.token.role = user.role;
+        }
+        return params.token;
+      }
+      return authConfig.callbacks.jwt(params);
+    },
+  },
   providers: [
     Credentials({
       credentials: {
@@ -44,5 +73,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         } as User;
       },
     }),
+    ...(yandexEnabled
+      ? [
+          Yandex({
+            clientId: process.env.AUTH_YANDEX_ID,
+            clientSecret: process.env.AUTH_YANDEX_SECRET,
+          }),
+        ]
+      : []),
   ],
 });

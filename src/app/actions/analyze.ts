@@ -50,8 +50,8 @@ export async function analyzeRepo(target: string): Promise<AnalyzeState> {
   const session = await auth();
   const userId = (session?.user as { id?: string } | undefined)?.id;
   if (!userId) {
-    // Гость: сохраняем target и уходим на /signin
-    redirect(`/signin?returnTo=${encodeURIComponent(`/analyze?target=${org}/${repo}`)}`);
+    // Гость: сначала вход. После него — всегда главная, адрес запоминать незачем.
+    redirect('/signin');
   }
 
   // Проверяем существование и публичность через SourceCraft.

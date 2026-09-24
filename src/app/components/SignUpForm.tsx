@@ -1,21 +1,16 @@
 'use client';
 
 import { useActionState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { signUpAction, type SignUpState } from '@/app/actions/auth';
 import { Button, Field, Input } from './ui';
 
 const initial: SignUpState = { ok: false };
 
 export function SignUpForm() {
-  const params = useSearchParams();
-  // Тот же маршрут по умолчанию, что и при входе.
-  const returnTo = params.get('returnTo') ?? '/analyze';
   const [state, formAction, pending] = useActionState(signUpAction, initial);
 
   return (
     <form action={formAction} className="flex w-full flex-col gap-4">
-      <input type="hidden" name="returnTo" value={returnTo} />
       <Field label="Email">
         <Input type="email" name="email" required autoComplete="email" />
       </Field>

@@ -32,16 +32,15 @@ export default auth(async (req) => {
   const adminBlock = await guardAdmin(req);
   if (adminBlock) return adminBlock;
 
-  const { pathname, search } = req.nextUrl;
+  const { pathname } = req.nextUrl;
   const isUserProtected = USER_PROTECTED_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
   if (!isUserProtected) return NextResponse.next();
   if (req.auth) return NextResponse.next();
 
-  const url = new URL('/signin', req.nextUrl.origin);
-  url.searchParams.set('returnTo', pathname + search);
-  return NextResponse.redirect(url);
+  // После входа всегда главная, поэтому адрес возврата не передаём.
+  return NextResponse.redirect(new URL('/signin', req.nextUrl.origin));
 });
 
 export const config = {

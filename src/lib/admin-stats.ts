@@ -245,9 +245,12 @@ export async function getUsersList(limit = 100): Promise<AdminUserRow[]> {
       name: users.name,
       createdAt: users.createdAt,
       blockedAt: users.blockedAt,
-      analysesN: sql<number>`(select count(*)::int from ${analyses} where ${analyses.requestedBy} = ${users.id})`,
-      ratingsN: sql<number>`(select count(*)::int from ${analysisRatings} where ${analysisRatings.userId} = ${users.id})`,
-      commentsN: sql<number>`(select count(*)::int from ${analysisComments} where ${analysisComments.userId} = ${users.id} and ${analysisComments.deletedAt} is null)`,
+      // Внешний users.id — с именем таблицы руками: в запросе из одной таблицы
+      // drizzle снимает имена таблиц в полях выборки, и подзапрос сравнивал
+      // анализ сам с собой.
+      analysesN: sql<number>`(select count(*)::int from ${analyses} where ${analyses.requestedBy} = ${sql.raw('"users"."id"')})`,
+      ratingsN: sql<number>`(select count(*)::int from ${analysisRatings} where ${analysisRatings.userId} = ${sql.raw('"users"."id"')})`,
+      commentsN: sql<number>`(select count(*)::int from ${analysisComments} where ${analysisComments.userId} = ${sql.raw('"users"."id"')} and ${analysisComments.deletedAt} is null)`,
     })
     .from(users)
     .orderBy(desc(users.createdAt))

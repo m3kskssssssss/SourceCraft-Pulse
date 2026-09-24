@@ -2,18 +2,17 @@
 
 // Клиентская форма входа. Отправляет прямо на /api/auth/callback/credentials,
 // потому что Auth.js v5 сам умеет обработать credentials-callback POST.
-// После успешного логина cookie ставится сервером, а мы редиректим руками.
+//
+// После успешного входа — полная загрузка главной, а не router.push. Клиентский
+// роутер успевал запомнить ответ защищённой страницы, полученный ещё до входа
+// (редирект на /signin), и после входа отдавал его снова: человека кидало
+// обратно на форму. Полная загрузка идёт уже с новой cookie.
 
 import { useState, useTransition } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { Button, Field, Input } from './ui';
 
 export function SignInForm() {
-  const router = useRouter();
-  const params = useSearchParams();
-  // После входа логично оказаться на «Оценить»: вход нужен ровно для этого.
-  const returnTo = params.get('returnTo') ?? '/analyze';
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -36,8 +35,7 @@ export function SignInForm() {
             setError('Не удалось войти. Проверьте email и пароль.');
             return;
           }
-          router.push(safeReturnTo(returnTo));
-          router.refresh();
+          window.location.replace('/');
         });
       }}
     >
@@ -59,7 +57,3 @@ export function SignInForm() {
   );
 }
 
-function safeReturnTo(input: string): string {
-  if (!input.startsWith('/') || input.startsWith('//')) return '/';
-  return input;
-}

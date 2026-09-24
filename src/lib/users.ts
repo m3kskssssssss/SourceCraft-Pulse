@@ -72,6 +72,9 @@ export async function getPublicUsers(ids: string[]): Promise<Map<string, PublicU
   return new Map(rows.map((row) => [row.id, toPublicUser(row)]));
 }
 
+/** Пользователь из внешнего запроса — для коррелированных подзапросов. */
+const OUTER_USER_ID = sql.raw('"users"."id"');
+
 export type UserListSort = 'active' | 'new';
 
 export type UserListItem = PublicUser & {
@@ -111,27 +114,31 @@ export async function listUsers(params: {
       : undefined,
   );
 
+  // Внешняя ссылка на пользователя пишется с именем таблицы руками: в запросе
+  // из одной таблицы drizzle снимает имена таблиц с колонок в полях выборки,
+  // и users.id внутри подзапроса молча становится id анализа — счётчики
+  // выходили нулями.
   const repos = sql<number>`(
     select count(distinct ${analyses.repositoryId})::int from ${analyses}
-    where ${analyses.requestedBy} = ${users.id} and ${analyses.isPublic}
+    where ${analyses.requestedBy} = ${OUTER_USER_ID} and ${analyses.isPublic}
   )`;
   const comments = sql<number>`(
     select count(*)::int from ${analysisComments}
-    where ${analysisComments.userId} = ${users.id} and ${analysisComments.deletedAt} is null
+    where ${analysisComments.userId} = ${OUTER_USER_ID} and ${analysisComments.deletedAt} is null
   )`;
   const ratings = sql<number>`(
     select count(*)::int from ${analysisRatings}
-    where ${analysisRatings.userId} = ${users.id}
+    where ${analysisRatings.userId} = ${OUTER_USER_ID}
   )`;
 
   // Приватные прогоны в дату не входят: по ней нельзя догадаться о них.
   const lastActive = sql<Date | null>`greatest(
     (select max(${analyses.finishedAt}) from ${analyses}
-      where ${analyses.requestedBy} = ${users.id} and ${analyses.isPublic}),
+      where ${analyses.requestedBy} = ${OUTER_USER_ID} and ${analyses.isPublic}),
     (select max(${analysisComments.createdAt}) from ${analysisComments}
-      where ${analysisComments.userId} = ${users.id} and ${analysisComments.deletedAt} is null),
+      where ${analysisComments.userId} = ${OUTER_USER_ID} and ${analysisComments.deletedAt} is null),
     (select max(${analysisRatings.updatedAt}) from ${analysisRatings}
-      where ${analysisRatings.userId} = ${users.id})
+      where ${analysisRatings.userId} = ${OUTER_USER_ID})
   )`;
   const points = sql<number>`(${repos} * ${sql.raw(String(POINTS.repo))} + ${comments} * ${sql.raw(String(POINTS.comment))} + ${ratings} * ${sql.raw(String(POINTS.rating))})`;
 

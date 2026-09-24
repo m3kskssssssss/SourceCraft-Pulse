@@ -12,10 +12,10 @@ export const dynamic = 'force-dynamic';
 export default async function ProfileSettingsPage() {
   const session = await auth();
   const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) redirect('/signin?returnTo=%2Fprofile');
+  if (!userId) redirect('/signin');
 
   const profile = await getOwnProfile(userId);
-  if (!profile) redirect('/signin?returnTo=%2Fprofile');
+  if (!profile) redirect('/signin');
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-14">

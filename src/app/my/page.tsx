@@ -10,6 +10,6 @@ export const dynamic = 'force-dynamic';
 export default async function MyAnalysesPage() {
   const session = await auth();
   const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) redirect('/signin?returnTo=%2Fmy');
+  if (!userId) redirect('/signin');
   redirect(`/u/${userId}`);
 }

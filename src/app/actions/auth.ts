@@ -16,7 +16,6 @@ const signUpSchema = z.object({
   email: z.string().email('Неверный email'),
   password: z.string().min(8, 'Пароль от 8 символов').max(200),
   name: z.string().max(120).optional(),
-  returnTo: z.string().max(500).optional(),
 });
 
 export type SignUpState = {
@@ -32,12 +31,11 @@ export async function signUpAction(
     email: formData.get('email'),
     password: formData.get('password'),
     name: formData.get('name') || undefined,
-    returnTo: formData.get('returnTo') || undefined,
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Проверьте форму' };
   }
-  const { email, password, name, returnTo } = parsed.data;
+  const { email, password, name } = parsed.data;
   const normalizedEmail = email.toLowerCase();
 
   const existing = await db.query.users.findFirst({
@@ -61,9 +59,14 @@ export async function signUpAction(
   await signIn('credentials', {
     email: normalizedEmail,
     password,
-    redirectTo: safeReturnTo(returnTo),
+    redirectTo: '/',
   });
   return { ok: true };
+}
+
+/** Вход через Яндекс ID: Auth.js уводит на oauth.yandex.ru и возвращает на главную. */
+export async function yandexSignInAction(): Promise<void> {
+  await signIn('yandex', { redirectTo: '/' });
 }
 
 export async function signOutAction(): Promise<void> {
@@ -71,9 +74,3 @@ export async function signOutAction(): Promise<void> {
   redirect('/');
 }
 
-function safeReturnTo(input: string | undefined): string {
-  if (!input) return '/analyze';
-  // Разрешаем только относительные пути внутри проекта.
-  if (!input.startsWith('/') || input.startsWith('//')) return '/analyze';
-  return input;
-}
