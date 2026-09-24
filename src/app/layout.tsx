@@ -12,7 +12,6 @@ export const metadata: Metadata = {
     'Введите org/repo с SourceCraft, чтобы получить оценку 0–100, объяснение и конкретные рекомендации.',
   applicationName: 'Pulse',
   authors: [{ name: 'Pulse' }],
-  icons: [{ rel: 'icon', url: '/icon.svg', type: 'image/svg+xml' }],
   openGraph: {
     title: 'Pulse — здоровье репозиториев SourceCraft',
     description: 'Оценка 0–100 по активности, коду, безопасности и документации.',

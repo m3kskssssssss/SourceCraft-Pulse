@@ -100,7 +100,8 @@ src/
 │   ├── u/[id]/page.tsx           # профиль: контакты и стена прогонов; хозяину — публикация
 │   ├── my/page.tsx               # старый адрес «Моих оценок», редирект на свою страницу
 │   ├── not-found.tsx             # общий 404
-│   ├── icon.svg                  # ЧБ-логотип-favicon
+│   ├── icon.svg                  # ЧБ-логотип-favicon; favicon.ico (16/32/48) и apple-icon.png (180) — он же в PNG
+│   │                             # public/pulse-icon-512.png — крупная иконка (например, для приложения Яндекс ID)
 │   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, Leaderboard (подиум и строки рейтинга), HeaderNav (вкладки шапки), UserDirectory (карточки пользователей), HowAnalysisWorks + process-scenes.tsx (анимация шагов оценки в стиле планеты), ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, learn/ (ArticleCard, ArticleBody, PixelScene + scenes.ts — 8-битные сцены на canvas, Figures — SVG-иллюстрации), ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
