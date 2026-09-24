@@ -27,6 +27,7 @@ export async function UserBar() {
   const links = [
     { href: '/', label: 'Рейтинг' },
     { href: '/analyze', label: 'Оценить' },
+    { href: '/learn', label: 'Статьи' },
   ];
 
   return (

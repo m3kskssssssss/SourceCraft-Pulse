@@ -92,11 +92,13 @@ src/
 │   ├── analyze/page.tsx
 │   ├── a/[id]/page.tsx
 │   ├── profile/page.tsx          # свои настройки: ник, ФИО, о себе, контакты, фото, пароль
+│   ├── learn/page.tsx            # статьи: поиск, фильтры по уровню и времени чтения (в URL)
+│   ├── learn/[slug]/page.tsx     # статья: сцена, текст с иллюстрациями, соседние статьи
 │   ├── u/[id]/page.tsx           # профиль: контакты и стена прогонов; хозяину — публикация
 │   ├── my/page.tsx               # старый адрес «Моих оценок», редирект на свою страницу
 │   ├── not-found.tsx             # общий 404
 │   ├── icon.svg                  # ЧБ-логотип-favicon
-│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, learn/ (ArticleCard, ArticleBody, PixelScene + scenes.ts — 8-битные сцены на canvas, Figures — SVG-иллюстрации), ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
@@ -108,6 +110,7 @@ src/
 │   └── seed-repos.ts             # pnpm seed:repos
 ├── lib/
 │   ├── collect.ts                # collectRepoFacts(org, repo) → RepoFacts
+│   ├── learn/                    # статьи в коде: types.ts, reading-time.ts, index.ts, articles/*.ts
 │   ├── users.ts                  # профили из базы; user-display.ts — имя и инициалы без БД
 │   ├── contacts.ts               # пять сетей: разбор ника, ссылка, подпись
 │   ├── social.ts                 # оценки и комментарии; social-shared.ts — шкала без БД
@@ -166,6 +169,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 
 ## Прогресс
 
+- [x] Этап 28 — раздел «Статьи» (/learn): уровни Junior/Middle/Senior, время чтения считается по тексту, поиск и фильтры; у каждой статьи своя зацикленная ЧБ 8-битная сцена на карточке и 2–3 SVG-иллюстрации внутри; первые четыре статьи
 - [x] Этап 27 — шапка на телефоне свернулась в одно выпадающее меню справа; настройки профиля перестали распирать экран (файловый инпут за подписью, контакты блоками, отступ карточек меньше на телефоне)
 - [x] Этап 26 — «Мои оценки» переехали на стену профиля: вкладки в шапке нет, имя ведёт на /u/<id>, публикация и снятие с рейтинга делаются прямо оттуда
 - [x] Этап 25 — контакты профиля по сетям (Telegram, ВКонтакте, GitHub, SourceCraft, почта): добавляются кнопкой, ник разбирается из любой вставленной ссылки, в профиле — значок и кликабельная ссылка
