@@ -79,6 +79,7 @@ src/
 │   │   ├── auth.ts               # signUpAction, signOutAction
 │   │   ├── analyze.ts            # analyzeRepo — slug + limits + SC check + queue
 │   │   ├── visibility.ts         # setAnalysisVisibility (публикация в рейтинг)
+│   │   ├── improvements.ts       # «Создать pull request» со страницы анализа
 │   │   ├── repos.ts              # мои репозитории: по личному токену SC или ключом, убрать
 │   │   ├── profile.ts            # профиль, загрузка фото, смена пароля
 │   │   └── social.ts             # оценка анализа и комментарии
@@ -130,6 +131,7 @@ src/
 │   ├── badge-shared.ts           # общее для бейджей: палитра (#000000), сетка, анимированный глобус (SMIL)
 │   ├── token-ownership.ts        # по токену SC: /user, /orgs/{org}/repos, роли admin/maintainer
 │   ├── token-sync.ts             # синхронизация по токену; автосинхронизация раз в 5 минут (воркер или /api/cron/sync-tokens)
+│   ├── improvements/             # PR с улучшениями: plan.ts (какие файлы добавить, шаблоны), pull-request.ts (isomorphic-git: коммит в дерево без checkout, push, POST /pulls), for-analysis.ts (права: подтверждённый владелец + токен)
 │   ├── theme.ts                  # ключ темы в localStorage и скрипт для <head> (без мигания)
 │   ├── token-crypto.ts           # AES-256-GCM для хранимых токенов (TOKEN_ENCRYPTION_KEY, иначе из AUTH_SECRET)
 │   ├── owner-runs.ts             # досчитать ждущие прогоны своих репозиториев в cron-запросе
@@ -186,6 +188,8 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 ```
 
 ## Прогресс
+
+- [x] Этап 44 — PR с улучшениями: на странице анализа своего репозитория блок «Предложить pull request» — недостающие файлы (README, LICENSE MIT, .gitignore под стек, .editorconfig, CONTRIBUTING, CHANGELOG, CODE_OF_CONDUCT) с объяснением, приростом балла и превью; по кнопке — ветка pulse/improvements-… и PR на SourceCraft от имени владельца токена; существующие файлы не трогаются; CI и шаблоны задач SourceCraft не предлагаем — их формат неизвестен
 
 - [x] Этап 43 — мобильная версия в духе iOS: нижняя панель вкладок (MobileTabBar) — плавающая «стеклянная» капсула (.glass: blur+saturate, блик, тень; без backdrop-filter — плотная подложка), Главная/Рейтинг/«+» Оценить/Мои (гость — Статьи)/Профиль (гость — Войти); отступ снизу по env(safe-area-inset-bottom), viewport-fit=cover, чтобы не спорить с панелью Safari и полоской «домой»; прячется при вводе (клавиатура) и в админке; шапка на телефоне тоньше и тоже стеклянная
 

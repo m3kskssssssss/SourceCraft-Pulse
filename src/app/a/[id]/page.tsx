@@ -25,6 +25,8 @@ import {
 } from '@/lib/category-meta';
 import { describeMissingList } from '@/lib/missing-labels';
 import { GitTree } from '@/app/components/GitTree';
+import { ImprovementPr } from '@/app/components/ImprovementPr';
+import { getAnalysisImprovements } from '@/lib/improvements/for-analysis';
 import { RatingStars } from '@/app/components/RatingStars';
 import { CommentThread } from '@/app/components/CommentThread';
 import { getCommentTree, getRatingSummary } from '@/lib/social';
@@ -35,6 +37,9 @@ import { getRepoHistory } from '@/lib/history';
 type PageProps = { params: Promise<{ id: string }> };
 
 export const dynamic = 'force-dynamic';
+/** Кнопка «Создать pull request» — действие этой страницы: клон, коммит и push
+ *  укладываются в минуту, но на большом репозитории нужен запас. */
+export const maxDuration = 120;
 
 const METRIC_LABELS: Record<string, string> = {
   'activity.commits_90d': 'Коммитов за 90 дней',
@@ -210,6 +215,9 @@ export default async function AnalysisPage({ params }: PageProps) {
     ? kindMeta.topics.filter((t): t is string => typeof t === 'string').slice(0, 6)
     : [];
 
+  // Что Pulse может добавить через PR — null, если смотрит не владелец.
+  const improvements = await getAnalysisImprovements(analysis.id, userId ?? null);
+
   const sortedCategories = [...categoryScores].sort(
     (a, b) => categoryOrder(a.key) - categoryOrder(b.key),
   );
@@ -375,6 +383,25 @@ export default async function AnalysisPage({ params }: PageProps) {
               </li>
             ))}
           </ol>
+        </section>
+      )}
+
+      {/* Pull request с улучшениями — только подтверждённому владельцу. */}
+      {improvements && improvements.items.length > 0 && (
+        <section id="pr" className="rise mt-10 scroll-mt-24" style={{ animationDelay: '100ms' }}>
+          <SectionHead
+            eyebrow="Сделаем за вас"
+            title="Предложить pull request"
+            hint="Pulse может сам добавить в репозиторий недостающие файлы. Отметьте нужное — появится ветка и PR на SourceCraft, а слить его или нет, решаете вы."
+          />
+          <div className="mt-6">
+            <ImprovementPr
+              analysisId={analysis.id}
+              items={improvements.items}
+              blocker={improvements.blocker}
+              slug={`${improvements.org}/${improvements.repo}`}
+            />
+          </div>
         </section>
       )}
 

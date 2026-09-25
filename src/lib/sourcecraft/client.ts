@@ -237,6 +237,20 @@ export class SourcecraftClient {
     return this.request(`/orgs/${encode(orgSlug)}/repos`, { query: pageQuery(params) });
   }
 
+  /** Открыть pull request из уже отправленной ветки. */
+  createPullRequest(
+    orgSlug: string,
+    repoSlug: string,
+    body: components['schemas']['CreatePullRequestBody'],
+  ): Promise<PullRequest> {
+    return this.request<PullRequest>(`/repos/${encode(orgSlug)}/${encode(repoSlug)}/pulls`, {
+      method: 'POST',
+      body,
+      // Повтор POST создал бы второй PR — пробуем один раз.
+      maxAttempts: 1,
+    });
+  }
+
   listRepoRoles(
     orgSlug: string,
     repoSlug: string,

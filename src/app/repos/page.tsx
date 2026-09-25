@@ -223,7 +223,8 @@ function PatGuide() {
         </li>
         <li>
           В доступе к репозиториям выберите <b>Все репозитории</b> — иначе мы увидим не все ваши
-          проекты. Права на запись не нужны: хватит самой младшей роли.
+          проекты. Роль выберите <b>developer</b> или выше: с ней Pulse сможет предлагать вам
+          pull request с улучшениями. Для одного подтверждения хватит и роли на чтение.
         </li>
         <li>
           Скопируйте токен сразу — SourceCraft показывает его только один раз. Он начинается с{' '}
@@ -326,6 +327,12 @@ function RepoCard({
               Открыть оценку →
             </Link>
             <EvaluateButton id={ownedId} again />
+            <Link
+              href={`/a/${done.id}#pr`}
+              className="rounded-full border border-[color:var(--line)] px-4 py-2 text-sm transition hover:bg-[color:var(--panel)]"
+            >
+              Улучшить через PR
+            </Link>
           </>
         ) : (
           <EvaluateButton id={ownedId} />
