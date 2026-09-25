@@ -211,3 +211,34 @@ export async function ensureRepository(db: Db, org: string, repo: string): Promi
   const again = await db.select({ id: repositories.id }).from(repositories).where(where).limit(1);
   return again[0]?.id ?? null;
 }
+
+/**
+ * id записи «мой репозиторий», если пользователь — его подтверждённый
+ * владелец. Нужен кнопкам «Оценить заново» на публичных страницах: владельцу
+ * оценка ставится сразу его правами, остальным — через обычную форму.
+ */
+export async function findOwnedRepoId(
+  db: Db,
+  userId: string | null,
+  where: { repositoryId: string } | { org: string; repo: string },
+): Promise<string | null> {
+  if (!userId) return null;
+  const repoCond =
+    'repositoryId' in where
+      ? eq(ownedRepositories.repositoryId, where.repositoryId)
+      : and(ilike(repositories.orgSlug, where.org), ilike(repositories.repoSlug, where.repo));
+  const [row] = await db
+    .select({ id: ownedRepositories.id })
+    .from(ownedRepositories)
+    .innerJoin(repositories, eq(ownedRepositories.repositoryId, repositories.id))
+    .where(
+      and(
+        eq(ownedRepositories.userId, userId),
+        repoCond,
+        isNotNull(ownedRepositories.verifiedAt),
+        isNull(ownedRepositories.removedAt),
+      ),
+    )
+    .limit(1);
+  return row?.id ?? null;
+}

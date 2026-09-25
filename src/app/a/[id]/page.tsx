@@ -26,6 +26,8 @@ import {
 import { describeMissingList } from '@/lib/missing-labels';
 import { GitTree } from '@/app/components/GitTree';
 import { ImprovementPr } from '@/app/components/ImprovementPr';
+import { ReevaluateButton } from '@/app/components/ReevaluateButton';
+import { findOwnedRepoId } from '@/lib/ownership';
 import { getAnalysisImprovements } from '@/lib/improvements/for-analysis';
 import { RatingStars } from '@/app/components/RatingStars';
 import { CommentThread } from '@/app/components/CommentThread';
@@ -151,14 +153,15 @@ export default async function AnalysisPage({ params }: PageProps) {
               <p className="mt-2 text-sm text-[color:var(--ink-2)]">
                 {analysis.error ?? 'Неизвестная ошибка.'}
               </p>
-              {isOwner && (
+              {isOwner && repo && (
                 <div className="mt-4">
-                  <Link
-                    href="/analyze"
-                    className="rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm text-[color:var(--paper)]"
-                  >
-                    Попробовать заново
-                  </Link>
+                  <ReevaluateButton
+                    org={repo.orgSlug}
+                    repo={repo.repoSlug}
+                    ownedId={await findOwnedRepoId(db, userId ?? null, { repositoryId: repo.id })}
+                    label="Попробовать заново"
+                    primary
+                  />
                 </div>
               )}
             </div>

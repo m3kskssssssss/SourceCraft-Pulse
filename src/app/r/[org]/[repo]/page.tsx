@@ -8,6 +8,9 @@ import { getRepoHistory } from '@/lib/history';
 import { Chip, EmptyState, ScoreDial } from '@/app/components/ui';
 import { AnalysisHistory } from '@/app/components/AnalysisHistory';
 import { BadgeMarkdown } from '@/app/components/BadgeMarkdown';
+import { ReevaluateButton } from '@/app/components/ReevaluateButton';
+import { db } from '@/db/client';
+import { findOwnedRepoId } from '@/lib/ownership';
 
 type PageProps = { params: Promise<{ org: string; repo: string }> };
 
@@ -21,9 +24,10 @@ export default async function RepositoryPage({ params }: PageProps) {
   const session = await auth();
   const viewerId = (session?.user as { id?: string } | undefined)?.id ?? null;
 
-  const [latest, history] = await Promise.all([
+  const [latest, history, ownedId] = await Promise.all([
     getLatestPublicAnalysis(org, repo),
     getRepoHistory({ org, repo, viewerId }),
+    findOwnedRepoId(db, viewerId, { org, repo }),
   ]);
   const scUrl = `https://sourcecraft.dev/${org}/${repo}`;
 
@@ -101,12 +105,7 @@ export default async function RepositoryPage({ params }: PageProps) {
                 >
                   Подробности анализа →
                 </Link>
-                <Link
-                  href="/analyze"
-                  className="rounded-full border border-[color:var(--line)] px-4 py-2 text-sm text-[color:var(--ink)] hover:bg-[color:var(--panel)]"
-                >
-                  Оценить заново
-                </Link>
+                <ReevaluateButton org={latest.org} repo={latest.repo} ownedId={ownedId} />
               </div>
             </div>
           </div>
@@ -138,12 +137,18 @@ export default async function RepositoryPage({ params }: PageProps) {
             title="Этот репозиторий ещё не оценивали"
             hint="Публичного анализа нет. Запустите оценку — опубликованный результат появится здесь."
             action={
-              <Link
-                href={`/analyze?target=${encodeURIComponent(`${org}/${repo}`)}`}
-                className="mt-2 max-w-full rounded-full bg-[color:var(--ink)] px-4 py-2 text-center text-sm text-[color:var(--paper)] [overflow-wrap:anywhere]"
-              >
-                Оценить {org}/{repo}
-              </Link>
+              ownedId ? (
+                <div className="mt-2">
+                  <ReevaluateButton org={org} repo={repo} ownedId={ownedId} primary />
+                </div>
+              ) : (
+                <Link
+                  href={`/analyze?target=${encodeURIComponent(`${org}/${repo}`)}`}
+                  className="mt-2 max-w-full rounded-full bg-[color:var(--ink)] px-4 py-2 text-center text-sm text-[color:var(--paper)] [overflow-wrap:anywhere]"
+                >
+                  Оценить {org}/{repo}
+                </Link>
+              )
             }
           />
         </div>
