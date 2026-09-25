@@ -30,6 +30,8 @@ export async function UserBar() {
     { href: '/rating', label: 'Рейтинг' },
     { href: '/learn', label: 'Статьи' },
     { href: '/users', label: 'Пользователи' },
+    // Свои репозитории есть только у вошедших: гостю там нечего делать.
+    ...(sessionUser ? [{ href: '/repos', label: 'Мои репозитории' }] : []),
     { href: '/analyze', label: 'Оценить' },
   ];
 

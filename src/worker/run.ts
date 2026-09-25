@@ -13,6 +13,9 @@
 //      сам себя объявит брошенным и его подхватит второй воркер;
 //   4) закрывает пул и выходит, напечатав итог.
 //
+// Перед очередью ставит суточный пересчёт своих репозиториев (lib/ownership.ts),
+// если наступили новые сутки.
+//
 // Настройки через окружение:
 //   WORKER_BATCH_SIZE   — сколько задач захватывать за раз (по умолчанию 6);
 //   WORKER_CONCURRENCY  — сколько считать одновременно (по умолчанию 3);
@@ -22,6 +25,7 @@ import 'dotenv/config';
 import { hostname } from 'node:os';
 import { getWorkerDb, getWorkerPool, shutdownWorkerDb } from '../db/worker-client';
 import { MAX_ATTEMPTS, processAnalysis, type ClaimedJob, type ProcessOutcome } from '../lib/analysis/run';
+import { enqueueDailyRefresh } from '../lib/ownership';
 
 const DEFAULT_BATCH_SIZE = 6;
 const DEFAULT_CONCURRENCY = 3;
@@ -47,6 +51,19 @@ async function main(): Promise<void> {
   );
 
   const db = getWorkerDb();
+
+  // Суточный пересчёт своих репозиториев. Воркер в docker запускается раз в
+  // минуту, так что первый запуск после полуночи и ставит прогоны; остальные
+  // в те же сутки ничего не делают.
+  try {
+    const refresh = await enqueueDailyRefresh(db);
+    if (refresh.queued > 0) {
+      console.log(`[worker ${workerId}] Суточный пересчёт ${refresh.day}: в очереди ${refresh.queued}.`);
+    }
+  } catch (err) {
+    console.warn(`[worker ${workerId}] Суточный пересчёт не встал: ${describe(err)}`);
+  }
+
   const heartbeat = setInterval(() => {
     void touchLocks();
   }, HEARTBEAT_MS);

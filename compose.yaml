@@ -55,6 +55,7 @@ services:
       ADMIN_LOGIN: ${ADMIN_LOGIN}
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
       CRON_SECRET: ${CRON_SECRET}
+      BADGE_REFRESH_TZ: ${BADGE_REFRESH_TZ:-Europe/Moscow}
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       PORT: "3000"
@@ -76,6 +77,9 @@ services:
       AI_MONTHLY_BUDGET_RUB: ${AI_MONTHLY_BUDGET_RUB}
       NODE_ENV: production
       WORKER_BATCH_SIZE: "5"
+      # Первый запуск после полуночи по этому поясу ставит суточный пересчёт
+      # подтверждённых репозиториев («Мои репозитории»).
+      BADGE_REFRESH_TZ: ${BADGE_REFRESH_TZ:-Europe/Moscow}
     # Один запуск = одна пачка. Сон 60с между запусками. `|| true` чтобы одна
     # упавшая пачка не роняла контейнер (restart подхватил бы, но лишний шум).
     command: ["sh", "-c", "while true; do pnpm worker || true; sleep 60; done"]

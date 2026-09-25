@@ -207,6 +207,7 @@ pnpm dev               # http://localhost:3000
 3. Задайте переменные: `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`, `AUTH_TRUST_HOST=true`, `SOURCECRAFT_PAT`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`, `AI_MONTHLY_BUDGET_RUB`, `ADMIN_LOGIN`, `ADMIN_PASSWORD_HASH`, `CRON_SECRET`, а для входа через Яндекс ID ещё `AUTH_YANDEX_ID` и `AUTH_YANDEX_SECRET`.
 4. Проверьте, что включён **Fluid compute**: без него функция оборвётся раньше 300 секунд.
 5. Cron на Hobby срабатывает не чаще раза в сутки, поэтому `/api/cron/*` вызывает внешний планировщик с заголовком `Authorization: Bearer $CRON_SECRET`.
+6. Суточный пересчёт своих репозиториев: внешний планировщик в 00:00 (по `BADGE_REFRESH_TZ`, по умолчанию Europe/Moscow) вызывает `POST /api/cron/refresh-badges` с тем же заголовком. Если прогонов много и функция не успела — повторный вызов в те же сутки досчитает остаток. В docker-развёртывании это делает воркер сам.
 
 </details>
 

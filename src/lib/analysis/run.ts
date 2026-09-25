@@ -9,7 +9,7 @@
 // Ошибки считаются по попыткам: до MAX_ATTEMPTS задача возвращается в очередь,
 // после — анализ помечается failed.
 
-import { and, eq, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, isNull, lt, ne, or } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../../db/schema';
 import { analyses, analysisJobs, events, repositories } from '../../db/schema';
@@ -217,6 +217,21 @@ export async function processAnalysis(
         finishedAt: new Date(),
       })
       .where(eq(analyses.id, job.analysisId));
+
+    // Прогон, опубликованный заранее (суточный пересчёт своего репозитория),
+    // сменяет в рейтинге прежний: там живёт одна свежая запись на репозиторий.
+    if (analysis.isPublic) {
+      await db
+        .update(analyses)
+        .set({ isPublic: false })
+        .where(
+          and(
+            eq(analyses.repositoryId, analysis.repositoryId),
+            ne(analyses.id, job.analysisId),
+            eq(analyses.isPublic, true),
+          ),
+        );
+    }
 
     // Задача выполнена — строку из очереди убираем.
     await db.delete(analysisJobs).where(eq(analysisJobs.id, job.jobId));

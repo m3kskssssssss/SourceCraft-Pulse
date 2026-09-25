@@ -73,18 +73,21 @@ src/
 │   └── globals.css
 ├── auth.ts                       # Auth.js v5, Node-конфиг: credentials+argon2 и Яндекс ID (если заданы AUTH_YANDEX_ID/SECRET)
 ├── auth.config.ts                # Edge-safe конфиг (для middleware)
-├── middleware.ts                 # gate для /analyze и /profile
+├── middleware.ts                 # gate для /analyze, /profile и /repos
 ├── app/
 │   ├── actions/
 │   │   ├── auth.ts               # signUpAction, signOutAction
 │   │   ├── analyze.ts            # analyzeRepo — slug + limits + SC check + queue
 │   │   ├── visibility.ts         # setAnalysisVisibility (публикация в рейтинг)
+│   │   ├── repos.ts              # мои репозитории: добавить, проверить ключ, убрать
 │   │   ├── profile.ts            # профиль, загрузка фото, смена пароля
 │   │   └── social.ts             # оценка анализа и комментарии
 │   ├── api/users/[id]/avatar/route.ts       # фото профиля из bytea
 │   ├── api/analyses/[id]/run/route.ts       # считает анализ в запросе (maxDuration 300)
 │   ├── api/analyses/[id]/status/route.ts    # статус для опроса со страницы
 │   ├── api/badge/[org]/[repo].svg/route.ts    # SVG-бейдж по последнему public
+│   ├── api/card/[org]/[repo]/route.ts         # SVG-карточка: балл, категории, язык, дата пересчёта
+│   ├── api/cron/refresh-badges/route.ts       # суточный пересчёт своих репозиториев (Bearer CRON_SECRET)
 │   ├── api/public/leaderboard/route.ts         # GET рейтинга (rate-limited)
 │   ├── api/public/repos/[org]/[repo]/route.ts  # GET последнего публичного
 │   ├── api/auth/[...nextauth]/route.ts
@@ -94,6 +97,7 @@ src/
 │   ├── analyze/page.tsx
 │   ├── a/[id]/page.tsx
 │   ├── profile/page.tsx          # свои настройки: ник, ФИО, о себе, контакты, фото, пароль
+│   ├── repos/page.tsx            # мои репозитории: подтверждение ключом, бейдж-карточка
 │   ├── learn/page.tsx            # статьи: поиск, фильтры по уровню и времени чтения (в URL)
 │   ├── learn/[slug]/page.tsx     # статья: сцена, текст с иллюстрациями, соседние статьи
 │   ├── users/page.tsx            # пользователи: сводка, тройка самых активных, поиск, звания
@@ -106,7 +110,7 @@ src/
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
-│   ├── schema.ts                 # 13 таблиц Drizzle
+│   ├── schema.ts                 # 14 таблиц Drizzle
 │   ├── client.ts                 # neon-http, для приложения (короткоживущие serverless)
 │   ├── worker-client.ts          # pg-Pool, только для воркера (FOR UPDATE SKIP LOCKED)
 │   ├── migrate.ts                # pnpm db:migrate
@@ -120,6 +124,8 @@ src/
 │   ├── contacts.ts               # пять сетей: разбор ника, ссылка, подпись
 │   ├── social.ts                 # оценки и комментарии; social-shared.ts — шкала без БД
 │   ├── admin-settings.ts         # одно чтение настроек для страницы и экшена
+│   ├── ownership.ts              # свои репозитории: ключ, поиск ключа, суточный пересчёт в 00:00 (BADGE_REFRESH_TZ)
+│   ├── badge-card.ts             # SVG бейджа-карточки (чистая функция)
 │   ├── ai/
 │   │   ├── provider.ts           # интерфейс AiProvider
 │   │   ├── router.ts             # реализация поверх OpenAI-compat роутера
@@ -173,6 +179,8 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 ```
 
 ## Прогресс
+
+- [x] Этап 35 — вкладка «Мои репозитории» (/repos): репозиторий подтверждается ключом (в описании или файлом с именем ключа в корне), подтверждённые пересчитываются каждый день в 00:00 по `BADGE_REFRESH_TZ` (воркер или `/api/cron/refresh-badges`) и сразу публикуются; бейдж-карточка `/api/card/org/repo.svg` с баллом, категориями, языком и датой пересчёта
 
 - [x] Этап 34 — вход и регистрация окном поверх страницы (перехват маршрутов @modal/(.)signin, (.)signup), прямая ссылка — обычная страница; содержимое общее (AuthPanels)
 - [x] Этап 33 — вход и регистрация через Яндекс ID (почта, ФИО, отображаемое имя, фото; привязка к аккаунту с той же почтой); после входа всегда полная загрузка главной — клиентский роутер больше не отдаёт закешированный редирект на /signin; счётчики на /users и в админке больше не нули (drizzle снимал имя таблицы в коррелированном подзапросе)

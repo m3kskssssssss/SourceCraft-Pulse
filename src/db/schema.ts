@@ -190,6 +190,44 @@ export const analyses = pgTable(
   }),
 );
 
+// ---------- Свои репозитории ----------
+//
+// Пользователь заявляет репозиторий своим и доказывает это ключом: кладёт его
+// в описание репозитория или создаёт в корне файл с именем ключа. Писать туда
+// может только тот, у кого есть права на репозиторий, — этого и достаточно.
+// Подтверждённые репозитории пересчитываются каждый день в полночь, и их
+// бейдж-карточка всегда показывает свежую оценку.
+
+export const ownedRepositories = pgTable(
+  'owned_repositories',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    repositoryId: uuid('repository_id')
+      .notNull()
+      .references(() => repositories.id, { onDelete: 'cascade' }),
+    /** Ключ подтверждения, см. lib/ownership.ts. */
+    verifyKey: text('verify_key').notNull(),
+    /** null — ключ ещё не нашли в репозитории. */
+    verifiedAt: timestamp('verified_at', { withTimezone: true, mode: 'date' }),
+    /** Когда последний раз проверяли ключ, и что не так было. */
+    lastCheckAt: timestamp('last_check_at', { withTimezone: true, mode: 'date' }),
+    lastCheckError: text('last_check_error'),
+    /** День (YYYY-MM-DD по часовому поясу обновления) последнего суточного пересчёта. */
+    refreshedOn: varchar('refreshed_on', { length: 10 }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    oncePerUser: uniqueIndex('owned_repositories_user_repo_unique').on(t.userId, t.repositoryId),
+    byRepo: index('owned_repositories_repository_id_idx').on(t.repositoryId),
+    byVerified: index('owned_repositories_verified_at_idx').on(t.verifiedAt),
+  }),
+);
+
 // ---------- Оценки и обсуждение анализов ----------
 //
 // Оценка — одна на пользователя и анализ, поэтому не отдельная история, а
