@@ -1,17 +1,18 @@
 // Подтверждение своих репозиториев личным токеном SourceCraft.
 //
-// Пользователь вставляет свой PAT. С ним мы:
+// С токеном пользователя мы:
 //   1) узнаём, чей это токен: GET /user → id и username;
-//   2) собираем репозитории его организаций: GET /orgs/{org}/repos — личное
-//      пространство (slug = username) и организации, которые он назвал сам;
-//      отдельного «все мои репозитории» в API нет;
-//   3) по каждому публичному репозиторию смотрим роли: GET /repos/…/roles, и
-//      ищем там пользователя из шага 1. Владельцем считаем admin и maintainer.
+//   2) собираем доступные ему репозитории: GET /me/repos (эндпоинт добавлен
+//      во время хакатона); если он недоступен — по организациям:
+//      GET /orgs/{org}/repos для личного пространства и названных организаций;
+//   3) по каждому репозиторию, включая приватные, смотрим роли:
+//      GET /repos/…/roles, и ищем там пользователя из шага 1. Владельцем
+//      считаем admin и maintainer.
 //
-// Токен нигде не сохраняется и не логируется: живёт в памяти одного запроса.
-// Если роли не отдались или пользователя в них нет (например, права выданы на
-// уровне организации), репозиторий остаётся без подтверждения — для такого
-// случая есть ключ в описании или файлом.
+// Токен хранится только зашифрованным (token-sync.ts, token-crypto.ts) и не
+// логируется. Если роли не отдались или пользователя в них нет (права выданы
+// на уровне организации), репозиторий остаётся без подтверждения — для
+// публичных есть ключ в описании или файлом.
 
 import { z } from 'zod';
 import {
@@ -28,6 +29,8 @@ export const OWNER_ROLES: readonly RepoRole[] = ['admin', 'maintainer'];
 /** Сколько репозиториев на организацию и всего проверяем за раз. */
 const REPOS_PER_ORG = 100;
 const MAX_CHECKED = 60;
+/** Сколько репозиториев берём из /me/repos. */
+const MY_REPOS_LIMIT = 300;
 const MAX_EXTRA_ORGS = 5;
 
 export const tokenSchema = z
@@ -113,9 +116,25 @@ export async function scanTokenRepositories(
   const client = userClient(token);
   const user = await getTokenUser(client);
 
-  const orgs = [...new Set([user.username, ...extraOrgs].filter((o): o is string => Boolean(o)))];
   const notes: string[] = [];
   const found: Repository[] = [];
+
+  // Основной источник — GET /me/repos: все репозитории, доступные владельцу
+  // токена, из любых его организаций. Если эндпоинт недоступен, откатываемся
+  // к прежнему способу: личное пространство плюс названные организации.
+  let fromMe = false;
+  try {
+    found.push(
+      ...(await client.collect((p) => client.listMyRepositories(p), 'repositories', MY_REPOS_LIMIT)),
+    );
+    fromMe = true;
+  } catch (err) {
+    notes.push(`Список «мои репозитории» недоступен (${describeError(err)}) — ищем по организациям.`);
+  }
+
+  const orgs = fromMe
+    ? extraOrgs
+    : [...new Set([user.username, ...extraOrgs].filter((o): o is string => Boolean(o)))];
   for (const org of orgs) {
     try {
       const list = await client.collect(
@@ -141,14 +160,16 @@ export async function scanTokenRepositories(
       repo,
       visibility: r.visibility ?? null,
       role: null,
-      note: r.visibility && r.visibility !== 'public' ? 'не публичный — не оцениваем' : null,
+      note: null,
     });
   }
 
+  // Приватные тоже проверяем: их оценка — личная, правами токена владельца,
+  // и в публичный рейтинг она не попадает.
   const repos = [...unique.values()];
-  const toCheck = repos.filter((r) => r.note === null).slice(0, MAX_CHECKED);
-  if (repos.filter((r) => r.note === null).length > MAX_CHECKED) {
-    notes.push(`Роли проверены у первых ${MAX_CHECKED} публичных репозиториев.`);
+  const toCheck = repos.slice(0, MAX_CHECKED);
+  if (repos.length > MAX_CHECKED) {
+    notes.push(`Роли проверены у первых ${MAX_CHECKED} репозиториев из ${repos.length}.`);
   }
   await Promise.all(
     toCheck.map(async (r) => {

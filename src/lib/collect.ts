@@ -42,6 +42,8 @@ import { readCloneCommits, type RawCommit } from './git/commits';
 import { collectGitGraph, emptyGitGraph, type GitGraph } from './git/graph';
 import {
   getSourcecraftClient,
+  SourcecraftClient,
+  type CiRun,
   type Branch,
   type Issue,
   type PullRequest,
@@ -116,6 +118,8 @@ export type RepoFacts = {
   /** Измерения по самим исходникам. */
   code: CodeFacts;
   security: SecurityScanResult;
+  /** CI-прогоны — только с токеном владельца, в балл не входят. */
+  ci: CiFacts;
   /** Полный текст README.md (если найден в git-клоне). */
   readme: string | null;
   missing: string[];
@@ -247,7 +251,44 @@ export type CollectOptions = {
    * открыт. Сам сборщик про ИИ ничего не знает — ему дают функцию.
    */
   selectCodeFiles?: (catalog: CodeCatalog) => Promise<string[]>;
+  /**
+   * Токен для API и клона вместо общего токена Pulse. Нужен приватным
+   * репозиториям: их видит только владелец, и ходим мы его правами.
+   */
+  token?: string;
+  /**
+   * Токен участника репозитория для CI-прогонов. Эти данные SourceCraft
+   * отдаёт только своим, поэтому без токена владельца — «нет данных».
+   */
+  ciToken?: string;
+  /**
+   * Код приватного репозитория не уходит во внешние сервисы: список
+   * зависимостей не отправляем в базу уязвимостей.
+   */
+  privateRepo?: boolean;
 };
+
+/**
+ * CI-прогоны по данным SourceCraft. Доступны только с токеном участника
+ * репозитория, поэтому живут в личной части оценки и в балл не входят.
+ */
+export type CiFacts = {
+  available: boolean;
+  /** Почему данных нет: нет токена, нет прав, ошибка API. */
+  reason: string | null;
+  /** Сколько последних прогонов разобрали. */
+  sampled: number;
+  succeeded: number;
+  failed: number;
+  /** Отменённые, пропущенные, ещё идущие — в долю успеха не входят. */
+  other: number;
+  lastRunAt: string | null;
+  lastStatus: string | null;
+};
+
+/** Сколько последних прогонов смотрим. */
+const CI_RUNS_SAMPLE = 30;
+const CI_FAILED = new Set(['failed', 'timeout']);
 
 /** Общий бюджет сбора: клон плюс чтение из него. */
 const COLLECT_BUDGET_MS = 200_000;
@@ -277,7 +318,8 @@ export async function collectRepoFacts(
     }
   };
   const missing: string[] = [];
-  const client = getSourcecraftClient();
+  // Приватный репозиторий Pulse своим токеном не видит — ходим токеном владельца.
+  const client = options.token ? new SourcecraftClient({ token: options.token }) : getSourcecraftClient();
   const security = getSecurityProvider();
 
   const now = new Date().toISOString();
@@ -386,7 +428,7 @@ export async function collectRepoFacts(
       await withRepoClone(
         {
           cloneUrlHttps,
-          token: process.env.SOURCECRAFT_PAT ?? undefined,
+          token: options.token ?? process.env.SOURCECRAFT_PAT ?? undefined,
           strategy: treeEntries.length >= BIG_REPO_TREE_ENTRIES ? 'tip' : 'window',
           totalTimeoutMs: Math.max(30_000, budgetEnd - Date.now() - READ_RESERVE_MS),
         },
@@ -529,13 +571,26 @@ export async function collectRepoFacts(
   });
   for (const e of parsedLocks.errors) missing.push(`lockfile_parse_error:${e}`);
 
-  const scanResult = await security.scan({
-    dependencies: parsedLocks.dependencies,
-    hasSecurityMd: flags.hasSecurityMd,
-    unsupportedLockfiles: parsedLocks.unsupported,
-  });
+  // Зависимости приватного репозитория во внешнюю базу уязвимостей не шлём:
+  // это уже сведения о закрытом коде. Для него — честное «нет данных».
+  const scanResult: SecurityScanResult = options.privateRepo
+    ? {
+        provider: security.name,
+        available: false,
+        vulnerabilities: [],
+        totalScanned: 0,
+        errors: [],
+        missing: ['security_skipped_private_repo'],
+      }
+    : await security.scan({
+        dependencies: parsedLocks.dependencies,
+        hasSecurityMd: flags.hasSecurityMd,
+        unsupportedLockfiles: parsedLocks.unsupported,
+      });
   for (const e of scanResult.errors) missing.push(`security_scan_error:${e}`);
   for (const e of scanResult.missing) missing.push(e);
+
+  const ci = await collectCiFacts(org, repo, options.ciToken);
 
   return {
     org,
@@ -565,8 +620,61 @@ export async function collectRepoFacts(
     kind,
     code,
     security: scanResult,
+    ci,
     readme,
     missing: dedupeStrings(missing),
+  };
+}
+
+/**
+ * Последние CI-прогоны с токеном владельца. Без токена не пробуем вовсе:
+ * общий токен Pulse их не видит (403), а лишний запрос — это лимит API.
+ */
+async function collectCiFacts(org: string, repo: string, token: string | undefined): Promise<CiFacts> {
+  const empty: CiFacts = {
+    available: false,
+    reason: null,
+    sampled: 0,
+    succeeded: 0,
+    failed: 0,
+    other: 0,
+    lastRunAt: null,
+    lastStatus: null,
+  };
+  if (!token) return { ...empty, reason: 'no_owner_token' };
+  try {
+    const client = new SourcecraftClient({ token });
+    const runs = await client.collect((p) => client.listCiRuns(org, repo, p), 'runs', CI_RUNS_SAMPLE);
+    return summarizeCiRuns(runs);
+  } catch (err) {
+    const reason =
+      err instanceof SourcecraftApiError ? `api_${err.status}` : 'fetch_failed';
+    return { ...empty, reason };
+  }
+}
+
+/** Сводка по прогонам. Чистая функция — ради теста. */
+export function summarizeCiRuns(runs: CiRun[]): CiFacts {
+  const startedAt = (r: CiRun): string => r.dates?.created_at ?? r.dates?.started_at ?? '';
+  const sorted = [...runs].sort((a, b) => startedAt(b).localeCompare(startedAt(a)));
+  let succeeded = 0;
+  let failed = 0;
+  let other = 0;
+  for (const run of sorted) {
+    if (run.status === 'success') succeeded += 1;
+    else if (run.status && CI_FAILED.has(run.status)) failed += 1;
+    else other += 1;
+  }
+  const last = sorted[0];
+  return {
+    available: true,
+    reason: sorted.length === 0 ? 'no_runs' : null,
+    sampled: sorted.length,
+    succeeded,
+    failed,
+    other,
+    lastRunAt: last ? startedAt(last) || null : null,
+    lastStatus: last?.status ?? null,
   };
 }
 

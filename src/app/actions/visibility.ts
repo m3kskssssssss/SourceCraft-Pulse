@@ -12,7 +12,7 @@ import { revalidatePath } from 'next/cache';
 import { and, eq, ne } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { db } from '@/db/client';
-import { analyses, events } from '@/db/schema';
+import { analyses, events, repositories } from '@/db/schema';
 
 export type VisibilityState = { ok: boolean; error?: string };
 
@@ -37,6 +37,16 @@ export async function setAnalysisVisibility(
   }
   if (analysis.status !== 'done') {
     return { ok: false, error: 'Публиковать можно только завершённый анализ' };
+  }
+  if (isPublic) {
+    // Приватный репозиторий в рейтинг не попадает никогда: его оценка
+    // посчитана правами владельца и видна только ему.
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, analysis.repositoryId),
+    });
+    if (repo?.isPrivate) {
+      return { ok: false, error: 'Оценки приватных репозиториев не публикуются' };
+    }
   }
 
   if (isPublic) {

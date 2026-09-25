@@ -72,6 +72,16 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
       errors: [],
       missing: [],
     },
+    ci: {
+      available: false,
+      reason: 'no_owner_token',
+      sampled: 0,
+      succeeded: 0,
+      failed: 0,
+      other: 0,
+      lastRunAt: null,
+      lastStatus: null,
+    },
     readme: null,
     missing: [],
   };

@@ -66,8 +66,10 @@ export function dayIn(date: Date, timeZone: string = refreshTimeZone()): string 
 }
 
 /**
- * Ставит в очередь публичный прогон репозитория от имени владельца.
- * Если по репозиторию уже что-то ждёт или считается — второй не заводим.
+ * Ставит в очередь прогон репозитория от имени владельца. Публичный — для
+ * бейджа и рейтинга; у приватного репозитория прогон личный и не
+ * публикуется никогда. Если по репозиторию уже что-то ждёт или считается —
+ * второй не заводим.
  */
 export async function enqueueOwnerAnalysis(
   db: Db,
@@ -84,9 +86,15 @@ export async function enqueueOwnerAnalysis(
     .limit(1);
   if (pending[0]) return null;
 
+  const [repo] = await db
+    .select({ isPrivate: repositories.isPrivate })
+    .from(repositories)
+    .where(eq(repositories.id, repositoryId))
+    .limit(1);
+
   const [analysis] = await db
     .insert(analyses)
-    .values({ repositoryId, requestedBy: userId, status: 'queued', isPublic: true })
+    .values({ repositoryId, requestedBy: userId, status: 'queued', isPublic: !repo?.isPrivate })
     .returning({ id: analyses.id });
   if (!analysis) return null;
 
@@ -167,15 +175,22 @@ export async function isRepositoryVerified(db: Db, org: string, repo: string): P
 }
 
 /**
- * Прогоны своих репозиториев, которые ждут в очереди. Их узнаём по флагу
- * публикации: обычная оценка встаёт в очередь приватной, публичной — только
- * постановка отсюда.
+ * Прогоны своих репозиториев, которые ждут в очереди: поставлены владельцем
+ * подтверждённого репозитория. По флагу публикации их больше не узнать —
+ * прогоны приватных репозиториев никогда не публикуются.
  */
 export async function listQueuedOwnerAnalyses(db: Db, limit = 50): Promise<string[]> {
   const rows = await db
     .select({ id: analyses.id })
     .from(analyses)
-    .where(and(eq(analyses.status, 'queued'), eq(analyses.isPublic, true)))
+    .innerJoin(
+      ownedRepositories,
+      and(
+        eq(ownedRepositories.repositoryId, analyses.repositoryId),
+        eq(ownedRepositories.userId, analyses.requestedBy),
+      ),
+    )
+    .where(and(eq(analyses.status, 'queued'), isNotNull(ownedRepositories.verifiedAt)))
     .orderBy(analyses.createdAt)
     .limit(limit);
   return rows.map((r) => r.id);

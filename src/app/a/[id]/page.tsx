@@ -32,6 +32,7 @@ import { CommentThread } from '@/app/components/CommentThread';
 import { getCommentTree, getRatingSummary } from '@/lib/social';
 import { getPublicUser } from '@/lib/users';
 import type { GitGraph } from '@/lib/git/graph';
+import type { CiFacts } from '@/lib/collect';
 import { getRepoHistory } from '@/lib/history';
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -185,6 +186,7 @@ export default async function AnalysisPage({ params }: PageProps) {
         codeFindings?: unknown;
         codeReviewStatus?: { ok?: boolean; reason?: string };
         unavailable?: boolean;
+        reason?: string;
       };
     } | null
   )?.ai;
@@ -196,8 +198,16 @@ export default async function AnalysisPage({ params }: PageProps) {
     aiMeta?.codeReviewStatus?.ok === false
       ? describeReviewFailure(aiMeta.codeReviewStatus.reason)
       : aiMeta?.unavailable
-        ? 'Слой ИИ не был настроен на момент прогона.'
+        ? aiMeta.reason === 'private_repo'
+          ? 'Репозиторий приватный: его код во внешнюю модель мы не отправляем, поэтому ИИ-ревью не было.'
+          : 'Слой ИИ не был настроен на момент прогона.'
         : null;
+
+  // CI-прогоны — данные, которые SourceCraft отдаёт только участнику
+  // репозитория. Показываем их владельцу отдельным блоком, в балл не входят.
+  const ciMeta = isOwner
+    ? (analysis.metrics as { facts?: { ci?: CiFacts } } | null)?.facts?.ci ?? null
+    : null;
   const codeMeasured = pickCodeStats(
     (analysis.metrics as { facts?: { code?: Record<string, unknown> } } | null)?.facts?.code,
   );
@@ -386,6 +396,57 @@ export default async function AnalysisPage({ params }: PageProps) {
         </section>
       )}
 
+      {/* Личная часть оценки: приватность и CI — только владельцу. */}
+      {isOwner && (repo?.isPrivate || ciMeta?.available) && (
+        <section className="rise mt-10" style={{ animationDelay: '90ms' }}>
+          <SectionHead
+            eyebrow="Видно только вам"
+            title="Личные данные репозитория"
+            hint="Эти сведения SourceCraft отдаёт только участникам репозитория — по вашему токену. В балл и публичный рейтинг они не входят."
+          />
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {repo?.isPrivate && (
+              <CardDiv tone="outline">
+                <div className="text-sm font-medium">🔒 Приватный репозиторий</div>
+                <p className="mt-1 text-sm text-[color:var(--muted)]">
+                  Оценка посчитана правами вашего токена и не публикуется: её нет в рейтинге, бейдже и
+                  на публичных страницах. Код не отправлялся ни во внешнюю модель, ни в базу
+                  уязвимостей.
+                </p>
+              </CardDiv>
+            )}
+            {ciMeta?.available && (
+              <CardDiv tone="outline">
+                <div className="text-sm font-medium">CI/CD в SourceCraft</div>
+                {ciMeta.sampled === 0 ? (
+                  <p className="mt-1 text-sm text-[color:var(--muted)]">
+                    Прогонов CI пока не было. Настройте CI в репозитории — здесь появится доля
+                    успешных запусков.
+                  </p>
+                ) : (
+                  <>
+                    <div className="mt-2 text-2xl font-semibold tabular-nums">
+                      {Math.round(
+                        (ciMeta.succeeded / Math.max(1, ciMeta.succeeded + ciMeta.failed)) * 100,
+                      )}
+                      %
+                      <span className="ml-2 text-xs font-normal text-[color:var(--muted)]">
+                        успешных из последних {ciMeta.sampled}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-[color:var(--muted)]">
+                      Успешно {ciMeta.succeeded} · упало {ciMeta.failed}
+                      {ciMeta.other > 0 && ` · прочие ${ciMeta.other}`}
+                      {ciMeta.lastStatus && ` · последний: ${ciMeta.lastStatus}`}
+                    </p>
+                  </>
+                )}
+              </CardDiv>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Pull request с улучшениями — только подтверждённому владельцу. */}
       {improvements && improvements.items.length > 0 && (
         <section id="pr" className="rise mt-10 scroll-mt-24" style={{ animationDelay: '100ms' }}>
@@ -490,7 +551,8 @@ export default async function AnalysisPage({ params }: PageProps) {
       )}
 
       {/* Публикация (только владелец) */}
-      {isOwner && (
+      {/* Приватный репозиторий не публикуется — переключателя нет. */}
+      {isOwner && !repo?.isPrivate && (
         <section className="mt-12">
           <SectionHead
             eyebrow="Управление"

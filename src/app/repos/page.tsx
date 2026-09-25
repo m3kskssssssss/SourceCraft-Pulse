@@ -119,7 +119,8 @@ export default async function MyRepositoriesPage({ searchParams }: PageProps) {
         <CardDiv tone="outline">
           <h2 className="text-base font-semibold">Личный токен SourceCraft</h2>
           <p className="mt-1 text-sm text-[color:var(--muted)]">
-            По токену найдём ваши репозитории и подтвердим те, где у вас роль admin или maintainer.
+            По токену найдём ваши репозитории — и публичные, и приватные — и подтвердим те, где у вас
+            роль admin или maintainer. Приватные оцениваются только для вас и никуда не публикуются.
             Токен храним зашифрованным и каждые 5 минут подтягиваем новые репозитории. Отключить
             можно в любой момент — токен удалится.
           </p>
@@ -167,6 +168,7 @@ export default async function MyRepositoriesPage({ searchParams }: PageProps) {
                     org={repo.orgSlug}
                     repo={repo.repoSlug}
                     language={repo.language}
+                    isPrivate={repo.isPrivate}
                     run={latestRun.get(repo.id) ?? null}
                     done={latestDone.get(repo.id) ?? null}
                   />
@@ -251,6 +253,7 @@ function RepoCard({
   org,
   repo,
   language,
+  isPrivate,
   run,
   done,
 }: {
@@ -258,6 +261,7 @@ function RepoCard({
   org: string;
   repo: string;
   language: string | null;
+  isPrivate: boolean;
   run: Run | null;
   done: Run | null;
 }) {
@@ -277,6 +281,7 @@ function RepoCard({
           </Link>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Chip tone="ink">✓ Ваш</Chip>
+            {isPrivate && <Chip tone="outline">🔒 Приватный · видно только вам</Chip>}
             {language && <Chip>{language}</Chip>}
             {inProgress && (
               <Chip tone="outline">{inProgress.status === 'running' ? 'Считается…' : 'В очереди'}</Chip>
@@ -351,12 +356,15 @@ function RepoCard({
         </form>
       </div>
 
+      {/* У приватного репозитория бейджа нет: оценки не публикуются. */}
+      {!isPrivate && (
       <details className="border-t border-[color:var(--line)] pt-4">
         <summary className="cursor-pointer text-sm font-medium">Бейдж для README</summary>
         <div className="mt-3">
           <CardBadgeMarkdown org={org} repo={repo} />
         </div>
       </details>
+      )}
     </CardDiv>
   );
 }

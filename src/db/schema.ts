@@ -135,6 +135,12 @@ export const repositories = pgTable(
     cloneUrl: text('clone_url'),
     webUrl: text('web_url'),
     forksCount: integer('forks_count'),
+    /**
+     * Приватный или internal. Такой репозиторий оценивается только правами
+     * токена владельца, и его оценки никогда не публикуются: ни в рейтинге,
+     * ни в бейдже, ни на публичных страницах.
+     */
+    isPrivate: boolean('is_private').notNull().default(false),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true, mode: 'date' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()

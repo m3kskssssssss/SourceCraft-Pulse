@@ -9,10 +9,18 @@
 // Ошибки считаются по попыткам: до MAX_ATTEMPTS задача возвращается в очередь,
 // после — анализ помечается failed.
 
-import { and, eq, isNull, lt, ne, or } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lt, ne, or } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../../db/schema';
-import { analyses, analysisJobs, events, repositories } from '../../db/schema';
+import {
+  analyses,
+  analysisJobs,
+  events,
+  ownedRepositories,
+  repositories,
+  sourcecraftTokens,
+} from '../../db/schema';
+import { decryptToken } from '../token-crypto';
 import { collectRepoFacts, type RepoFacts } from '../collect';
 import { scoreRepo } from '../scoring';
 import { DrizzleAiCache } from '../ai/cache';
@@ -113,14 +121,25 @@ export async function processAnalysis(
   });
   if (!repo) return failJob(db, job, runnerId, 'repository_row_missing');
 
+  // Токен владельца, если прогон поставил подтверждённый владелец и токен
+  // сохранён. Приватному репозиторию без него не собрать ничего.
+  const ownerToken = await loadOwnerToken(db, analysis.requestedBy, repo.id);
+  if (repo.isPrivate && !ownerToken) {
+    return failJob(db, job, runnerId, 'private_repo_needs_owner_token');
+  }
+
   // Слой ИИ поднимаем до сбора: выбор файлов для ревью делается по структуре
   // проекта, пока клон ещё открыт. Если ИИ не настроен — сбор просто идёт без
-  // него, а выборку соберёт эвристика по размеру.
-  const ai = await openAi(db, job.analysisId);
+  // него, а выборку соберёт эвристика по размеру. Код приватного репозитория
+  // во внешнюю модель не отправляем.
+  const ai = repo.isPrivate ? null : await openAi(db, job.analysisId);
 
   try {
     const facts = await withTimeout(
       collectRepoFacts(repo.orgSlug, repo.repoSlug, {
+        token: repo.isPrivate ? (ownerToken ?? undefined) : undefined,
+        ciToken: ownerToken ?? undefined,
+        privateRepo: repo.isPrivate,
         onPhase: setStage,
         selectCodeFiles: ai
           ? (catalog) =>
@@ -148,7 +167,10 @@ export async function processAnalysis(
     // AI: четыре задачи параллельно, падение любой не роняет анализ.
     let aiDocsScore: AiDocsScore | null = null;
     let aiCodeScore: AiCodeScore | null = null;
-    let aiOutputs: Record<string, unknown> = { unavailable: true, reason: 'ai_not_configured' };
+    let aiOutputs: Record<string, unknown> = {
+      unavailable: true,
+      reason: repo.isPrivate ? 'private_repo' : 'ai_not_configured',
+    };
     // Жанр репозитория: решение модели, иначе — вывод эвристики из фактов.
     let repoKind: RepoKindOutcome = {
       kind: facts.kind.kind,
@@ -198,6 +220,8 @@ export async function processAnalysis(
       .update(analyses)
       .set({
         status: 'done',
+        // Приватный репозиторий не публикуется никогда, что бы ни стояло в строке.
+        ...(repo.isPrivate ? { isPublic: false } : {}),
         stage: null,
         kind: repoKind.kind,
         // Материал не оцениваем: балла у него нет, а не «ноль» и не «мало».
@@ -256,6 +280,41 @@ export async function processAnalysis(
     const message = describe(err);
     console.error(`[analysis ${runnerId}] ✗ analysis=${job.analysisId} failed: ${message}`);
     return failJob(db, job, runnerId, message);
+  }
+}
+
+/**
+ * Расшифрованный токен SourceCraft того, кто поставил прогон, — только если
+ * он подтверждённый владелец этого репозитория и токен действует. Чужой
+ * прогон чужим токеном не считаем никогда.
+ */
+async function loadOwnerToken(
+  db: AnalysisDb,
+  userId: string | null,
+  repositoryId: string,
+): Promise<string | null> {
+  if (!userId) return null;
+  const [owned] = await db
+    .select({ id: ownedRepositories.id })
+    .from(ownedRepositories)
+    .where(
+      and(
+        eq(ownedRepositories.userId, userId),
+        eq(ownedRepositories.repositoryId, repositoryId),
+        isNotNull(ownedRepositories.verifiedAt),
+        isNull(ownedRepositories.removedAt),
+      ),
+    )
+    .limit(1);
+  if (!owned) return null;
+  const row = await db.query.sourcecraftTokens.findFirst({
+    where: eq(sourcecraftTokens.userId, userId),
+  });
+  if (!row || row.invalidAt) return null;
+  try {
+    return decryptToken(row.tokenEncrypted);
+  } catch {
+    return null;
   }
 }
 

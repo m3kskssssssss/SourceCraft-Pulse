@@ -17,7 +17,7 @@
 import { and, asc, eq, isNull, lt, or } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
-import { events, ownedRepositories, sourcecraftTokens } from '../db/schema';
+import { analyses, events, ownedRepositories, repositories, sourcecraftTokens } from '../db/schema';
 import { ensureRepository, generateVerifyKey } from './ownership';
 import { SourcecraftApiError } from './sourcecraft/errors';
 import { decryptToken, encryptToken } from './token-crypto';
@@ -78,6 +78,17 @@ export async function syncOwnedFromToken(
     if (!repositoryId) {
       skipped.push({ slug, reason: 'не удалось сохранить' });
       continue;
+    }
+    // Видимость берём из SourceCraft при каждой синхронизации: репозиторий
+    // могли закрыть или открыть, и от этого зависит, публикуются ли оценки.
+    const isPrivate = r.visibility !== null && r.visibility !== 'public';
+    await db.update(repositories).set({ isPrivate }).where(eq(repositories.id, repositoryId));
+    if (isPrivate) {
+      // Репозиторий закрыли — его прежние оценки из рейтинга и бейджа уходят.
+      await db
+        .update(analyses)
+        .set({ isPublic: false })
+        .where(and(eq(analyses.repositoryId, repositoryId), eq(analyses.isPublic, true)));
     }
     const existing = owned.find((o) => o.repositoryId === repositoryId);
     if (existing?.removedAt) {

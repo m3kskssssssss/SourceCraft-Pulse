@@ -369,6 +369,8 @@ export async function hasUnpublishedAnalysis(org: string, repo: string): Promise
         ilike(repositories.orgSlug, org),
         ilike(repositories.repoSlug, repo),
         eq(analyses.status, 'done'),
+        // О приватном репозитории бейдж не говорит ничего, даже «не опубликован».
+        eq(repositories.isPrivate, false),
       ),
     )
     .limit(1);

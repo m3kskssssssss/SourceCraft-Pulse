@@ -27,6 +27,7 @@ export type Release = components['schemas']['Release'];
 export type PullRequest = components['schemas']['PullRequest'];
 export type Issue = components['schemas']['Issue'];
 export type TreeEntry = components['schemas']['TreeEntry'];
+export type CiRun = components['schemas']['Run'];
 export type SubjectRole = components['schemas']['SubjectRole'];
 export type RepoRole = components['schemas']['RepoRole'];
 
@@ -37,6 +38,24 @@ const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_CONCURRENCY = 4;
 const RETRY_BASE_MS = 200;
+
+/**
+ * Лимит api.sourcecraft.tech — 10 запросов в секунду (ответ организаторов
+ * хакатона). Семафор ограничивает только число одновременных запросов, а
+ * быстрые ответы легко дают больше десяти в секунду — отсюда 429. Держим
+ * запас: не чаще одного старта запроса в 125 мс, то есть 8 в секунду.
+ * Очередь общая на процесс: и клиент Pulse, и клиенты с токенами
+ * пользователей ходят в один и тот же хост.
+ */
+const MIN_REQUEST_INTERVAL_MS = 125;
+let nextRequestAt = 0;
+
+async function throttle(): Promise<void> {
+  const now = Date.now();
+  const slot = Math.max(now, nextRequestAt);
+  nextRequestAt = slot + MIN_REQUEST_INTERVAL_MS;
+  if (slot > now) await sleep(slot - now);
+}
 
 type QueryValue = string | number | boolean | undefined | null;
 
@@ -99,6 +118,7 @@ export class SourcecraftClient {
       let lastError: unknown = null;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        await throttle();
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         try {
@@ -228,6 +248,27 @@ export class SourcecraftClient {
   /** Профиль владельца токена. С общим токеном Pulse — сам Pulse, с личным — пользователь. */
   getCurrentUser(): Promise<UserProfile> {
     return this.request<UserProfile>('/user');
+  }
+
+  /**
+   * Репозитории, доступные владельцу токена: личные и из его организаций.
+   * GET /me/repos — эндпоинт добавлен SourceCraft во время хакатона
+   * (объявление от 23.09) и в нашей копии спецификации его ещё нет, поэтому
+   * тип ответа — тот же, что у списка репозиториев организации.
+   */
+  listMyRepositories(params: PageParams = {}): Promise<PageResponse<'repositories', Repository>> {
+    return this.request('/me/repos', { query: pageQuery(params) });
+  }
+
+  /** CI-прогоны репозитория. Отдаются только с токеном участника репозитория. */
+  listCiRuns(
+    orgSlug: string,
+    repoSlug: string,
+    params: PageParams = {},
+  ): Promise<PageResponse<'runs', CiRun>> {
+    return this.request(`/repos/${encode(orgSlug)}/${encode(repoSlug)}/cicd/runs`, {
+      query: pageQuery(params),
+    });
   }
 
   listOrganizationRepositories(
