@@ -15,7 +15,7 @@ describe('renderBadgeCardSvg', () => {
   it('балл, слаг и подпись для экранных читалок', () => {
     const svg = renderBadgeCardSvg(base);
     expect(svg.startsWith('<svg')).toBe(true);
-    expect(svg).toContain('aria-label="pulse acme/rocket: 82 из 100"');
+    expect(svg).toContain('aria-label="Pulse acme/rocket: 82 из 100"');
     expect(svg).toContain('>82<');
     expect(svg).toContain('>acme/rocket<');
   });

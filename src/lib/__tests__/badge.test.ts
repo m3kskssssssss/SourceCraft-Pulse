@@ -5,7 +5,7 @@ describe('renderBadgeSvg', () => {
   it('содержит корректный XML-заголовок и aria-label', () => {
     const svg = renderBadgeSvg({ score: 82 });
     expect(svg.startsWith('<svg')).toBe(true);
-    expect(svg).toContain('aria-label="pulse: 82 из 100"');
+    expect(svg).toContain('aria-label="Pulse: 82 из 100"');
     expect(svg).toContain('>82<');
   });
 
@@ -41,7 +41,8 @@ describe('renderBadgeSvg', () => {
     const full = renderBadgeSvg({ score: 100 });
     const fillWidth = (svg: string): number => {
       // Вторая дорожка в разметке — заполненная часть.
-      const widths = [...svg.matchAll(/<rect x="86" y="[\d.]+" width="([\d.]+)"/g)].map((m) =>
+      // Дорожка и заливка — единственные прямоугольники со скруглением rx="1.5".
+      const widths = [...svg.matchAll(/<rect x="[\d.]+" y="[\d.]+" width="([\d.]+)" height="3" rx="1.5"/g)].map((m) =>
         Number(m[1]),
       );
       return widths[1] ?? 0;
@@ -61,7 +62,7 @@ describe('renderBadgeSvg', () => {
     const svg = renderBadgeSvg({ score: null, note: 'не опубликован' });
     expect(svg).toContain('>не опубликован<');
     expect(svg).not.toContain('>/100<');
-    expect(svg).toContain('aria-label="pulse: не опубликован"');
+    expect(svg).toContain('aria-label="Pulse: не опубликован"');
   });
 
   it('пояснение тоже экранируется', () => {

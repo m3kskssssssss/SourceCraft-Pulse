@@ -2,12 +2,29 @@
 //
 // Маленький бейдж (lib/badge.ts) отвечает на вопрос «сколько». Карточка — для
 // своих репозиториев: общий балл, четыре категории полосами, язык и дата
-// последнего пересчёта. Правила те же: без внешних шрифтов и скриптов, одним
-// файлом, в чёрно-белой палитре сайта.
+// последнего пересчёта.
 //
-// Чистая функция без БД — ради Vitest-теста.
+// Сетка: поля PAD со всех сторон, строки выровнены по общим базовым линиям —
+// верхняя строка слева («Pulse») и справа (слаг) на одной высоте, нижняя
+// подпись слева и подвал справа тоже. Обводки нет.
+//
+// Палитра, логотип и экранирование — общие с маленьким бейджем
+// (badge-shared.ts). Чистая функция без БД — ради Vitest-теста.
 
 import { CATEGORY_ORDER, CATEGORY_TITLES, type CategoryValues } from './category-meta';
+import {
+  BRAND,
+  FONT,
+  INK,
+  INK_2,
+  MUTED,
+  PANEL,
+  PAPER,
+  TRACK,
+  escapeXml,
+  planetSvg,
+  textWidth,
+} from './badge-shared';
 
 export type BadgeCardInput = {
   org: string;
@@ -19,32 +36,33 @@ export type BadgeCardInput = {
   language: string | null;
   /** Уже отформатированная дата пересчёта, например «25.09.2026». */
   updated: string | null;
-  /** Владелец подтвердил репозиторий ключом — карточка обновляется каждый день. */
+  /** Владелец подтвердил репозиторий — карточка обновляется каждый день. */
   verified: boolean;
 };
 
 const WIDTH = 440;
 const HEIGHT = 132;
 const RADIUS = 10;
-const PLATE = 124;
+const PAD = 16;
+const PLATE = 128;
 
-const RIGHT_X = PLATE + 18;
-const LABEL_W = 92;
-const BAR_X = RIGHT_X + LABEL_W;
-const BAR_W = WIDTH - BAR_X - 44;
+/** Базовые линии: верхняя строка, нижняя строка. */
+const TOP_Y = PAD + 12;
+const BOTTOM_Y = HEIGHT - PAD;
+
+const LOGO_R = 8;
 const BAR_H = 4;
-const ROW_Y0 = 50;
-const ROW_STEP = 17;
 
-const INK = '#1D1D1F';
-const INK_2 = '#3A3A3C';
-const PAPER = '#FFFFFF';
-const LINE = '#E5E5E5';
-const LINE_2 = '#D4D4D4';
-const MUTED = '#8A8A8E';
-
-const FONT =
-  "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Segoe UI, Arial, sans-serif";
+// Правая часть: подписи категорий, полоса, число справа.
+const RIGHT_X = PLATE + PAD;
+const RIGHT_END = WIDTH - PAD;
+const LABEL_W = 92;
+const VALUE_W = 28;
+const BAR_X = RIGHT_X + LABEL_W;
+const BAR_W = RIGHT_END - VALUE_W - BAR_X;
+/** Четыре строки категорий между верхней строкой и подвалом, шаг ровный. */
+const ROW_Y0 = TOP_Y + 24;
+const ROW_STEP = 16;
 
 /** На глаз: шрифта у нас нет, измерять нечем. */
 const TITLE_MAX_CHARS = 36;
@@ -56,7 +74,9 @@ export function renderBadgeCardSvg(input: BadgeCardInput): string {
   const title = escapeXml(truncate(slug, TITLE_MAX_CHARS));
   const note = escapeXml(input.note ?? 'нет оценки');
   const aria = escapeXml(
-    score === null ? `pulse ${slug}: ${input.note ?? 'нет оценки'}` : `pulse ${slug}: ${score} из 100`,
+    score === null
+      ? `${BRAND} ${slug}: ${input.note ?? 'нет оценки'}`
+      : `${BRAND} ${slug}: ${score} из 100`,
   );
 
   const footer = [
@@ -67,20 +87,25 @@ export function renderBadgeCardSvg(input: BadgeCardInput): string {
     .filter(Boolean)
     .join(' · ');
 
-  const plateBarW = PLATE - 32;
+  const plateBarW = PLATE - PAD * 2;
   const plateFill = score === null ? 0 : Math.round((plateBarW * score) / 100);
+  const scoreY = 76;
+  const plateBarY = scoreY + 10;
 
   const rows = CATEGORY_ORDER.map((key, i) => {
     const value = input.categories[key];
     const y = ROW_Y0 + i * ROW_STEP;
-    const fill = value === null ? 0 : Math.round((BAR_W * Math.max(0, Math.min(100, value))) / 100);
+    // Полоса по центру строчных букв подписи.
+    const barY = y - 4 - BAR_H / 2;
+    const fill =
+      value === null ? 0 : Math.round((BAR_W * Math.max(0, Math.min(100, value))) / 100);
     return [
       `<text x="${RIGHT_X}" y="${y}" fill="${INK_2}" font-size="11">${escapeXml(CATEGORY_TITLES[key])}</text>`,
-      `<rect x="${BAR_X}" y="${y - 6}" width="${BAR_W}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${LINE}"/>`,
+      `<rect x="${BAR_X}" y="${barY}" width="${BAR_W}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${TRACK}"/>`,
       fill > 0
-        ? `<rect x="${BAR_X}" y="${y - 6}" width="${fill}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${INK}"/>`
+        ? `<rect x="${BAR_X}" y="${barY}" width="${fill}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${INK}"/>`
         : '',
-      `<text x="${WIDTH - 16}" y="${y}" fill="${value === null ? MUTED : INK}" font-size="11" font-weight="600" text-anchor="end">${value === null ? '—' : value}</text>`,
+      `<text x="${RIGHT_END}" y="${y}" fill="${value === null ? MUTED : INK}" font-size="11" font-weight="600" text-anchor="end">${value === null ? '—' : value}</text>`,
     ].join('');
   }).join('');
 
@@ -89,47 +114,31 @@ export function renderBadgeCardSvg(input: BadgeCardInput): string {
     `<title>${aria}</title>`,
     `<clipPath id="r"><rect width="${WIDTH}" height="${HEIGHT}" rx="${RADIUS}"/></clipPath>`,
     `<g clip-path="url(#r)">`,
-    `<rect width="${WIDTH}" height="${HEIGHT}" fill="${PAPER}"/>`,
+    `<rect width="${WIDTH}" height="${HEIGHT}" fill="${PANEL}"/>`,
     `<rect width="${PLATE}" height="${HEIGHT}" fill="${INK}"/>`,
-    // Планета — тот же знак, что в маленьком бейдже и логотипе.
-    `<g transform="translate(26 24)">`,
-    `<ellipse rx="10" ry="3.6" fill="none" stroke="${PAPER}" stroke-width="1" opacity="0.4" transform="rotate(-18)"/>`,
-    `<circle r="6.4" fill="none" stroke="${PAPER}" stroke-width="1.3"/>`,
-    `<path d="M-6 -2 Q0 -3.6 6 -2 M-6 2.4 Q0 4 6 2.4" fill="none" stroke="${PAPER}" stroke-width="0.9" opacity="0.55"/>`,
-    `<circle cx="-2.2" cy="-0.4" r="1.9" fill="${PAPER}" opacity="0.8"/>`,
-    `</g>`,
+    planetSvg(PAD + LOGO_R, TOP_Y - 4, LOGO_R),
     `<g font-family="${FONT}">`,
-    `<text x="42" y="28" fill="${PAPER}" font-size="12" font-weight="600">pulse</text>`,
+    `<text x="${PAD + LOGO_R * 2 + 6}" y="${TOP_Y}" fill="${PAPER}" font-size="12" font-weight="600">${BRAND}</text>`,
     score === null
-      ? `<text x="16" y="78" fill="${PAPER}" font-size="12" font-weight="600" opacity="0.7">${note}</text>`
-      : `<text x="16" y="84" fill="${PAPER}" font-size="38" font-weight="700">${score}</text>` +
-        `<text x="${16 + String(score).length * 22 + 4}" y="84" fill="${PAPER}" font-size="11" font-weight="600" opacity="0.6">/100</text>`,
-    `<text x="16" y="116" fill="${PAPER}" font-size="10" opacity="0.6">здоровье репозитория</text>`,
-    `<text x="${RIGHT_X}" y="26" fill="${INK}" font-size="13" font-weight="700">${title}</text>`,
+      ? `<text x="${PAD}" y="${scoreY}" fill="${PAPER}" font-size="12" font-weight="600" opacity="0.7">${note}</text>`
+      : `<text x="${PAD}" y="${scoreY}" fill="${PAPER}" font-size="36" font-weight="700">${score}</text>` +
+        `<text x="${PAD + textWidth(String(score), 36, true) + 2}" y="${scoreY}" fill="${PAPER}" font-size="11" font-weight="600" opacity="0.6">/100</text>`,
+    `<text x="${PAD}" y="${BOTTOM_Y}" fill="${PAPER}" font-size="10" opacity="0.6">здоровье репозитория</text>`,
+    `<text x="${RIGHT_X}" y="${TOP_Y}" fill="${INK}" font-size="13" font-weight="700">${title}</text>`,
     rows,
     footer
-      ? `<text x="${RIGHT_X}" y="${HEIGHT - 14}" fill="${MUTED}" font-size="10">${escapeXml(footer)}</text>`
+      ? `<text x="${RIGHT_X}" y="${BOTTOM_Y}" fill="${MUTED}" font-size="10">${escapeXml(footer)}</text>`
       : '',
     `</g>`,
-    `<rect x="16" y="94" width="${plateBarW}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${PAPER}" opacity="0.2"/>`,
+    `<rect x="${PAD}" y="${plateBarY}" width="${plateBarW}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${PAPER}" opacity="0.2"/>`,
     plateFill > 0
-      ? `<rect x="16" y="94" width="${plateFill}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${PAPER}"/>`
+      ? `<rect x="${PAD}" y="${plateBarY}" width="${plateFill}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${PAPER}"/>`
       : '',
     `</g>`,
-    `<rect x="0.5" y="0.5" width="${WIDTH - 1}" height="${HEIGHT - 1}" rx="${RADIUS}" fill="none" stroke="${LINE_2}"/>`,
     `</svg>`,
   ].join('');
 }
 
 function truncate(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
-}
-
-/** Слаг и язык приходят из базы и URL — в разметку только экранированными. */
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
