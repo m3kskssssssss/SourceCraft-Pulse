@@ -15,6 +15,7 @@ import { usePathname } from 'next/navigation';
 import { signOutAction } from '@/app/actions/auth';
 import type { PublicUser } from '@/lib/user-display';
 import { Avatar } from './Avatar';
+import { ThemeToggle } from './ThemeToggle';
 import { isActivePath } from './HeaderNav';
 import { cx } from './ui';
 
@@ -101,6 +102,11 @@ export function MobileMenu({
               </MenuItem>
             ))}
           </nav>
+
+          <div className="flex items-center justify-between border-t border-[color:var(--line)] px-3 py-2">
+            <span className="text-sm text-[color:var(--ink-2)]">Тема</span>
+            <ThemeToggle />
+          </div>
 
           <div className="border-t border-[color:var(--line)] pt-1">
             {user ? (

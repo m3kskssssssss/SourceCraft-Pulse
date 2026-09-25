@@ -26,7 +26,7 @@ export function YandexButton() {
     <form action={yandexSignInAction}>
       <button
         type="submit"
-        className="flex h-11 w-full items-center justify-center gap-3 rounded-full bg-black px-6 text-[15px] font-medium text-white transition hover:bg-[#1f1f1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FC3F1D] focus-visible:ring-offset-2"
+        className="flex h-11 w-full items-center justify-center gap-3 rounded-full bg-black px-6 text-[15px] font-medium text-white ring-1 ring-inset ring-white/15 transition hover:bg-[#1f1f1f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FC3F1D] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--paper)]"
       >
         <YandexMark />
         Войти с Яндекс ID

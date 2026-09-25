@@ -14,6 +14,7 @@ import { HeaderNav } from './HeaderNav';
 import { MobileMenu } from './MobileMenu';
 import { Button } from './ui';
 import { Planet } from './Planet';
+import { ThemeToggle } from './ThemeToggle';
 
 export async function UserBar() {
   const session = await auth();
@@ -51,6 +52,7 @@ export async function UserBar() {
         <MobileMenu links={links} user={profile} />
 
         <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle />
           {sessionUser ? (
             <>
               {/* Имя с фото ведут на свою страницу: там и стена с прогонами,

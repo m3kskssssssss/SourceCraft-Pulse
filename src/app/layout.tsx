@@ -1,9 +1,10 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Analytics } from '@vercel/analytics/next';
 import { UserBar } from './components/UserBar';
 import { Planet } from './components/Planet';
+import { THEME_SCRIPT } from '@/lib/theme';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -19,9 +20,24 @@ export const metadata: Metadata = {
   },
 };
 
+/** Цвет панели браузера на телефоне — под системную тему. */
+export const viewport: Viewport = {
+  colorScheme: 'light dark',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0c0c0d' },
+  ],
+};
+
 export default function RootLayout({ children, modal }: { children: ReactNode; modal: ReactNode }) {
   return (
-    <html lang="ru" className="h-full antialiased">
+    // suppressHydrationWarning: data-theme на <html> ставит скрипт ниже до
+    // гидрации, и React не должен считать это расхождением.
+    <html lang="ru" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        {/* Явно выбранная тема — до первой отрисовки, без мигания. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full bg-[color:var(--paper)] text-[color:var(--ink)] font-sans">
         {/* overflow-x: clip, а не hidden: clip не создаёт контейнер прокрутки,
             поэтому sticky-шапка продолжает липнуть к окну. Любой декор,
