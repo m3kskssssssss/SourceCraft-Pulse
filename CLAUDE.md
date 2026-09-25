@@ -88,6 +88,7 @@ src/
 │   ├── api/badge/[org]/[repo].svg/route.ts    # SVG-бейдж по последнему public
 │   ├── api/card/[org]/[repo]/route.ts         # SVG-карточка: балл, категории, язык, дата пересчёта
 │   ├── api/cron/refresh-badges/route.ts       # суточный пересчёт своих репозиториев (Bearer CRON_SECRET)
+│   ├── api/cron/sync-tokens/route.ts          # автосинхронизация по сохранённым токенам, раз в 5 минут (Bearer CRON_SECRET)
 │   ├── api/public/leaderboard/route.ts         # GET рейтинга (rate-limited)
 │   ├── api/public/repos/[org]/[repo]/route.ts  # GET последнего публичного
 │   ├── api/auth/[...nextauth]/route.ts
@@ -110,7 +111,7 @@ src/
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
-│   ├── schema.ts                 # 14 таблиц Drizzle
+│   ├── schema.ts                 # 15 таблиц Drizzle
 │   ├── client.ts                 # neon-http, для приложения (короткоживущие serverless)
 │   ├── worker-client.ts          # pg-Pool, только для воркера (FOR UPDATE SKIP LOCKED)
 │   ├── migrate.ts                # pnpm db:migrate
@@ -127,7 +128,10 @@ src/
 │   ├── ownership.ts              # свои репозитории: ключ, поиск ключа, суточный пересчёт в 00:00 (BADGE_REFRESH_TZ)
 │   ├── badge-card.ts             # SVG бейджа-карточки (чистая функция)
 │   ├── badge-shared.ts           # общее для бейджей: палитра (#000000), сетка, анимированный глобус (SMIL)
-│   ├── token-ownership.ts        # подтверждение личным токеном SC: /user, /orgs/{org}/repos, роли admin/maintainer; токен не хранится
+│   ├── token-ownership.ts        # по токену SC: /user, /orgs/{org}/repos, роли admin/maintainer
+│   ├── token-sync.ts             # синхронизация по токену; автосинхронизация раз в 5 минут (воркер или /api/cron/sync-tokens)
+│   ├── token-crypto.ts           # AES-256-GCM для хранимых токенов (TOKEN_ENCRYPTION_KEY, иначе из AUTH_SECRET)
+│   ├── owner-runs.ts             # досчитать ждущие прогоны своих репозиториев в cron-запросе
 │   ├── ai/
 │   │   ├── provider.ts           # интерфейс AiProvider
 │   │   ├── router.ts             # реализация поверх OpenAI-compat роутера
@@ -181,6 +185,8 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 ```
 
 ## Прогресс
+
+- [x] Этап 39 — автосинхронизация «Моих репозиториев»: личный токен SC хранится зашифрованным (AES-256-GCM, таблица sourcecraft_tokens), каждые 5 минут подтягиваются новые репозитории с ролью admin/maintainer (воркер в docker, /api/cron/sync-tokens на Vercel); в настройках статус, «Синхронизировать сейчас», «Заменить токен», «Отключить»; «Убрать» теперь помечает строку removed_at, чтобы синхронизация её не возвращала
 
 - [x] Этап 38 — оба бейджа на общей сетке отступов и палитре: чистый чёрный, без обводки (правая часть на светлой подложке), логотип — проволочный глобус сайта с вращающимися меридианами (SMIL, играет в README), «Pulse» с большой буквы
 

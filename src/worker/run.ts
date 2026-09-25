@@ -26,6 +26,7 @@ import { hostname } from 'node:os';
 import { getWorkerDb, getWorkerPool, shutdownWorkerDb } from '../db/worker-client';
 import { MAX_ATTEMPTS, processAnalysis, type ClaimedJob, type ProcessOutcome } from '../lib/analysis/run';
 import { enqueueDailyRefresh } from '../lib/ownership';
+import { syncDueTokens } from '../lib/token-sync';
 
 const DEFAULT_BATCH_SIZE = 6;
 const DEFAULT_CONCURRENCY = 3;
@@ -62,6 +63,20 @@ async function main(): Promise<void> {
     }
   } catch (err) {
     console.warn(`[worker ${workerId}] Суточный пересчёт не встал: ${describe(err)}`);
+  }
+
+  // Автосинхронизация по сохранённым токенам: берутся только те, что не
+  // синхронизировались пять минут, так что ежеминутный запуск её не учащает.
+  // Первые оценки новых репозиториев встают в очередь и считаются ниже.
+  try {
+    const sync = await syncDueTokens(db);
+    if (sync.synced + sync.failed > 0) {
+      console.log(
+        `[worker ${workerId}] Синхронизация токенов: ${sync.synced} ок, ${sync.failed} с ошибкой, новых репозиториев ${sync.added}.`,
+      );
+    }
+  } catch (err) {
+    console.warn(`[worker ${workerId}] Синхронизация токенов не прошла: ${describe(err)}`);
   }
 
   const heartbeat = setInterval(() => {

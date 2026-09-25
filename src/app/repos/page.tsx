@@ -8,17 +8,18 @@
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { db } from '@/db/client';
-import { analyses, ownedRepositories, repositories } from '@/db/schema';
+import { analyses, ownedRepositories, repositories, sourcecraftTokens } from '@/db/schema';
 import { removeOwnedRepoAction } from '@/app/actions/repos';
 import {
   AddOwnedRepoForm,
   CardBadgeMarkdown,
   CopyField,
   RepoSettings,
-  TokenSync,
+  TokenSettings,
+  type SavedTokenInfo,
   VerifyOwnedRepo,
 } from '@/app/components/OwnedRepos';
 import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
@@ -49,7 +50,7 @@ export default async function MyRepositoriesPage() {
     .select({ owned: ownedRepositories, repo: repositories })
     .from(ownedRepositories)
     .innerJoin(repositories, eq(ownedRepositories.repositoryId, repositories.id))
-    .where(eq(ownedRepositories.userId, userId))
+    .where(and(eq(ownedRepositories.userId, userId), isNull(ownedRepositories.removedAt)))
     .orderBy(desc(ownedRepositories.verifiedAt), desc(ownedRepositories.createdAt));
 
   // По каждому репозиторию нужны два прогона: самый свежий (идёт ли что-то
@@ -79,6 +80,19 @@ export default async function MyRepositoriesPage() {
     if (run.status === 'done' && !latestDone.has(run.repositoryId)) latestDone.set(run.repositoryId, run);
   }
 
+  const tokenRow = await db.query.sourcecraftTokens.findFirst({
+    where: eq(sourcecraftTokens.userId, userId),
+  });
+  const savedToken: SavedTokenInfo | null = tokenRow
+    ? {
+        username: tokenRow.scUsername,
+        displayName: tokenRow.scDisplayName,
+        lastSyncLabel: tokenRow.lastSyncAt ? formatDateTime(tokenRow.lastSyncAt) : null,
+        lastSyncError: tokenRow.lastSyncError,
+        invalid: tokenRow.invalidAt !== null,
+      }
+    : null;
+
   const verified = rows.filter((r) => r.owned.verifiedAt);
   const pending = rows.filter((r) => !r.owned.verifiedAt);
 
@@ -100,12 +114,14 @@ export default async function MyRepositoriesPage() {
         <CardDiv tone="outline">
           <h2 className="text-base font-semibold">Личный токен SourceCraft</h2>
           <p className="mt-1 text-sm text-[color:var(--muted)]">
-            По токену найдём ваши репозитории и сразу подтвердим те, где у вас роль admin или
-            maintainer. Токен не сохраняем: он нужен на один запрос.
+            По токену найдём ваши репозитории и подтвердим те, где у вас роль admin или maintainer.
+            Токен храним зашифрованным и каждые 5 минут подтягиваем новые репозитории. Отключить
+            можно в любой момент — токен удалится.
           </p>
-          <PatGuide />
+          {/* Инструкция нужна, пока токена нет или его пора менять. */}
+          {(!savedToken || savedToken.invalid) && <PatGuide />}
           <div className="mt-5">
-            <TokenSync />
+            <TokenSettings saved={savedToken} />
           </div>
         </CardDiv>
 
@@ -190,8 +206,9 @@ function PatGuide() {
           На панели слева нажмите <b>Домой</b>, затем <b>Доступ</b> → <b>Персональные токены доступа</b>.
         </li>
         <li>
-          Нажмите <b>Сгенерировать новый токен</b> и задайте название, например <i>Pulse</i>. Срока
-          действия хватит самого короткого — токен нужен только сейчас.
+          Нажмите <b>Сгенерировать новый токен</b> и задайте название, например <i>Pulse</i>. Срок
+          действия выберите подлиннее: пока токен действует, новые репозитории подтягиваются сами.
+          Когда он истечёт, мы попросим вставить новый.
         </li>
         <li>
           В доступе к репозиториям выберите <b>Все репозитории</b> — иначе мы увидим не все ваши
@@ -202,8 +219,8 @@ function PatGuide() {
           <code className="font-mono text-xs">pv1_</code>.
         </li>
         <li>
-          Вставьте его в поле ниже и нажмите <b>Синхронизировать</b>. После этого токен можно удалить в
-          SourceCraft (значок корзины) — подтверждение останется.
+          Вставьте его в поле ниже и нажмите <b>Сохранить и синхронизировать</b>. Если удалите токен
+          в SourceCraft, автосинхронизация остановится, а подтверждённые репозитории останутся.
         </li>
       </ol>
       <p className="mt-3 text-xs text-[color:var(--muted)]">
@@ -305,7 +322,7 @@ function RepoCard({
         </Link>
         <form action={removeOwnedRepoAction} className="ml-auto">
           <input type="hidden" name="id" value={ownedId} />
-          <ConfirmSubmit question={`Убрать ${org}/${repo} из своих? Ежедневный пересчёт остановится.`}>
+          <ConfirmSubmit question={`Убрать ${org}/${repo} из своих? Ежедневный пересчёт остановится, и автосинхронизация его не вернёт.`}>
             Убрать
           </ConfirmSubmit>
         </form>

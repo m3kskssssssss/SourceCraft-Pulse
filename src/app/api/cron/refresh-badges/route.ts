@@ -13,15 +13,13 @@
 
 import { NextResponse } from 'next/server';
 import { db } from '@/db/client';
-import { claimJobForAnalysis, processAnalysis, type ProcessOutcome } from '@/lib/analysis/run';
-import { enqueueDailyRefresh, listQueuedOwnerAnalyses } from '@/lib/ownership';
+import { enqueueDailyRefresh } from '@/lib/ownership';
+import { processQueuedOwnerAnalyses } from '@/lib/owner-runs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-/** Новый прогон начинаем, только если до конца функции осталось больше этого. */
-const MIN_LEFT_MS = 90_000;
 const BUDGET_MS = 290_000;
 
 export async function POST(request: Request): Promise<Response> {
@@ -32,21 +30,11 @@ export async function POST(request: Request): Promise<Response> {
 
   const deadline = Date.now() + BUDGET_MS;
   const { day, queued } = await enqueueDailyRefresh(db);
-
-  const runner = `cron:${process.env.VERCEL_DEPLOYMENT_ID ?? 'local'}`;
-  const totals: Record<ProcessOutcome, number> = { done: 0, failed: 0, requeued: 0 };
-  let left = 0;
-  for (const id of await listQueuedOwnerAnalyses(db)) {
-    if (deadline - Date.now() < MIN_LEFT_MS) {
-      left += 1;
-      continue;
-    }
-    const job = await claimJobForAnalysis(db, id, runner);
-    if (!job) continue;
-    totals[await processAnalysis(db, job, runner)] += 1;
-  }
-
-  return NextResponse.json({ day, queued, ...totals, left });
+  const runs = await processQueuedOwnerAnalyses(
+    deadline,
+    `cron:${process.env.VERCEL_DEPLOYMENT_ID ?? 'local'}`,
+  );
+  return NextResponse.json({ day, queued, ...runs });
 }
 
 /** Многие планировщики умеют только GET. */

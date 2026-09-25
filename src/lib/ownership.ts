@@ -120,6 +120,7 @@ export async function enqueueDailyRefresh(
     .where(
       and(
         isNotNull(ownedRepositories.verifiedAt),
+        isNull(ownedRepositories.removedAt),
         or(isNull(ownedRepositories.refreshedOn), ne(ownedRepositories.refreshedOn, day)),
       ),
     )
@@ -152,6 +153,7 @@ export async function isRepositoryVerified(db: Db, org: string, repo: string): P
         ilike(repositories.orgSlug, org),
         ilike(repositories.repoSlug, repo),
         isNotNull(ownedRepositories.verifiedAt),
+        isNull(ownedRepositories.removedAt),
       ),
     )
     .limit(1);
@@ -171,4 +173,20 @@ export async function listQueuedOwnerAnalyses(db: Db, limit = 50): Promise<strin
     .orderBy(analyses.createdAt)
     .limit(limit);
   return rows.map((r) => r.id);
+}
+
+/** id строки repositories для слага; нет — создаём. */
+export async function ensureRepository(db: Db, org: string, repo: string): Promise<string | null> {
+  const where = and(eq(repositories.orgSlug, org), eq(repositories.repoSlug, repo));
+  const existing = await db.select({ id: repositories.id }).from(repositories).where(where).limit(1);
+  if (existing[0]) return existing[0].id;
+  const [inserted] = await db
+    .insert(repositories)
+    .values({ orgSlug: org, repoSlug: repo })
+    .onConflictDoNothing()
+    .returning({ id: repositories.id });
+  if (inserted) return inserted.id;
+  // Проиграли гонку параллельной вставке — строка уже есть.
+  const again = await db.select({ id: repositories.id }).from(repositories).where(where).limit(1);
+  return again[0]?.id ?? null;
 }

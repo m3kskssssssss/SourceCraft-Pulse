@@ -3,28 +3,34 @@
 // «Мои репозитории»: заявить репозиторий, подтвердить, убрать.
 //
 // Подтвердить можно двумя способами:
-//   - личным токеном SourceCraft: находим репозитории пользователя, те, где
-//     у него роль admin или maintainer, подтверждаются сразу
-//     (lib/token-ownership.ts);
+//   - личным токеном SourceCraft: токен сохраняется зашифрованным, и раз в
+//     пять минут мы подтягиваем новые репозитории, где у пользователя роль
+//     admin или maintainer (lib/token-sync.ts);
 //   - ключом: он выдаётся при добавлении, проверяем описание репозитория и
 //     список файлов в корне (lib/ownership.ts).
 // После подтверждения сразу ставим первый публичный прогон, чтобы бейдж
 // ожил, не дожидаясь полуночи.
 
 import { revalidatePath } from 'next/cache';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { db } from '@/db/client';
-import { events, ownedRepositories, repositories } from '@/db/schema';
+import { events, ownedRepositories, repositories, sourcecraftTokens } from '@/db/schema';
 import { parseSlug, InvalidSlugError } from '@/lib/slug';
-import { enqueueOwnerAnalysis, findVerifyKey, generateVerifyKey } from '@/lib/ownership';
 import {
-  describeError,
-  isOwnerRole,
-  parseOrgList,
-  scanTokenRepositories,
-  tokenSchema,
-} from '@/lib/token-ownership';
+  enqueueOwnerAnalysis,
+  ensureRepository,
+  findVerifyKey,
+  generateVerifyKey,
+} from '@/lib/ownership';
+import { describeError, parseOrgList, tokenSchema } from '@/lib/token-ownership';
+import {
+  MAX_OWNED,
+  saveToken,
+  syncOwnedFromToken,
+  syncStoredToken,
+  type SyncReport,
+} from '@/lib/token-sync';
 import { getSourcecraftClient } from '@/lib/sourcecraft/client';
 import { SourcecraftApiError, SourcecraftNotFoundError } from '@/lib/sourcecraft/errors';
 
@@ -35,9 +41,6 @@ export type RepoActionState = {
   /** Прогон, поставленный после подтверждения: его страница и запускает счёт. */
   analysisId?: string;
 };
-
-/** Сколько репозиториев можно держать в списке — чтобы суточный пересчёт не разросся. */
-const MAX_OWNED = 20;
 
 async function currentUserId(): Promise<string | null> {
   const session = await auth();
@@ -62,7 +65,7 @@ export async function addOwnedRepoAction(
   const owned = await db
     .select({ id: ownedRepositories.id })
     .from(ownedRepositories)
-    .where(eq(ownedRepositories.userId, userId));
+    .where(and(eq(ownedRepositories.userId, userId), isNull(ownedRepositories.removedAt)));
   if (owned.length >= MAX_OWNED) {
     return { ok: false, error: `В списке уже ${MAX_OWNED} репозиториев — уберите лишние.` };
   }
@@ -78,18 +81,34 @@ export async function addOwnedRepoAction(
     return { ok: false, error: describeScError(err, org, repo) };
   }
 
-  const repositoryId = await ensureRepository(org, repo);
+  const repositoryId = await ensureRepository(db, org, repo);
   if (!repositoryId) return { ok: false, error: 'Не удалось создать запись о репозитории.' };
 
-  const inserted = await db
-    .insert(ownedRepositories)
-    .values({ userId, repositoryId, verifyKey: generateVerifyKey() })
-    .onConflictDoNothing()
-    .returning({ id: ownedRepositories.id });
-  if (!inserted[0]) return { ok: false, error: `${org}/${repo} уже в вашем списке.` };
+  const existing = await db.query.ownedRepositories.findFirst({
+    where: and(eq(ownedRepositories.userId, userId), eq(ownedRepositories.repositoryId, repositoryId)),
+  });
+  if (existing && !existing.removedAt) return { ok: false, error: `${org}/${repo} уже в вашем списке.` };
+
+  if (existing) {
+    // Убранный раньше возвращаем с тем же ключом и подтверждением.
+    await db
+      .update(ownedRepositories)
+      .set({ removedAt: null })
+      .where(eq(ownedRepositories.id, existing.id));
+  } else {
+    await db
+      .insert(ownedRepositories)
+      .values({ userId, repositoryId, verifyKey: generateVerifyKey() })
+      .onConflictDoNothing();
+  }
 
   revalidatePath('/repos');
-  return { ok: true, message: `${org}/${repo} добавлен. Осталось подтвердить ключом.` };
+  return {
+    ok: true,
+    message: existing?.verifiedAt
+      ? `${org}/${repo} снова в списке.`
+      : `${org}/${repo} добавлен. Осталось подтвердить ключом.`,
+  };
 }
 
 export async function verifyOwnedRepoAction(
@@ -166,21 +185,23 @@ export async function verifyOwnedRepoAction(
   };
 }
 
+/**
+ * Убрать из своих. Строку не удаляем, а помечаем: иначе автосинхронизация
+ * по токену вернула бы репозиторий через пять минут.
+ */
 export async function removeOwnedRepoAction(formData: FormData): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
   const row = await findOwnRow(userId, String(formData.get('id') ?? ''));
   if (!row) return;
-  await db.delete(ownedRepositories).where(eq(ownedRepositories.id, row.owned.id));
+  await db
+    .update(ownedRepositories)
+    .set({ removedAt: new Date() })
+    .where(eq(ownedRepositories.id, row.owned.id));
   revalidatePath('/repos');
 }
 
-// ---------- Подтверждение личным токеном SourceCraft ----------
-//
-// Один шаг: пользователь вставляет токен, мы находим его репозитории и сразу
-// подтверждаем те, где у него роль admin или maintainer. Токен не сохраняется
-// нигде — он живёт только в этом запросе. Чтобы подтянуть новые репозитории,
-// токен вводят заново.
+// ---------- Личный токен SourceCraft ----------
 
 export type TokenSyncState = {
   ok: boolean;
@@ -193,7 +214,19 @@ export type TokenSyncState = {
   notes?: string[];
 };
 
-export async function syncTokenReposAction(
+function toState(report: SyncReport): TokenSyncState {
+  return {
+    ok: true,
+    user: { username: report.user.username, displayName: report.user.displayName },
+    added: report.added,
+    already: report.already,
+    skipped: report.skipped,
+    notes: report.notes,
+  };
+}
+
+/** Сохранить новый токен (или заменить старый) и сразу синхронизировать. */
+export async function saveTokenAction(
   _prev: TokenSyncState | undefined,
   formData: FormData,
 ): Promise<TokenSyncState> {
@@ -202,96 +235,53 @@ export async function syncTokenReposAction(
 
   const token = tokenSchema.safeParse(String(formData.get('token') ?? ''));
   if (!token.success) return { ok: false, error: token.error.issues[0]?.message ?? 'Неверный токен' };
+  const extraOrgs = parseOrgList(String(formData.get('orgs') ?? ''));
 
-  let scan: Awaited<ReturnType<typeof scanTokenRepositories>>;
+  let report: SyncReport;
   try {
-    scan = await scanTokenRepositories(token.data, parseOrgList(String(formData.get('orgs') ?? '')));
+    report = await syncOwnedFromToken(db, userId, token.data, extraOrgs);
   } catch (err) {
+    // Токен, по которому не узнать владельца, не сохраняем.
     return { ok: false, error: `Не удалось прочитать профиль по токену: ${describeError(err)}.` };
   }
 
-  const owned = await db
-    .select({ repositoryId: ownedRepositories.repositoryId, verifiedAt: ownedRepositories.verifiedAt })
-    .from(ownedRepositories)
-    .where(eq(ownedRepositories.userId, userId));
-  let slots = MAX_OWNED - owned.length;
-
-  const added: string[] = [];
-  const already: string[] = [];
-  const skipped: Array<{ slug: string; reason: string }> = [];
-  for (const r of scan.repos) {
-    const slug = `${r.org}/${r.repo}`;
-    if (!isOwnerRole(r.role)) {
-      skipped.push({
-        slug,
-        reason: r.role ? `роль ${r.role}, нужна admin или maintainer` : (r.note ?? 'роль не найдена'),
-      });
-      continue;
-    }
-
-    const repositoryId = await ensureRepository(r.org, r.repo);
-    if (!repositoryId) {
-      skipped.push({ slug, reason: 'не удалось сохранить' });
-      continue;
-    }
-    const existing = owned.find((o) => o.repositoryId === repositoryId);
-    if (existing?.verifiedAt) {
-      already.push(slug);
-      continue;
-    }
-    if (!existing) {
-      if (slots <= 0) {
-        skipped.push({ slug, reason: `в списке уже ${MAX_OWNED} репозиториев` });
-        continue;
-      }
-      slots -= 1;
-    }
-
-    const now = new Date();
-    await db
-      .insert(ownedRepositories)
-      .values({ userId, repositoryId, verifyKey: generateVerifyKey(), verifiedAt: now, lastCheckAt: now })
-      .onConflictDoUpdate({
-        target: [ownedRepositories.userId, ownedRepositories.repositoryId],
-        set: { verifiedAt: now, lastCheckAt: now, lastCheckError: null },
-      });
-    await db.insert(events).values({
-      userId,
-      kind: 'repository.verified',
-      payload: { repositoryId, org: r.org, repo: r.repo, by: 'token', role: r.role },
-    });
-    await enqueueOwnerAnalysis(db, userId, repositoryId, 'verified');
-    added.push(slug);
+  try {
+    await saveToken(db, userId, token.data, report.user, extraOrgs);
+  } catch (err) {
+    revalidatePath('/repos');
+    return {
+      ...toState(report),
+      ok: false,
+      error: `Репозитории подтянуты, но токен не сохранён — автосинхронизация не включится: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
   }
 
+  await db.insert(events).values({ userId, kind: 'sourcecraft_token.saved', payload: {} });
   revalidatePath('/repos');
-  return {
-    ok: true,
-    user: { username: scan.user.username, displayName: scan.user.displayName },
-    added,
-    already,
-    skipped,
-    notes: scan.notes,
-  };
+  return toState(report);
 }
 
-/** id строки repositories для слага; нет — создаём. */
-async function ensureRepository(org: string, repo: string): Promise<string | null> {
-  const existing = await db.query.repositories.findFirst({
-    where: and(eq(repositories.orgSlug, org), eq(repositories.repoSlug, repo)),
-  });
-  if (existing) return existing.id;
-  const [inserted] = await db
-    .insert(repositories)
-    .values({ orgSlug: org, repoSlug: repo })
-    .onConflictDoNothing()
-    .returning({ id: repositories.id });
-  if (inserted) return inserted.id;
-  // Проиграли гонку параллельной вставке — строка уже есть.
-  const again = await db.query.repositories.findFirst({
-    where: and(eq(repositories.orgSlug, org), eq(repositories.repoSlug, repo)),
-  });
-  return again?.id ?? null;
+/** «Синхронизировать сейчас» по сохранённому токену. */
+export async function syncNowAction(
+  _prev: TokenSyncState | undefined,
+  _formData: FormData,
+): Promise<TokenSyncState> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: 'Требуется вход' };
+  const result = await syncStoredToken(db, userId);
+  revalidatePath('/repos');
+  return result.ok ? toState(result.report) : { ok: false, error: result.error };
+}
+
+/** Отключить автосинхронизацию: токен удаляется, подтверждённые остаются. */
+export async function deleteTokenAction(): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) return;
+  await db.delete(sourcecraftTokens).where(eq(sourcecraftTokens.userId, userId));
+  await db.insert(events).values({ userId, kind: 'sourcecraft_token.deleted', payload: {} });
+  revalidatePath('/repos');
 }
 
 async function findOwnRow(userId: string, id: string) {
@@ -300,7 +290,13 @@ async function findOwnRow(userId: string, id: string) {
     .select({ owned: ownedRepositories, repo: repositories })
     .from(ownedRepositories)
     .innerJoin(repositories, eq(ownedRepositories.repositoryId, repositories.id))
-    .where(and(eq(ownedRepositories.id, id), eq(ownedRepositories.userId, userId)))
+    .where(
+      and(
+        eq(ownedRepositories.id, id),
+        eq(ownedRepositories.userId, userId),
+        isNull(ownedRepositories.removedAt),
+      ),
+    )
     .limit(1);
   return rows[0] ?? null;
 }

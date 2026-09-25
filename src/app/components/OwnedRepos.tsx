@@ -8,11 +8,14 @@ import { useActionState, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   addOwnedRepoAction,
-  syncTokenReposAction,
+  deleteTokenAction,
+  saveTokenAction,
+  syncNowAction,
   verifyOwnedRepoAction,
   type RepoActionState,
   type TokenSyncState,
 } from '@/app/actions/repos';
+import { ConfirmSubmit } from './ConfirmSubmit';
 import { Button, Input } from './ui';
 
 const initial: RepoActionState = { ok: false };
@@ -62,17 +65,89 @@ export function VerifyOwnedRepo({ id }: { id: string }) {
   );
 }
 
+/** Что показать о сохранённом токене. Даты сервер форматирует сам. */
+export type SavedTokenInfo = {
+  username: string | null;
+  displayName: string | null;
+  lastSyncLabel: string | null;
+  lastSyncError: string | null;
+  invalid: boolean;
+};
+
 /**
- * Синхронизация по личному токену SourceCraft. Токен живёт только в этом поле
- * и уходит на сервер одним запросом; после успеха поле очищается.
+ * Личный токен SourceCraft. Нет сохранённого — поле ввода. Есть — статус
+ * автосинхронизации и кнопки: синхронизировать сейчас, заменить, отключить.
  */
-export function TokenSync() {
+export function TokenSettings({ saved }: { saved: SavedTokenInfo | null }) {
+  const [replacing, setReplacing] = useState(false);
+  const [syncState, syncAction, syncing] = useActionState(syncNowAction, initialSync);
+
+  if (!saved || replacing || saved.invalid) {
+    return (
+      <div className="flex flex-col gap-3">
+        {saved?.invalid && (
+          <p className="rounded-2xl bg-[color:var(--panel)] px-4 py-3 text-sm text-[color:var(--ink-2)]">
+            ⚠ {saved.lastSyncError ?? 'Сохранённый токен больше не действует.'}
+          </p>
+        )}
+        <TokenForm onSaved={() => setReplacing(false)} />
+        {replacing && (
+          <Button type="button" variant="link" className="self-start text-sm" onClick={() => setReplacing(false)}>
+            Отмена
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  const who = saved.displayName ?? saved.username ?? 'пользователя';
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-2xl bg-[color:var(--panel)] px-4 py-3 text-sm text-[color:var(--ink-2)]">
+        <p>
+          <b>Автосинхронизация включена</b> — токен {who}
+          {saved.username && saved.displayName && ` (@${saved.username})`}. Каждые 5 минут
+          подтягиваем новые репозитории.
+        </p>
+        <p className="mt-1 text-xs text-[color:var(--muted)]">
+          {saved.lastSyncLabel ? `Последняя синхронизация: ${saved.lastSyncLabel}` : 'Ещё не синхронизировались'}
+          {saved.lastSyncError && ` · ${saved.lastSyncError}`}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <form action={syncAction}>
+          <Button type="submit" disabled={syncing}>
+            {syncing ? 'Синхронизируем…' : 'Синхронизировать сейчас'}
+          </Button>
+        </form>
+        <Button type="button" variant="ghost" onClick={() => setReplacing(true)}>
+          Заменить токен
+        </Button>
+        <form action={deleteTokenAction} className="ml-auto">
+          <ConfirmSubmit question="Отключить автосинхронизацию? Токен будет удалён, подтверждённые репозитории останутся.">
+            Отключить
+          </ConfirmSubmit>
+        </form>
+      </div>
+
+      {syncState.error && <StateNote state={{ ok: false, error: syncState.error }} />}
+      {syncState.ok && <SyncReport state={syncState} />}
+    </div>
+  );
+}
+
+/** Ввод нового токена: сохраняем зашифрованным и сразу синхронизируем. */
+function TokenForm({ onSaved }: { onSaved: () => void }) {
   const [token, setToken] = useState('');
-  const [state, formAction, pending] = useActionState(syncTokenReposAction, initialSync);
+  const [state, formAction, pending] = useActionState(saveTokenAction, initialSync);
 
   useEffect(() => {
-    if (state.ok) setToken('');
-  }, [state]);
+    if (state.ok) {
+      setToken('');
+      onSaved();
+    }
+  }, [state, onSaved]);
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -95,8 +170,8 @@ export function TokenSync() {
           className="sm:flex-1"
           aria-label="Другие организации"
         />
-        <Button type="submit" disabled={pending || !token} size="lg" className="sm:w-48">
-          {pending ? 'Ищем репозитории…' : 'Синхронизировать'}
+        <Button type="submit" disabled={pending || !token} size="lg" className="sm:w-56">
+          {pending ? 'Ищем репозитории…' : 'Сохранить и синхронизировать'}
         </Button>
       </div>
 

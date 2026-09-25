@@ -217,6 +217,11 @@ export const ownedRepositories = pgTable(
     lastCheckError: text('last_check_error'),
     /** День (YYYY-MM-DD по часовому поясу обновления) последнего суточного пересчёта. */
     refreshedOn: varchar('refreshed_on', { length: 10 }),
+    /**
+     * Пользователь убрал репозиторий из своих. Строку не удаляем, иначе
+     * автосинхронизация по токену вернула бы его через пять минут.
+     */
+    removedAt: timestamp('removed_at', { withTimezone: true, mode: 'date' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),
@@ -227,6 +232,34 @@ export const ownedRepositories = pgTable(
     byVerified: index('owned_repositories_verified_at_idx').on(t.verifiedAt),
   }),
 );
+
+/**
+ * Личный токен SourceCraft для автосинхронизации «Моих репозиториев».
+ * Один на пользователя. Сам токен — только зашифрованным (lib/token-crypto.ts).
+ */
+export const sourcecraftTokens = pgTable('sourcecraft_tokens', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  /** AES-256-GCM: «iv.tag.шифротекст» в base64url. */
+  tokenEncrypted: text('token_encrypted').notNull(),
+  /** Кому принадлежит токен в SourceCraft — показываем в настройках. */
+  scUserId: text('sc_user_id').notNull(),
+  scUsername: text('sc_username'),
+  scDisplayName: text('sc_display_name'),
+  /** Дополнительные организации через запятую. */
+  extraOrgs: text('extra_orgs'),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true, mode: 'date' }),
+  lastSyncError: text('last_sync_error'),
+  /** SourceCraft перестал принимать токен — не синхронизируем, пока не заменят. */
+  invalidAt: timestamp('invalid_at', { withTimezone: true, mode: 'date' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .default(sql`now()`),
+});
 
 // ---------- Оценки и обсуждение анализов ----------
 //
