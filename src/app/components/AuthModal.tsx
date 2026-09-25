@@ -38,7 +38,7 @@ export function AuthModal({ children }: { children: ReactNode }) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        className="rise relative max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-6 shadow-[var(--shadow-2)] sm:max-w-md sm:rounded-3xl sm:p-8"
+        className="rise relative max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-[var(--shadow-2)] sm:max-w-md sm:rounded-3xl sm:p-8"
       >
         <button
           type="button"

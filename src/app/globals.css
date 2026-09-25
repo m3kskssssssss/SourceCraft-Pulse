@@ -88,6 +88,66 @@
   --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
+/* ---------- «Жидкое стекло» для мобильной навигации ----------
+
+   Полупрозрачная подложка + сильное размытие с насыщенностью того, что под
+   ней, светлый блик по верхней кромке и мягкая тень — так стекло читается
+   объёмным, а не просто мутным. Работает и в Safari (нужен -webkit-префикс),
+   и в Chrome. Где backdrop-filter нет, подложка становится почти плотной:
+   текст под панелью не должен просвечивать сквозь неё. */
+.glass {
+  --glass-tint: color-mix(in srgb, var(--paper) 68%, transparent);
+  --glass-edge: color-mix(in srgb, var(--ink) 9%, transparent);
+  --glass-highlight: rgba(255, 255, 255, 0.55);
+  background: var(--glass-tint);
+  -webkit-backdrop-filter: blur(24px) saturate(185%);
+  backdrop-filter: blur(24px) saturate(185%);
+  border: 1px solid var(--glass-edge);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 color-mix(in srgb, var(--ink) 4%, transparent),
+    0 10px 30px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: color-mix(in srgb, var(--paper) 96%, transparent);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .glass {
+    --glass-tint: color-mix(in srgb, var(--panel) 62%, transparent);
+    --glass-edge: rgba(255, 255, 255, 0.09);
+    --glass-highlight: rgba(255, 255, 255, 0.12);
+  }
+}
+
+:root[data-theme="dark"] .glass {
+  --glass-tint: color-mix(in srgb, var(--panel) 62%, transparent);
+  --glass-edge: rgba(255, 255, 255, 0.09);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+}
+
+/* Нижняя панель на телефоне. Висит над краем с отступом, в который входит
+   безопасная зона iPhone (полоска «домой») — так её не перекрывает ни она,
+   ни нижняя панель Safari, которая при прокрутке прячется и выезжает. */
+.tabbar {
+  bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+/* Место под панель, чтобы она не закрывала конец страницы. */
+.tabbar-spacer {
+  height: calc(84px + env(safe-area-inset-bottom));
+}
+
+/* Нажатие на iOS: без синей вспышки, с лёгким «проседанием». */
+.tap {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 /* Смена темы — плавная, но только в момент переключения: класс ставит
    ThemeToggle на полсекунды, иначе переходы тормозили бы каждый hover. */
 html.theme-switching,

@@ -12,6 +12,7 @@ import { getPublicUser } from '@/lib/users';
 import { Avatar } from './Avatar';
 import { HeaderNav } from './HeaderNav';
 import { MobileMenu } from './MobileMenu';
+import { MobileTabBar } from './MobileTabBar';
 import { Button } from './ui';
 import { Planet } from './Planet';
 import { ThemeToggle } from './ThemeToggle';
@@ -37,8 +38,9 @@ export async function UserBar() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--paper)]/85 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
+    <>
+    <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--paper)]/80 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-2.5 sm:px-6 md:py-3.5">
         <Link href="/" className="group inline-flex items-center gap-2.5">
           <Planet size={30} />
           <span className="text-base font-semibold tracking-tight transition group-hover:tracking-normal">
@@ -89,5 +91,11 @@ export async function UserBar() {
         </div>
       </div>
     </header>
+
+    {/* Нижняя панель — рядом с шапкой, а не внутри: backdrop-blur шапки
+        стал бы точкой отсчёта для position: fixed, и панель приклеилась бы
+        к шапке, а не к низу экрана. */}
+    <MobileTabBar user={profile} />
+    </>
   );
 }

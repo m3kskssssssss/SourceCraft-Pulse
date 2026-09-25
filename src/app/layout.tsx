@@ -22,6 +22,9 @@ export const metadata: Metadata = {
 
 /** Цвет панели браузера на телефоне — под системную тему. */
 export const viewport: Viewport = {
+  // cover — чтобы iPhone отдал env(safe-area-inset-*): по ним стоят шапка и
+  // нижняя панель, иначе полоска «домой» наезжала бы на вкладки.
+  viewportFit: 'cover',
   colorScheme: 'light dark',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
@@ -47,6 +50,8 @@ export default function RootLayout({ children, modal }: { children: ReactNode; m
           <UserBar />
           <div className="flex-1">{children}</div>
           <SiteFooter />
+          {/* Место под нижнюю панель на телефоне — чтобы она не закрывала подвал. */}
+          <div className="tabbar-spacer md:hidden" aria-hidden />
         </div>
         {/* Веб-аналитика Vercel: без этого скрипта панель в дашборде остаётся
             пустой, сколько бы её ни включали в настройках проекта. */}
