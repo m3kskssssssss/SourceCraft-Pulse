@@ -41,16 +41,9 @@ export function MobileTabBar({ user }: { user: PublicUser | null }) {
       ? {
           href: `/u/${user.id}`,
           label: 'Профиль',
-          icon: (a) => (
-            <span
-              className={cx(
-                'rounded-full ring-2 transition',
-                a ? 'ring-[color:var(--ink)]' : 'ring-transparent',
-              )}
-            >
-              <Avatar user={user} size={24} />
-            </span>
-          ),
+          // Без обводки: активную вкладку выделяют подложка и жирная подпись,
+          // как у остальных. Кольцо вокруг фото на тёмной теме было белым.
+          icon: () => <Avatar user={user} size={24} />,
           active: (p) => p === `/u/${user.id}` || p.startsWith('/profile'),
         }
       : { href: '/signin', label: 'Войти', icon: (a) => <PersonIcon active={a} /> },
