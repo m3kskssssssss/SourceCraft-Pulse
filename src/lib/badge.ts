@@ -3,9 +3,10 @@
 // Оценку показываем дважды — числом и длиной полосы: «74» ни о чём не
 // говорит, пока не знаешь шкалу, полоса даёт ответ сразу, «/100» закрепляет.
 //
-// Сетка: высота 28, поля PAD со всех сторон. Слева чёрная плашка —
+// Сетка: высота 28, поля PAD по бокам, 5 сверху и снизу. Слева чёрная плашка —
 // вращающийся глобус и «Pulse», справа на светлом фоне число и полоса.
-// Обводки нет: форму держат сами плашки.
+// Обводки нет, общей обрезки тоже: фон — две соседние фигуры
+// (badgeBackground), иначе на тёмной теме по углам проступала светлая кайма.
 //
 // Палитра, логотип и экранирование — общие с карточкой (badge-shared.ts).
 // Функция вынесена в отдельный файл ради Vitest-теста.
@@ -15,7 +16,7 @@ import {
   FONT,
   INK,
   MUTED,
-  PANEL,
+  badgeBackground,
   PAPER,
   TRACK,
   escapeXml,
@@ -38,11 +39,11 @@ const HEIGHT = 28;
 const RADIUS = 6;
 /** Поле от края бейджа и между плашкой и содержимым справа. */
 const PAD = 10;
-const LOGO_R = 7;
+const LOGO_R = 9;
 /** Зазор между логотипом и подписью. */
 const GAP = 6;
-const LABEL_FONT = 11;
-const SCORE_FONT = 14;
+const LABEL_FONT = 12;
+const SCORE_FONT = 15;
 const NOTE_FONT = 10;
 const TRACK_H = 3;
 /** Минимальная ширина правой части: полоса короче не читается как шкала. */
@@ -75,17 +76,14 @@ export function renderBadgeSvg(input: BadgeInput): string {
   const trackW = width - x0 - PAD;
   const fillW = score === null ? 0 : Math.round((trackW * score) / 100);
 
-  // Число сверху, полоса снизу; поля сверху и снизу равны.
-  const scoreY = 15;
-  const trackY = 19;
+  // Число сверху, полоса снизу; поля сверху и снизу по 5 — как у логотипа.
+  const scoreY = 16;
+  const trackY = 20;
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${HEIGHT}" viewBox="0 0 ${width} ${HEIGHT}" role="img" aria-label="${label}: ${aria}">`,
     `<title>${label}: ${aria}</title>`,
-    `<clipPath id="r"><rect width="${width}" height="${HEIGHT}" rx="${RADIUS}"/></clipPath>`,
-    `<g clip-path="url(#r)">`,
-    `<rect width="${width}" height="${HEIGHT}" fill="${PANEL}"/>`,
-    `<rect width="${plateW}" height="${HEIGHT}" fill="${INK}"/>`,
+    badgeBackground(width, HEIGHT, plateW, RADIUS),
     planetSvg(PAD + LOGO_R, HEIGHT / 2, LOGO_R),
     `<g font-family="${FONT}">`,
     `<text x="${labelX}" y="18" fill="${PAPER}" font-size="${LABEL_FONT}" font-weight="600">${label}</text>`,
@@ -100,7 +98,6 @@ export function renderBadgeSvg(input: BadgeInput): string {
         (fillW > 0
           ? `<rect x="${x0}" y="${trackY}" width="${fillW}" height="${TRACK_H}" rx="${TRACK_H / 2}" fill="${INK}"/>`
           : ''),
-    `</g>`,
     `</svg>`,
   ].join('');
 }

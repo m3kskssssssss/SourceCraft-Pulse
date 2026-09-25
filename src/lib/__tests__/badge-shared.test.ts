@@ -27,8 +27,21 @@ describe('общий вид бейджей', () => {
   it.each([
     ['маленький', small],
     ['карточка', card],
-  ])('%s: логотип вращается — меридианы анимированы', (_name, svg) => {
+  ])('%s: логотип вращается — три анимированных меридиана', (_name, svg) => {
     const animations = svg.match(/<animate attributeName="rx"[^>]*repeatCount="indefinite"/g) ?? [];
-    expect(animations.length).toBe(4);
+    expect(animations.length).toBe(3);
+  });
+});
+
+describe('фон без светлой каймы на тёмной теме', () => {
+  it.each([
+    ['маленький', small],
+    ['карточка', card],
+  ])('%s: без clipPath и без светлого прямоугольника под плашкой', (_name, svg) => {
+    expect(svg).not.toContain('clipPath');
+    // Фон — два пути: чёрная плашка и светлая часть, которые не перекрываются.
+    const paths = svg.match(/<path d="M[^"]+" fill="#(000000|F5F5F5)"\/>/g) ?? [];
+    expect(paths).toHaveLength(2);
+    expect(svg).not.toMatch(/<rect width="\d+" height="\d+" fill="#F5F5F5"/);
   });
 });
