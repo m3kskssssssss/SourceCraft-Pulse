@@ -1,22 +1,25 @@
 'use server';
 
-// «Мои репозитории»: заявить репозиторий, подтвердить, убрать.
+// «Мои репозитории»: заявить репозиторий, подтвердить, оценить, убрать.
 //
 // Подтвердить можно двумя способами:
 //   - личным токеном SourceCraft: токен сохраняется зашифрованным, и раз в
 //     пять минут мы подтягиваем новые репозитории, где у пользователя роль
-//     admin или maintainer (lib/token-sync.ts);
+//     admin или maintainer (lib/token-sync.ts). Оценку это не запускает —
+//     пользователь жмёт «Оценить» на карточке сам;
 //   - ключом: он выдаётся при добавлении, проверяем описание репозитория и
-//     список файлов в корне (lib/ownership.ts).
-// После подтверждения сразу ставим первый публичный прогон, чтобы бейдж
-// ожил, не дожидаясь полуночи.
+//     список файлов в корне (lib/ownership.ts). Здесь пользователь добавлял
+//     репозиторий руками, поэтому первый прогон ставим сразу.
+// Суточный пересчёт в 00:00 берёт только уже оценённые репозитории.
 
 import { revalidatePath } from 'next/cache';
-import { and, eq, isNull } from 'drizzle-orm';
+import { redirect } from 'next/navigation';
+import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { db } from '@/db/client';
-import { events, ownedRepositories, repositories, sourcecraftTokens } from '@/db/schema';
+import { analyses, events, ownedRepositories, repositories, sourcecraftTokens } from '@/db/schema';
 import { parseSlug, InvalidSlugError } from '@/lib/slug';
+import { LIMIT_MESSAGES, getUserLimits } from '@/lib/limits';
 import {
   enqueueOwnerAnalysis,
   ensureRepository,
@@ -183,6 +186,51 @@ export async function verifyOwnedRepoAction(
       : 'Подтверждено. По репозиторию уже идёт оценка, бейдж обновится при пересчёте в 00:00. Ключ из репозитория можно убрать.',
     analysisId: analysisId ?? undefined,
   };
+}
+
+/**
+ * «Оценить» на карточке своего репозитория. Прогон публичный, как у
+ * суточного пересчёта, — бейдж читает только опубликованные. Лимиты те же,
+ * что у обычной оценки. После постановки — на страницу прогона: она его и
+ * запускает (на Vercel отдельного воркера нет).
+ */
+export async function evaluateOwnedRepoAction(formData: FormData): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) redirect('/signin');
+  const row = await findOwnRow(userId, String(formData.get('id') ?? ''));
+  if (!row || !row.owned.verifiedAt) redirect('/repos');
+
+  // Уже считается — ведём на идущий прогон, а не заводим второй.
+  const pending = await db.query.analyses.findFirst({
+    where: and(
+      eq(analyses.repositoryId, row.repo.id),
+      inArray(analyses.status, ['queued', 'running']),
+    ),
+  });
+  if (pending) redirect(`/a/${pending.id}`);
+
+  const limitError = await checkUserLimits(userId);
+  if (limitError) redirect(`/repos?error=${encodeURIComponent(limitError)}`);
+
+  const analysisId = await enqueueOwnerAnalysis(db, userId, row.repo.id, 'manual');
+  revalidatePath('/repos');
+  redirect(analysisId ? `/a/${analysisId}` : '/repos');
+}
+
+async function checkUserLimits(userId: string): Promise<string | null> {
+  const limits = await getUserLimits();
+  const dayAgo = new Date(Date.now() - 24 * 3600 * 1000);
+  const [daily] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(analyses)
+    .where(and(eq(analyses.requestedBy, userId), gte(analyses.createdAt, dayAgo)));
+  if ((daily?.count ?? 0) >= limits.daily) return LIMIT_MESSAGES.daily(limits.daily);
+  const [running] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(analyses)
+    .where(and(eq(analyses.requestedBy, userId), inArray(analyses.status, ['queued', 'running'])));
+  if ((running?.count ?? 0) >= limits.concurrent) return LIMIT_MESSAGES.concurrent(limits.concurrent);
+  return null;
 }
 
 /**

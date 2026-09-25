@@ -5,7 +5,9 @@
 // репозитории, где у владельца токена роль admin или maintainer:
 //   - в docker это делает воркер, он и так запускается раз в минуту;
 //   - на Vercel — внешний вызов /api/cron/sync-tokens.
-// По новым репозиториям сразу ставится первая оценка.
+// Оценку синхронизация не запускает: новые репозитории появляются карточками,
+// а оценивает их пользователь сам кнопкой «Оценить». Дальше их подхватывает
+// суточный пересчёт.
 //
 // Чего синхронизация не делает: не снимает подтверждение, если роль пропала,
 // и не возвращает репозитории, которые пользователь убрал сам (removed_at).
@@ -16,7 +18,7 @@ import { and, asc, eq, isNull, lt, or } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { events, ownedRepositories, sourcecraftTokens } from '../db/schema';
-import { enqueueOwnerAnalysis, ensureRepository, generateVerifyKey } from './ownership';
+import { ensureRepository, generateVerifyKey } from './ownership';
 import { SourcecraftApiError } from './sourcecraft/errors';
 import { decryptToken, encryptToken } from './token-crypto';
 import { describeError, isOwnerRole, scanTokenRepositories, type TokenUser } from './token-ownership';
@@ -107,7 +109,6 @@ export async function syncOwnedFromToken(
       kind: 'repository.verified',
       payload: { repositoryId, org: r.org, repo: r.repo, by: 'token', role: r.role },
     });
-    await enqueueOwnerAnalysis(db, userId, repositoryId, 'verified');
     added.push(slug);
   }
 

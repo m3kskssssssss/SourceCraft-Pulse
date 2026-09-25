@@ -17,6 +17,7 @@ import {
   AddOwnedRepoForm,
   CardBadgeMarkdown,
   CopyField,
+  EvaluateButton,
   RepoSettings,
   TokenSettings,
   type SavedTokenInfo,
@@ -41,10 +42,14 @@ type Run = {
   finishedAt: Date | null;
 };
 
-export default async function MyRepositoriesPage() {
+type PageProps = { searchParams: Promise<{ error?: string }> };
+
+export default async function MyRepositoriesPage({ searchParams }: PageProps) {
   const session = await auth();
   const userId = (session?.user as { id?: string } | undefined)?.id;
   if (!userId) redirect('/signin');
+  // Ошибка кнопки «Оценить» (лимиты): действие уводит сюда с текстом в адресе.
+  const { error: evaluateError } = await searchParams;
 
   const rows = await db
     .select({ owned: ownedRepositories, repo: repositories })
@@ -134,6 +139,12 @@ export default async function MyRepositoriesPage() {
           <AddOwnedRepoForm />
         </CardDiv>
       </RepoSettings>
+
+      {evaluateError && (
+        <p className="rise mt-6 rounded-2xl bg-[color:var(--panel)] px-4 py-3 text-sm text-[color:var(--ink-2)]">
+          {evaluateError.slice(0, 200)}
+        </p>
+      )}
 
       {rows.length === 0 ? (
         <EmptyState
@@ -287,32 +298,37 @@ function RepoCard({
       ) : (
         <p className="text-sm text-[color:var(--muted)]">
           {inProgress
-            ? 'Первая оценка уже считается — балл появится здесь.'
-            : 'Оценки ещё нет — она появится после пересчёта в 00:00.'}
+            ? 'Оценка уже считается — балл появится здесь.'
+            : 'Ещё не оценивали. Нажмите «Оценить» — это займёт около минуты. После первой оценки репозиторий будет пересчитываться каждый день в 00:00.'}
         </p>
       )}
 
-      <div className="text-xs text-[color:var(--muted)]">
-        {done?.finishedAt ? `Оценка от ${formatDate(done.finishedAt)} · ` : ''}следующий пересчёт в 00:00
-      </div>
+      {done?.finishedAt && (
+        <div className="text-xs text-[color:var(--muted)]">
+          Оценка от {formatDate(done.finishedAt)} · следующий пересчёт в 00:00
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
-        {done ? (
+        {inProgress ? (
           <Link
-            href={`/a/${done.id}`}
+            href={`/a/${inProgress.id}`}
             className="rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm font-medium text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
           >
-            Открыть оценку →
+            Смотреть прогон →
           </Link>
-        ) : (
-          inProgress && (
+        ) : done ? (
+          <>
             <Link
-              href={`/a/${inProgress.id}`}
+              href={`/a/${done.id}`}
               className="rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm font-medium text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
             >
-              Смотреть прогон →
+              Открыть оценку →
             </Link>
-          )
+            <EvaluateButton id={ownedId} again />
+          </>
+        ) : (
+          <EvaluateButton id={ownedId} />
         )}
         <Link
           href={`/r/${org}/${repo}`}

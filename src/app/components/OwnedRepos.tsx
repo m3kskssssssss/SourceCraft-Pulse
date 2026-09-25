@@ -5,10 +5,12 @@
 // «Скопировать» (ключ, код бейджа).
 
 import { useActionState, useEffect, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import {
   addOwnedRepoAction,
   deleteTokenAction,
+  evaluateOwnedRepoAction,
   saveTokenAction,
   syncNowAction,
   verifyOwnedRepoAction,
@@ -194,7 +196,7 @@ function SyncReport({ state }: { state: TokenSyncState }) {
         Токен {who}
         {state.user?.username && state.user.displayName && ` (@${state.user.username})`}.{' '}
         {added.length > 0
-          ? `✓ Добавлено: ${added.length}. Первые оценки уже в очереди — карточки ниже.`
+          ? `✓ Добавлено: ${added.length}. Они уже на странице — оцените нужные кнопкой «Оценить».`
           : already.length > 0
             ? 'Новых репозиториев нет — всё уже в списке.'
             : 'Подходящих репозиториев не нашлось.'}
@@ -328,5 +330,27 @@ export function CardBadgeMarkdown({ org, repo }: { org: string; repo: string }) 
       )}
       <CopyField value={markdown} label="Markdown карточки" />
     </div>
+  );
+}
+
+/**
+ * «Оценить» на карточке: ставит публичный прогон и уводит на его страницу.
+ * Пока форма отправляется, кнопка занята — второй прогон не нажать.
+ */
+export function EvaluateButton({ id, again = false }: { id: string; again?: boolean }) {
+  return (
+    <form action={evaluateOwnedRepoAction}>
+      <input type="hidden" name="id" value={id} />
+      <EvaluateSubmit again={again} />
+    </form>
+  );
+}
+
+function EvaluateSubmit({ again }: { again: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" variant={again ? 'ghost' : 'primary'} disabled={pending}>
+      {pending ? 'Ставим в очередь…' : again ? 'Оценить заново' : 'Оценить'}
+    </Button>
   );
 }

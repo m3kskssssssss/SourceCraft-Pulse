@@ -15,7 +15,7 @@
 // так что повторный вызов в те же сутки ничего не делает.
 
 import { randomBytes } from 'node:crypto';
-import { and, eq, ilike, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { analyses, analysisJobs, events, ownedRepositories, repositories } from '../db/schema';
@@ -73,7 +73,7 @@ export async function enqueueOwnerAnalysis(
   db: Db,
   userId: string,
   repositoryId: string,
-  reason: 'verified' | 'daily',
+  reason: 'verified' | 'daily' | 'manual',
 ): Promise<string | null> {
   const pending = await db
     .select({ id: analyses.id })
@@ -101,6 +101,7 @@ export async function enqueueOwnerAnalysis(
 
 /**
  * Суточный пересчёт: по одному прогону на каждый подтверждённый репозиторий,
+ * у которого уже есть готовая оценка и
  * который сегодня ещё не пересчитывали. Если у репозитория несколько
  * подтверждённых владельцев, прогон всё равно один — от первого из них.
  */
@@ -122,6 +123,11 @@ export async function enqueueDailyRefresh(
         isNotNull(ownedRepositories.verifiedAt),
         isNull(ownedRepositories.removedAt),
         or(isNull(ownedRepositories.refreshedOn), ne(ownedRepositories.refreshedOn, day)),
+        // Пересчитываем только то, что пользователь уже хоть раз оценил сам:
+        // синхронизация по токену добавляет репозитории без оценки, и ночной
+        // пересчёт не должен оценивать их за него. Подзапрос — сырым SQL:
+        // drizzle теряет имя таблицы в коррелированном подзапросе.
+        sql`exists (select 1 from analyses a where a.repository_id = "owned_repositories"."repository_id" and a.status = 'done')`,
       ),
     )
     .orderBy(ownedRepositories.verifiedAt);
