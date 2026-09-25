@@ -7,8 +7,11 @@ import { useActionState, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   addOwnedRepoAction,
+  claimTokenReposAction,
+  scanTokenReposAction,
   verifyOwnedRepoAction,
   type RepoActionState,
+  type TokenScanState,
 } from '@/app/actions/repos';
 import { Button, Input } from './ui';
 
@@ -58,6 +61,122 @@ export function VerifyOwnedRepo({ id }: { id: string }) {
     </form>
   );
 }
+
+/**
+ * Подтверждение личным токеном SourceCraft. Токен живёт только в этом поле:
+ * на сервер он уходит с каждой из двух форм и там нигде не сохраняется.
+ */
+export function TokenImport() {
+  const [token, setToken] = useState('');
+  const [scan, scanAction, scanning] = useActionState(scanTokenReposAction, initialScan);
+  const [claim, claimAction, claiming] = useActionState(claimTokenReposAction, initial);
+
+  // Подтвердили — токен больше не нужен, в поле его не держим.
+  useEffect(() => {
+    if (claim.ok) setToken('');
+  }, [claim]);
+
+  const repos = scan.repos ?? [];
+  const selectable = repos.filter((r) => r.owner && !r.added);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <form action={scanAction} className="flex flex-col gap-3">
+        <Input
+          type="password"
+          name="token"
+          required
+          autoComplete="off"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="Личный токен SourceCraft (PAT)"
+          aria-label="Личный токен SourceCraft"
+        />
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            type="text"
+            name="orgs"
+            placeholder="Другие организации через запятую (необязательно)"
+            className="sm:flex-1"
+            aria-label="Другие организации"
+          />
+          <Button type="submit" disabled={scanning || !token} size="lg" className="sm:w-56">
+            {scanning ? 'Ищем…' : 'Показать мои репозитории'}
+          </Button>
+        </div>
+        {scan.error && <StateNote state={{ ok: false, error: scan.error }} />}
+      </form>
+
+      {scan.ok && (
+        <form action={claimAction} className="flex flex-col gap-3">
+          <input type="hidden" name="token" value={token} />
+          <p className="text-sm text-[color:var(--ink-2)]">
+            Токен принадлежит <b>{scan.user?.displayName ?? scan.user?.username ?? 'пользователю'}</b>
+            {scan.user?.username && scan.user.displayName && ` (@${scan.user.username})`}.
+            {repos.length > 0
+              ? ' Подтвердить можно репозитории, где у вас роль admin или maintainer.'
+              : ' Репозиториев не нашлось — укажите организации, в которых они лежат.'}
+          </p>
+
+          {repos.length > 0 && (
+            <ul className="flex flex-col divide-y divide-[color:var(--line)] rounded-2xl border border-[color:var(--line)]">
+              {repos.map((r) => {
+                const slug = `${r.org}/${r.repo}`;
+                const enabled = r.owner && !r.added;
+                return (
+                  <li key={slug}>
+                    <label
+                      className={
+                        'flex items-start gap-3 px-4 py-3 text-sm ' +
+                        (enabled ? 'cursor-pointer hover:bg-[color:var(--panel)]' : 'opacity-60')
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        name="repo"
+                        value={slug}
+                        disabled={!enabled}
+                        defaultChecked={enabled}
+                        className="mt-0.5"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="font-medium [overflow-wrap:anywhere]">{slug}</span>
+                        <span className="block text-xs text-[color:var(--muted)]">
+                          {r.added
+                            ? '✓ уже подтверждён'
+                            : r.role
+                              ? `роль: ${r.role}${r.owner ? '' : ' — нужна admin или maintainer'}`
+                              : (r.note ?? 'роль не найдена')}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {scan.notes && scan.notes.length > 0 && (
+            <ul className="text-xs text-[color:var(--muted)]">
+              {scan.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          )}
+
+          {selectable.length > 0 && (
+            <Button type="submit" disabled={claiming || !token} className="self-start">
+              {claiming ? 'Подтверждаем…' : 'Подтвердить выбранные'}
+            </Button>
+          )}
+          <StateNote state={claim} />
+        </form>
+      )}
+    </div>
+  );
+}
+
+const initialScan: TokenScanState = { ok: false };
 
 function StateNote({ state }: { state: RepoActionState }) {
   const text = state.error ?? state.message;

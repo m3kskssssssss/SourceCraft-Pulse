@@ -1,8 +1,8 @@
-// «Мои репозитории»: заявить репозиторий своим, подтвердить ключом и забрать
+// «Мои репозитории»: заявить репозиторий своим, подтвердить и забрать
 // бейдж-карточку, которая пересчитывается каждый день в 00:00.
 //
-// Ключ выдаётся при добавлении. Положить его можно в описание репозитория или
-// файлом в корень (имя файла — сам ключ) — см. lib/ownership.ts.
+// Подтверждение — личным токеном SourceCraft (lib/token-ownership.ts) или
+// ключом в описании либо файлом в корне (lib/ownership.ts).
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -15,6 +15,7 @@ import {
   AddOwnedRepoForm,
   CardBadgeMarkdown,
   CopyField,
+  TokenImport,
   VerifyOwnedRepo,
 } from '@/app/components/OwnedRepos';
 import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
@@ -76,9 +77,19 @@ export default async function MyRepositoriesPage() {
       </header>
 
       <CardDiv className="rise mt-8" tone="outline">
-        <h2 className="text-base font-semibold">Добавить репозиторий</h2>
+        <h2 className="text-base font-semibold">Подтвердить личным токеном SourceCraft</h2>
         <p className="mb-4 mt-1 text-sm text-[color:var(--muted)]">
-          Только публичные репозитории SourceCraft.
+          Покажем ваши репозитории и вашу роль в каждом — admin и maintainer подтверждаются сразу.
+          Хватит токена только на чтение. Мы его не сохраняем: он нужен на время этих двух запросов.
+        </p>
+        <TokenImport />
+      </CardDiv>
+
+      <CardDiv className="rise mt-4" tone="outline">
+        <h2 className="text-base font-semibold">Или добавить вручную и подтвердить ключом</h2>
+        <p className="mb-4 mt-1 text-sm text-[color:var(--muted)]">
+          Если репозиторий не нашёлся по токену или права выданы на уровне организации. Только
+          публичные репозитории SourceCraft.
         </p>
         <AddOwnedRepoForm />
       </CardDiv>

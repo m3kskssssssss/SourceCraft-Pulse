@@ -1,19 +1,33 @@
 'use server';
 
-// «Мои репозитории»: заявить репозиторий, подтвердить ключом, убрать.
+// «Мои репозитории»: заявить репозиторий, подтвердить, убрать.
 //
-// Ключ выдаётся при добавлении и дальше не меняется. Проверка идёт через
-// публичный API SourceCraft: описание репозитория и список файлов в корне
-// (подробнее — lib/ownership.ts). После подтверждения сразу ставим первый
-// публичный прогон, чтобы бейдж ожил, не дожидаясь полуночи.
+// Подтвердить можно двумя способами:
+//   - личным токеном SourceCraft: показываем репозитории пользователя и его
+//     роли, admin и maintainer подтверждаются сразу (lib/token-ownership.ts);
+//   - ключом: он выдаётся при добавлении, проверяем описание репозитория и
+//     список файлов в корне (lib/ownership.ts).
+// После подтверждения сразу ставим первый публичный прогон, чтобы бейдж
+// ожил, не дожидаясь полуночи.
 
 import { revalidatePath } from 'next/cache';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { db } from '@/db/client';
 import { events, ownedRepositories, repositories } from '@/db/schema';
-import { parseSlug, InvalidSlugError } from '@/lib/slug';
+import { parseSlug, tryParseSlug, InvalidSlugError } from '@/lib/slug';
 import { enqueueOwnerAnalysis, findVerifyKey, generateVerifyKey } from '@/lib/ownership';
+import {
+  checkRepoRole,
+  describeError,
+  getTokenUser,
+  isOwnerRole,
+  parseOrgList,
+  scanTokenRepositories,
+  tokenSchema,
+  userClient,
+  type TokenRepo,
+} from '@/lib/token-ownership';
 import { getSourcecraftClient } from '@/lib/sourcecraft/client';
 import { SourcecraftApiError, SourcecraftNotFoundError } from '@/lib/sourcecraft/errors';
 
@@ -67,18 +81,8 @@ export async function addOwnedRepoAction(
     return { ok: false, error: describeScError(err, org, repo) };
   }
 
-  const existingRepo = await db.query.repositories.findFirst({
-    where: and(eq(repositories.orgSlug, org), eq(repositories.repoSlug, repo)),
-  });
-  let repositoryId = existingRepo?.id;
-  if (!repositoryId) {
-    const [inserted] = await db
-      .insert(repositories)
-      .values({ orgSlug: org, repoSlug: repo })
-      .returning({ id: repositories.id });
-    if (!inserted) return { ok: false, error: 'Не удалось создать запись о репозитории.' };
-    repositoryId = inserted.id;
-  }
+  const repositoryId = await ensureRepository(org, repo);
+  if (!repositoryId) return { ok: false, error: 'Не удалось создать запись о репозитории.' };
 
   const inserted = await db
     .insert(ownedRepositories)
@@ -172,6 +176,185 @@ export async function removeOwnedRepoAction(formData: FormData): Promise<void> {
   if (!row) return;
   await db.delete(ownedRepositories).where(eq(ownedRepositories.id, row.owned.id));
   revalidatePath('/repos');
+}
+
+// ---------- Подтверждение личным токеном SourceCraft ----------
+//
+// Два шага без хранения токена: сначала показываем репозитории пользователя
+// с его ролями, потом он отмечает нужные и отправляет форму ещё раз — с тем же
+// токеном из поля на странице. Роль перепроверяем на втором шаге: списку из
+// браузера не верим.
+
+export type TokenScanRepo = TokenRepo & {
+  /** admin или maintainer — можно подтвердить. */
+  owner: boolean;
+  /** Уже подтверждён в списке этого пользователя. */
+  added: boolean;
+};
+
+export type TokenScanState = {
+  ok: boolean;
+  error?: string;
+  user?: { username: string | null; displayName: string | null };
+  repos?: TokenScanRepo[];
+  notes?: string[];
+};
+
+export async function scanTokenReposAction(
+  _prev: TokenScanState | undefined,
+  formData: FormData,
+): Promise<TokenScanState> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: 'Требуется вход' };
+
+  const token = tokenSchema.safeParse(String(formData.get('token') ?? ''));
+  if (!token.success) return { ok: false, error: token.error.issues[0]?.message ?? 'Неверный токен' };
+
+  let scan: Awaited<ReturnType<typeof scanTokenRepositories>>;
+  try {
+    scan = await scanTokenRepositories(token.data, parseOrgList(String(formData.get('orgs') ?? '')));
+  } catch (err) {
+    return { ok: false, error: `Не удалось прочитать профиль по токену: ${describeError(err)}.` };
+  }
+
+  const verified = new Set(
+    (
+      await db
+        .select({ org: repositories.orgSlug, repo: repositories.repoSlug })
+        .from(ownedRepositories)
+        .innerJoin(repositories, eq(ownedRepositories.repositoryId, repositories.id))
+        .where(and(eq(ownedRepositories.userId, userId), isNotNull(ownedRepositories.verifiedAt)))
+    ).map((r) => `${r.org}/${r.repo}`.toLowerCase()),
+  );
+
+  return {
+    ok: true,
+    user: { username: scan.user.username, displayName: scan.user.displayName },
+    repos: scan.repos.map((r) => ({
+      ...r,
+      owner: isOwnerRole(r.role),
+      added: verified.has(`${r.org}/${r.repo}`.toLowerCase()),
+    })),
+    notes: scan.notes,
+  };
+}
+
+export async function claimTokenReposAction(
+  _prev: RepoActionState | undefined,
+  formData: FormData,
+): Promise<RepoActionState> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: 'Требуется вход' };
+
+  const token = tokenSchema.safeParse(String(formData.get('token') ?? ''));
+  if (!token.success) return { ok: false, error: token.error.issues[0]?.message ?? 'Неверный токен' };
+
+  const slugs = [
+    ...new Set(formData.getAll('repo').map((v) => String(v))),
+  ].flatMap((v) => {
+    const parsed = tryParseSlug(v);
+    return parsed ? [parsed] : [];
+  });
+  if (slugs.length === 0) return { ok: false, error: 'Отметьте хотя бы один репозиторий.' };
+
+  const client = userClient(token.data);
+  let scUserId: string;
+  try {
+    scUserId = (await getTokenUser(client)).id;
+  } catch (err) {
+    return { ok: false, error: `Не удалось прочитать профиль по токену: ${describeError(err)}.` };
+  }
+
+  const owned = await db
+    .select({ repositoryId: ownedRepositories.repositoryId, verifiedAt: ownedRepositories.verifiedAt })
+    .from(ownedRepositories)
+    .where(eq(ownedRepositories.userId, userId));
+  let slots = MAX_OWNED - owned.length;
+
+  const added: string[] = [];
+  const skipped: string[] = [];
+  for (const { org, repo } of slugs) {
+    const slug = `${org}/${repo}`;
+    const { role } = await checkRepoRole(client, scUserId, org, repo);
+    if (!isOwnerRole(role)) {
+      skipped.push(`${slug} (нужна роль admin или maintainer)`);
+      continue;
+    }
+    try {
+      const repository = await client.getRepository(org, repo);
+      if (repository.visibility && repository.visibility !== 'public') {
+        skipped.push(`${slug} (не публичный)`);
+        continue;
+      }
+    } catch (err) {
+      skipped.push(`${slug} (${describeError(err)})`);
+      continue;
+    }
+
+    const repositoryId = await ensureRepository(org, repo);
+    if (!repositoryId) {
+      skipped.push(`${slug} (не удалось сохранить)`);
+      continue;
+    }
+    const existing = owned.find((o) => o.repositoryId === repositoryId);
+    if (existing?.verifiedAt) continue;
+    if (!existing) {
+      if (slots <= 0) {
+        skipped.push(`${slug} (в списке уже ${MAX_OWNED} репозиториев)`);
+        continue;
+      }
+      slots -= 1;
+    }
+
+    const now = new Date();
+    await db
+      .insert(ownedRepositories)
+      .values({ userId, repositoryId, verifyKey: generateVerifyKey(), verifiedAt: now, lastCheckAt: now })
+      .onConflictDoUpdate({
+        target: [ownedRepositories.userId, ownedRepositories.repositoryId],
+        set: { verifiedAt: now, lastCheckAt: now, lastCheckError: null },
+      });
+    await db.insert(events).values({
+      userId,
+      kind: 'repository.verified',
+      payload: { repositoryId, org, repo, by: 'token', role },
+    });
+    await enqueueOwnerAnalysis(db, userId, repositoryId, 'verified');
+    added.push(slug);
+  }
+
+  revalidatePath('/repos');
+  if (added.length === 0) {
+    return {
+      ok: false,
+      error: skipped.length ? `Не подтверждены: ${skipped.join(', ')}.` : 'Все отмеченные уже подтверждены.',
+    };
+  }
+  return {
+    ok: true,
+    message:
+      `Подтверждены: ${added.join(', ')}. Первые оценки в очереди, дальше — каждый день в 00:00.` +
+      (skipped.length ? ` Не подтверждены: ${skipped.join(', ')}.` : ''),
+  };
+}
+
+/** id строки repositories для слага; нет — создаём. */
+async function ensureRepository(org: string, repo: string): Promise<string | null> {
+  const existing = await db.query.repositories.findFirst({
+    where: and(eq(repositories.orgSlug, org), eq(repositories.repoSlug, repo)),
+  });
+  if (existing) return existing.id;
+  const [inserted] = await db
+    .insert(repositories)
+    .values({ orgSlug: org, repoSlug: repo })
+    .onConflictDoNothing()
+    .returning({ id: repositories.id });
+  if (inserted) return inserted.id;
+  // Проиграли гонку параллельной вставке — строка уже есть.
+  const again = await db.query.repositories.findFirst({
+    where: and(eq(repositories.orgSlug, org), eq(repositories.repoSlug, repo)),
+  });
+  return again?.id ?? null;
 }
 
 async function findOwnRow(userId: string, id: string) {

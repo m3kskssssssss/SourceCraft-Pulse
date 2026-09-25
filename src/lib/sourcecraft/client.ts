@@ -27,6 +27,8 @@ export type Release = components['schemas']['Release'];
 export type PullRequest = components['schemas']['PullRequest'];
 export type Issue = components['schemas']['Issue'];
 export type TreeEntry = components['schemas']['TreeEntry'];
+export type SubjectRole = components['schemas']['SubjectRole'];
+export type RepoRole = components['schemas']['RepoRole'];
 
 // ---------- Общие настройки ----------
 
@@ -221,6 +223,28 @@ export class SourcecraftClient {
 
   getRepository(orgSlug: string, repoSlug: string): Promise<Repository> {
     return this.request<Repository>(`/repos/${encode(orgSlug)}/${encode(repoSlug)}`);
+  }
+
+  /** Профиль владельца токена. С общим токеном Pulse — сам Pulse, с личным — пользователь. */
+  getCurrentUser(): Promise<UserProfile> {
+    return this.request<UserProfile>('/user');
+  }
+
+  listOrganizationRepositories(
+    orgSlug: string,
+    params: PageParams = {},
+  ): Promise<PageResponse<'repositories', Repository>> {
+    return this.request(`/orgs/${encode(orgSlug)}/repos`, { query: pageQuery(params) });
+  }
+
+  listRepoRoles(
+    orgSlug: string,
+    repoSlug: string,
+    params: PageParams = {},
+  ): Promise<PageResponse<'subject_roles', SubjectRole>> {
+    return this.request(`/repos/${encode(orgSlug)}/${encode(repoSlug)}/roles`, {
+      query: pageQuery(params),
+    });
   }
 
   listContributors(
