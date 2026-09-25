@@ -90,7 +90,10 @@ COPY . .
 # перезапишет реальными значениями.
 ENV DATABASE_URL=postgres://build:build@localhost:5432/build \
     AUTH_SECRET=dummy-for-build
-RUN pnpm build
+# Только next build, без `pnpm build`: тот сначала применяет миграции, а с
+# заглушкой выше пошёл бы в несуществующую базу и уронил сборку. Миграции в
+# docker применяет отдельный сервис migrate из compose.yaml.
+RUN pnpm exec next build
 
 ENV NODE_ENV=production
 EXPOSE 3000
