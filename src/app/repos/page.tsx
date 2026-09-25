@@ -1,8 +1,10 @@
-// «Мои репозитории»: заявить репозиторий своим, подтвердить и забрать
-// бейдж-карточку, которая пересчитывается каждый день в 00:00.
+// «Мои репозитории»: карточки своих репозиториев с оценкой и бейджем,
+// которые пересчитываются каждый день в 00:00.
 //
 // Подтверждение — личным токеном SourceCraft (lib/token-ownership.ts) или
-// ключом в описании либо файлом в корне (lib/ownership.ts).
+// ключом в описании либо файлом в корне (lib/ownership.ts). Оба способа
+// спрятаны под кнопку «Изменить настройки»; пока репозиториев нет, панель
+// открыта сразу.
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -15,20 +17,27 @@ import {
   AddOwnedRepoForm,
   CardBadgeMarkdown,
   CopyField,
-  TokenImport,
+  RepoSettings,
+  TokenSync,
   VerifyOwnedRepo,
 } from '@/app/components/OwnedRepos';
 import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
-import { CardDiv, Chip, EmptyState } from '@/app/components/ui';
+import { CardDiv, CategoryMini, Chip, EmptyState, ScoreDial } from '@/app/components/ui';
+import { pickCategoryValues } from '@/lib/category-meta';
 import { refreshTimeZone } from '@/lib/ownership';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_LABELS: Record<string, string> = {
-  queued: 'в очереди',
-  running: 'считается',
-  done: 'готово',
-  failed: 'ошибка',
+const PAT_DOCS = 'https://sourcecraft.dev/portal/docs/ru/sourcecraft/security/pat';
+
+type Run = {
+  id: string;
+  repositoryId: string;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  kind: string | null;
+  score: number | null;
+  categoryScores: unknown;
+  finishedAt: Date | null;
 };
 
 export default async function MyRepositoriesPage() {
@@ -41,18 +50,21 @@ export default async function MyRepositoriesPage() {
     .from(ownedRepositories)
     .innerJoin(repositories, eq(ownedRepositories.repositoryId, repositories.id))
     .where(eq(ownedRepositories.userId, userId))
-    .orderBy(desc(ownedRepositories.createdAt));
+    .orderBy(desc(ownedRepositories.verifiedAt), desc(ownedRepositories.createdAt));
 
-  // Последний прогон каждого репозитория — показать статус и балл. Список
-  // короткий (до двадцати), так что берём всё и выбираем первый по дате.
+  // По каждому репозиторию нужны два прогона: самый свежий (идёт ли что-то
+  // сейчас) и последний посчитанный (балл на карточке). Список короткий —
+  // до двадцати репозиториев, — поэтому берём прогоны пачкой и раскладываем.
   const repoIds = rows.map((r) => r.repo.id);
-  const latestRuns = repoIds.length
+  const runs: Run[] = repoIds.length
     ? await db
         .select({
           id: analyses.id,
           repositoryId: analyses.repositoryId,
           status: analyses.status,
+          kind: analyses.kind,
           score: analyses.score,
+          categoryScores: analyses.categoryScores,
           finishedAt: analyses.finishedAt,
         })
         .from(analyses)
@@ -60,135 +72,309 @@ export default async function MyRepositoriesPage() {
         .orderBy(desc(analyses.createdAt))
         .limit(repoIds.length * 10)
     : [];
-  const latestByRepo = new Map<string, (typeof latestRuns)[number]>();
-  for (const run of latestRuns) {
-    if (!latestByRepo.has(run.repositoryId)) latestByRepo.set(run.repositoryId, run);
+  const latestRun = new Map<string, Run>();
+  const latestDone = new Map<string, Run>();
+  for (const run of runs) {
+    if (!latestRun.has(run.repositoryId)) latestRun.set(run.repositoryId, run);
+    if (run.status === 'done' && !latestDone.has(run.repositoryId)) latestDone.set(run.repositoryId, run);
   }
 
+  const verified = rows.filter((r) => r.owned.verifiedAt);
+  const pending = rows.filter((r) => !r.owned.verifiedAt);
+
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-14">
-      <header className="rise">
-        <Chip tone="outline">Свои репозитории</Chip>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight">Мои репозитории</h1>
-        <p className="mt-2 max-w-2xl text-sm text-[color:var(--muted)]">
-          Подтвердите ключом, что репозиторий ваш, — и Pulse будет пересчитывать его каждый день
-          в 00:00 ({refreshTimeZone()}). Бейдж-карточка для README всегда покажет свежую оценку.
-        </p>
-      </header>
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-14">
+      <RepoSettings
+        defaultOpen={rows.length === 0}
+        header={
+          <header className="rise">
+            <Chip tone="outline">Свои репозитории</Chip>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight">Мои репозитории</h1>
+            <p className="mt-2 max-w-2xl text-sm text-[color:var(--muted)]">
+              Подтверждённые репозитории Pulse пересчитывает каждый день в 00:00 ({refreshTimeZone()}),
+              и бейдж в README всегда показывает свежую оценку.
+            </p>
+          </header>
+        }
+      >
+        <CardDiv tone="outline">
+          <h2 className="text-base font-semibold">Личный токен SourceCraft</h2>
+          <p className="mt-1 text-sm text-[color:var(--muted)]">
+            По токену найдём ваши репозитории и сразу подтвердим те, где у вас роль admin или
+            maintainer. Токен не сохраняем: он нужен на один запрос.
+          </p>
+          <PatGuide />
+          <div className="mt-5">
+            <TokenSync />
+          </div>
+        </CardDiv>
 
-      <CardDiv className="rise mt-8" tone="outline">
-        <h2 className="text-base font-semibold">Подтвердить личным токеном SourceCraft</h2>
-        <p className="mb-4 mt-1 text-sm text-[color:var(--muted)]">
-          Покажем ваши репозитории и вашу роль в каждом — admin и maintainer подтверждаются сразу.
-          Хватит токена только на чтение. Мы его не сохраняем: он нужен на время этих двух запросов.
-        </p>
-        <TokenImport />
-      </CardDiv>
+        <CardDiv tone="outline">
+          <h2 className="text-base font-semibold">Добавить вручную и подтвердить ключом</h2>
+          <p className="mb-4 mt-1 text-sm text-[color:var(--muted)]">
+            Если репозиторий не нашёлся по токену — например, права выданы на уровне организации.
+            Только публичные репозитории.
+          </p>
+          <AddOwnedRepoForm />
+        </CardDiv>
+      </RepoSettings>
 
-      <CardDiv className="rise mt-4" tone="outline">
-        <h2 className="text-base font-semibold">Или добавить вручную и подтвердить ключом</h2>
-        <p className="mb-4 mt-1 text-sm text-[color:var(--muted)]">
-          Если репозиторий не нашёлся по токену или права выданы на уровне организации. Только
-          публичные репозитории SourceCraft.
-        </p>
-        <AddOwnedRepoForm />
-      </CardDiv>
+      {rows.length === 0 ? (
+        <EmptyState
+          className="mt-10"
+          title="Пока пусто"
+          hint="Вставьте личный токен SourceCraft в настройках выше — ваши репозитории появятся здесь карточками."
+        />
+      ) : (
+        <>
+          {verified.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-sm font-medium text-[color:var(--muted)]">
+                Подтверждённые · {verified.length}
+              </h2>
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
+                {verified.map(({ owned, repo }) => (
+                  <RepoCard
+                    key={owned.id}
+                    ownedId={owned.id}
+                    org={repo.orgSlug}
+                    repo={repo.repoSlug}
+                    language={repo.language}
+                    run={latestRun.get(repo.id) ?? null}
+                    done={latestDone.get(repo.id) ?? null}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
-      <section className="mt-8 flex flex-col gap-4">
-        {rows.length === 0 ? (
-          <EmptyState
-            title="Пока пусто"
-            hint="Добавьте репозиторий выше — мы выдадим ключ для подтверждения."
-          />
-        ) : (
-          rows.map(({ owned, repo }) => {
-            const slug = `${repo.orgSlug}/${repo.repoSlug}`;
-            const latest = latestByRepo.get(repo.id);
-            return (
-              <CardDiv key={owned.id} tone="outline" className="rise flex flex-col gap-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <Link
-                      href={`/r/${repo.orgSlug}/${repo.repoSlug}`}
-                      className="text-lg font-semibold [overflow-wrap:anywhere] hover:underline"
-                    >
-                      {slug}
-                    </Link>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted)]">
-                      {owned.verifiedAt ? (
-                        <Chip tone="ink">✓ Подтверждён {formatDate(owned.verifiedAt)}</Chip>
-                      ) : (
-                        <Chip tone="outline">Ждёт подтверждения</Chip>
-                      )}
-                      {latest && (
-                        <Link href={`/a/${latest.id}`} className="underline-offset-4 hover:underline">
-                          Последняя оценка: {STATUS_LABELS[latest.status] ?? latest.status}
-                          {latest.status === 'done' && latest.score !== null && ` · ${latest.score}/100`}
-                          {latest.finishedAt && ` · ${formatDate(latest.finishedAt)}`}
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                  <form action={removeOwnedRepoAction}>
-                    <input type="hidden" name="id" value={owned.id} />
-                    <ConfirmSubmit
-                      question={`Убрать ${slug} из своих? Ежедневный пересчёт остановится.`}
-                    >
-                      Убрать
-                    </ConfirmSubmit>
-                  </form>
-                </div>
-
-                {owned.verifiedAt ? (
-                  <div className="flex flex-col gap-2">
-                    <h3 className="text-sm font-medium">Бейдж-карточка для README</h3>
-                    <p className="text-xs text-[color:var(--muted)]">
-                      Оценка, четыре категории, язык и дата пересчёта. Обновляется каждый день в 00:00.
-                    </p>
-                    <CardBadgeMarkdown org={repo.orgSlug} repo={repo.repoSlug} />
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <p className="text-sm text-[color:var(--ink-2)]">
-                      Положите этот ключ в репозиторий одним из способов:
-                    </p>
-                    <CopyField value={owned.verifyKey} label="Ключ подтверждения" />
-                    <ol className="list-decimal space-y-1 pl-5 text-sm text-[color:var(--ink-2)]">
-                      <li>
-                        добавьте ключ в <b>описание репозитория</b> в настройках SourceCraft;
-                      </li>
-                      <li>
-                        или создайте в корне ветки по умолчанию <b>файл с именем ключа</b>, например{' '}
-                        <code className="font-mono text-xs [overflow-wrap:anywhere]">{owned.verifyKey}.txt</code>{' '}
-                        — содержимое не важно.
-                      </li>
-                    </ol>
-                    <p className="text-xs text-[color:var(--muted)]">
-                      После подтверждения ключ можно убрать.
-                    </p>
-                    {owned.lastCheckError && owned.lastCheckAt && (
-                      <p className="text-xs text-[color:var(--muted)]">
-                        Прошлая проверка {formatDateTime(owned.lastCheckAt)}: {owned.lastCheckError}
-                      </p>
-                    )}
-                    <VerifyOwnedRepo id={owned.id} />
-                  </div>
-                )}
-              </CardDiv>
-            );
-          })
-        )}
-      </section>
+          {pending.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-sm font-medium text-[color:var(--muted)]">
+                Ждут подтверждения ключом · {pending.length}
+              </h2>
+              <div className="mt-3 flex flex-col gap-4">
+                {pending.map(({ owned, repo }) => (
+                  <PendingCard
+                    key={owned.id}
+                    ownedId={owned.id}
+                    slug={`${repo.orgSlug}/${repo.repoSlug}`}
+                    verifyKey={owned.verifyKey}
+                    lastCheckAt={owned.lastCheckAt}
+                    lastCheckError={owned.lastCheckError}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
     </main>
+  );
+}
+
+/** Как получить личный токен — по документации SourceCraft. */
+function PatGuide() {
+  return (
+    <details className="mt-4 rounded-2xl bg-[color:var(--panel)] px-4 py-3" open>
+      <summary className="cursor-pointer text-sm font-medium">Как получить токен — 1 минута</summary>
+      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-[color:var(--ink-2)]">
+        <li>
+          Откройте{' '}
+          <a href="https://sourcecraft.dev" target="_blank" rel="noreferrer" className="underline underline-offset-4">
+            sourcecraft.dev
+          </a>{' '}
+          и войдите в свой аккаунт.
+        </li>
+        <li>
+          На панели слева нажмите <b>Домой</b>, затем <b>Доступ</b> → <b>Персональные токены доступа</b>.
+        </li>
+        <li>
+          Нажмите <b>Сгенерировать новый токен</b> и задайте название, например <i>Pulse</i>. Срока
+          действия хватит самого короткого — токен нужен только сейчас.
+        </li>
+        <li>
+          В доступе к репозиториям выберите <b>Все репозитории</b> — иначе мы увидим не все ваши
+          проекты. Права на запись не нужны: хватит самой младшей роли.
+        </li>
+        <li>
+          Скопируйте токен сразу — SourceCraft показывает его только один раз. Он начинается с{' '}
+          <code className="font-mono text-xs">pv1_</code>.
+        </li>
+        <li>
+          Вставьте его в поле ниже и нажмите <b>Синхронизировать</b>. После этого токен можно удалить в
+          SourceCraft (значок корзины) — подтверждение останется.
+        </li>
+      </ol>
+      <p className="mt-3 text-xs text-[color:var(--muted)]">
+        Никому не пересылайте токен в чатах и письмах. Подробнее —{' '}
+        <a href={PAT_DOCS} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+          документация SourceCraft
+        </a>
+        .
+      </p>
+    </details>
+  );
+}
+
+function RepoCard({
+  ownedId,
+  org,
+  repo,
+  language,
+  run,
+  done,
+}: {
+  ownedId: string;
+  org: string;
+  repo: string;
+  language: string | null;
+  run: Run | null;
+  done: Run | null;
+}) {
+  const inProgress = run && (run.status === 'queued' || run.status === 'running') ? run : null;
+  const isMaterial = done?.kind === 'material';
+
+  return (
+    <CardDiv tone="outline" className="rise flex flex-col gap-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs text-[color:var(--muted)] [overflow-wrap:anywhere]">{org}</div>
+          <Link
+            href={`/r/${org}/${repo}`}
+            className="text-lg font-semibold leading-tight [overflow-wrap:anywhere] hover:underline"
+          >
+            {repo}
+          </Link>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Chip tone="ink">✓ Ваш</Chip>
+            {language && <Chip>{language}</Chip>}
+            {inProgress && (
+              <Chip tone="outline">{inProgress.status === 'running' ? 'Считается…' : 'В очереди'}</Chip>
+            )}
+          </div>
+        </div>
+        <ScoreDial value={isMaterial ? null : (done?.score ?? null)} size={72} stroke={6} animated={false} />
+      </div>
+
+      {done ? (
+        isMaterial ? (
+          <p className="text-sm text-[color:var(--muted)]">
+            Полезный материал — такие репозитории баллом не меряем.
+          </p>
+        ) : (
+          <div className="@container">
+            <CategoryMini values={pickCategoryValues(done.categoryScores)} size="md" />
+          </div>
+        )
+      ) : (
+        <p className="text-sm text-[color:var(--muted)]">
+          {inProgress
+            ? 'Первая оценка уже считается — балл появится здесь.'
+            : 'Оценки ещё нет — она появится после пересчёта в 00:00.'}
+        </p>
+      )}
+
+      <div className="text-xs text-[color:var(--muted)]">
+        {done?.finishedAt ? `Оценка от ${formatDate(done.finishedAt)} · ` : ''}следующий пересчёт в 00:00
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {done ? (
+          <Link
+            href={`/a/${done.id}`}
+            className="rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm font-medium text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
+          >
+            Открыть оценку →
+          </Link>
+        ) : (
+          inProgress && (
+            <Link
+              href={`/a/${inProgress.id}`}
+              className="rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm font-medium text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
+            >
+              Смотреть прогон →
+            </Link>
+          )
+        )}
+        <Link
+          href={`/r/${org}/${repo}`}
+          className="rounded-full border border-[color:var(--line)] px-4 py-2 text-sm transition hover:bg-[color:var(--panel)]"
+        >
+          История
+        </Link>
+        <form action={removeOwnedRepoAction} className="ml-auto">
+          <input type="hidden" name="id" value={ownedId} />
+          <ConfirmSubmit question={`Убрать ${org}/${repo} из своих? Ежедневный пересчёт остановится.`}>
+            Убрать
+          </ConfirmSubmit>
+        </form>
+      </div>
+
+      <details className="border-t border-[color:var(--line)] pt-4">
+        <summary className="cursor-pointer text-sm font-medium">Бейдж для README</summary>
+        <div className="mt-3">
+          <CardBadgeMarkdown org={org} repo={repo} />
+        </div>
+      </details>
+    </CardDiv>
+  );
+}
+
+function PendingCard({
+  ownedId,
+  slug,
+  verifyKey,
+  lastCheckAt,
+  lastCheckError,
+}: {
+  ownedId: string;
+  slug: string;
+  verifyKey: string;
+  lastCheckAt: Date | null;
+  lastCheckError: string | null;
+}) {
+  return (
+    <CardDiv tone="outline" className="rise flex flex-col gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-lg font-semibold [overflow-wrap:anywhere]">{slug}</div>
+          <Chip tone="outline" className="mt-1">
+            Ждёт подтверждения
+          </Chip>
+        </div>
+        <form action={removeOwnedRepoAction}>
+          <input type="hidden" name="id" value={ownedId} />
+          <ConfirmSubmit question={`Убрать ${slug} из списка?`}>Убрать</ConfirmSubmit>
+        </form>
+      </div>
+      <p className="text-sm text-[color:var(--ink-2)]">Положите этот ключ в репозиторий одним из способов:</p>
+      <CopyField value={verifyKey} label="Ключ подтверждения" />
+      <ol className="list-decimal space-y-1 pl-5 text-sm text-[color:var(--ink-2)]">
+        <li>
+          добавьте ключ в <b>описание репозитория</b> в настройках SourceCraft;
+        </li>
+        <li>
+          или создайте в корне ветки по умолчанию <b>файл с именем ключа</b>, например{' '}
+          <code className="font-mono text-xs [overflow-wrap:anywhere]">{verifyKey}.txt</code> — содержимое
+          не важно.
+        </li>
+      </ol>
+      {lastCheckError && lastCheckAt && (
+        <p className="text-xs text-[color:var(--muted)]">
+          Прошлая проверка {formatDateTime(lastCheckAt)}: {lastCheckError}
+        </p>
+      )}
+      <VerifyOwnedRepo id={ownedId} />
+    </CardDiv>
   );
 }
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('ru-RU', {
     timeZone: refreshTimeZone(),
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
+    day: 'numeric',
+    month: 'long',
   }).format(date);
 }
 
