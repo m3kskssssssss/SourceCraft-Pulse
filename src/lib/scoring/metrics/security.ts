@@ -10,7 +10,7 @@
 // категория «нет данных» и выпадает из итогового балла.
 
 import type { RepoFacts } from '../../collect';
-import type { Vulnerability } from '../../security/types';
+import type { SecurityScanResult, Vulnerability } from '../../security/types';
 import {
   CRITICAL_VULNS_MAX,
   HIGH_VULNS_MAX,
@@ -54,6 +54,23 @@ export function computeSecurityMetrics(facts: RepoFacts): MetricScore[] {
     }),
     secretsMetric(findings),
   ];
+}
+
+/**
+ * Балл категории по одному результату AppSec — той же формулой, что в оценке.
+ * Нужен владельцу публичного репозитория: его AppSec в публичный балл не
+ * входит, но посмотреть «сколько было бы» ему полезно. null — данных нет.
+ */
+export function appSecCategoryScore(result: SecurityScanResult): number | null {
+  const metrics = computeSecurityMetrics({ security: result } as RepoFacts);
+  let weight = 0;
+  let sum = 0;
+  for (const m of metrics) {
+    if (m.unknown) continue;
+    weight += m.weight;
+    sum += m.value * m.weight;
+  }
+  return weight > 0 ? Math.round(sum / weight) : null;
 }
 
 export function hasAppSecData(facts: RepoFacts): boolean {

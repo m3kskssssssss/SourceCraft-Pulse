@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SourcecraftAppSecProvider, enumName, toVulnerability } from '../security/sourcecraft-appsec';
 import type { SecurityScanInput } from '../security/types';
+import { appSecCategoryScore } from '../scoring/metrics/security';
 
 const input: SecurityScanInput = {
   dependencies: [],
@@ -106,5 +107,27 @@ describe('SourcecraftAppSecProvider', () => {
     expect(calls[0]).toContain('gitRepo=01a0c608');
     expect(calls[1]).toContain('scanUuid=s1');
     expect(calls[2]).toContain('pageToken=p2');
+  });
+});
+
+describe('appSecCategoryScore', () => {
+  const base = { provider: 'sourcecraft_appsec' as const, available: true, totalScanned: 0, errors: [], missing: [] };
+
+  it('без находок — 100, без данных — null', () => {
+    expect(appSecCategoryScore({ ...base, vulnerabilities: [] })).toBe(100);
+    expect(appSecCategoryScore({ ...base, available: false, vulnerabilities: [] })).toBeNull();
+  });
+
+  it('та же формула, что в оценке: critical и секрет снижают балл', () => {
+    const finding = { package: '', version: null, ecosystem: 'appsec', summary: null, fixedIn: null };
+    const score = appSecCategoryScore({
+      ...base,
+      vulnerabilities: [
+        { ...finding, id: 'a', severity: 'critical', kind: 'sca' },
+        { ...finding, id: 'b', severity: 'high', kind: 'secret' },
+      ],
+    });
+    // critical: 1 из 3 → 66.7 × 0.35; high: 1 из 10 → 90 × 0.25; medium 100 × 0.15; секреты 0.
+    expect(score).toBe(Math.round((200 / 3) * 0.35 + 90 * 0.25 + 100 * 0.15));
   });
 });

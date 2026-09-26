@@ -45,6 +45,7 @@ import type { CiFacts } from '@/lib/collect';
 import type { SecurityScanResult, Severity } from '@/lib/security/types';
 import { METRIC_LABELS } from '@/lib/metric-labels';
 import { computeCoverage, LOW_COVERAGE } from '@/lib/scoring/coverage';
+import { appSecCategoryScore } from '@/lib/scoring/metrics/security';
 import { pickRatingExclusion, RATING_EXCLUSION_LABELS } from '@/lib/rating-eligibility';
 import { getRepoHistory } from '@/lib/history';
 
@@ -213,6 +214,7 @@ export default async function AnalysisPage({ params }: PageProps) {
       ? appSecFacts.security
       : null;
   const ownerAppSec = isOwner ? (appSecFacts?.ownerAppSec ?? null) : null;
+  const ownerAppSecScore = ownerAppSec?.available ? appSecCategoryScore(ownerAppSec) : null;
   // Наш поиск строк, похожих на ключи: справка, не AppSec, на балл не влияет.
   const rawSecretHits = appSecFacts?.gitHistory?.secretHits;
   const secretHints = Array.isArray(rawSecretHits)
@@ -505,7 +507,15 @@ export default async function AnalysisPage({ params }: PageProps) {
             )}
             {ownerAppSec && (
               <CardDiv tone="outline" className="sm:col-span-2">
-                <div className="text-sm font-medium">Безопасность по SourceCraft AppSec</div>
+                <div className="flex items-baseline justify-between gap-4">
+                  <div className="text-sm font-medium">Безопасность по SourceCraft AppSec</div>
+                  {ownerAppSecScore !== null && (
+                    <div className="text-right" title="Та же формула, что в оценке. Для публичного репозитория в балл и рейтинг не входит.">
+                      <span className="text-2xl font-semibold tabular-nums">{ownerAppSecScore}</span>
+                      <span className="ml-1 text-xs text-[color:var(--muted)]">/ 100 · только для вас</span>
+                    </div>
+                  )}
+                </div>
                 {ownerAppSec.available ? (
                   <AppSecFindingsBlock
                     result={ownerAppSec}
@@ -1052,7 +1062,7 @@ function AppSecFindingsBlock({
 
   const body =
     result.vulnerabilities.length === 0 ? (
-      <div>Открытых находок нет{result.scannedAt ? ` · скан от ${formatDate(result.scannedAt)}` : ''}.</div>
+      <div>Открытых находок нет{result.scannedAt ? ` · скан от ${formatDate(result.scannedAt)}` : ''}</div>
     ) : (
       <>
         <div>
