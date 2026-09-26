@@ -562,7 +562,7 @@ export default async function AnalysisPage({ params }: PageProps) {
           <SectionHead
             eyebrow="Подробности"
             title="Категории и метрики"
-            hint="Каждая метрика оценивается 0–100. Метрики без данных исключаются — веса остальных нормируются."
+            hint="Каждая метрика оценивается 0–100. Метрики без данных исключаются — веса остальных нормируются. Категорию можно свернуть, нажав на её заголовок; категории без данных свёрнуты сразу."
           />
           <div className="mt-6 grid gap-4">
             {sortedCategories.map((cat, idx) => (
@@ -825,9 +825,15 @@ function CategoryBlock({
     Boolean(m.unknown),
   );
 
+  // Категория без данных по умолчанию свёрнута: развёрнутый столбик «н/д»
+  // только отодвигает то, что измерено. Свернуть можно любую — это <details>,
+  // он работает без скриптов и с клавиатуры.
+  const hasData = category.value != null;
+
   return (
     <CardDiv tone="outline" className={`${accentClass} p-0`}>
-      <div className="flex items-center gap-3 border-b border-[color:var(--line)] p-4 sm:gap-4 sm:p-6">
+      <details open={hasData} className="group/cat">
+      <summary className="flex cursor-pointer list-none items-center gap-3 rounded-[inherit] p-4 transition hover:bg-[color:var(--panel)] group-open/cat:border-b group-open/cat:border-[color:var(--line)] sm:gap-4 sm:p-6 [&::-webkit-details-marker]:hidden">
         <span
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold sm:h-10 sm:w-10"
           style={{
@@ -849,7 +855,8 @@ function CategoryBlock({
             {category.value != null ? 'из 100' : 'нет данных'}
           </div>
         </div>
-      </div>
+        <Chevron className="shrink-0 text-[color:var(--muted)] transition-transform group-open/cat:rotate-180" />
+      </summary>
       <div className="p-4 sm:p-6">
         <Bar value={category.value} className="mb-4 sm:mb-6" height={6} accent />
 
@@ -875,29 +882,23 @@ function CategoryBlock({
               </div>
             </li>
           ))}
-          {unknown.map((m) => (
-            <li
-              key={m.key}
-              className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[1fr_120px_56px]"
-            >
-              <div className="min-w-0">
-                <div className="text-[15px] leading-snug text-[color:var(--muted)]">
-                  {METRIC_LABELS[m.key] ?? m.key}
-                </div>
-                {m.hint && (
-                  <div className="mt-0.5 text-xs leading-snug text-[color:var(--muted-2)]">
-                    {m.hint}
-                  </div>
-                )}
-              </div>
-              <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
-                <Bar value={null} height={4} muted />
-              </div>
-              <div className="text-right text-xs uppercase tracking-widest text-[color:var(--muted-2)]">
-                н/д
-              </div>
+          {/* Метрики без данных у категории с данными свёрнуты в одну строку. */}
+          {!hasData && unknown.map((m) => <UnknownMetricRow key={m.key} metric={m} />)}
+          {hasData && unknown.length > 0 && (
+            <li className="py-1">
+              <details className="group/nd">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-2 text-sm text-[color:var(--muted)] [&::-webkit-details-marker]:hidden">
+                  <span>Без данных: {unknown.length}</span>
+                  <Chevron className="shrink-0 transition-transform group-open/nd:rotate-180" />
+                </summary>
+                <ul className="divide-y divide-[color:var(--line)]">
+                  {unknown.map((m) => (
+                    <UnknownMetricRow key={m.key} metric={m} />
+                  ))}
+                </ul>
+              </details>
             </li>
-          ))}
+          )}
           {category.metrics.length === 0 && (
             <li className="py-3 text-sm text-[color:var(--muted)]">Метрик пока нет.</li>
           )}
@@ -946,6 +947,7 @@ function CategoryBlock({
 
         {extra}
       </div>
+      </details>
     </CardDiv>
   );
 }
@@ -1029,6 +1031,35 @@ function DependencyAuditBlock({ audit }: { audit: SecurityScanResult | null }) {
       </div>
       <div className="mt-3 text-sm text-[color:var(--ink-2)]">{body}</div>
     </div>
+  );
+}
+
+/** Строка метрики без данных: название, почему нет данных, пустая шкала. */
+function UnknownMetricRow({ metric }: { metric: Extract<MetricScore, { unknown: true }> }) {
+  return (
+    <li className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[1fr_120px_56px]">
+      <div className="min-w-0">
+        <div className="text-[15px] leading-snug text-[color:var(--muted)]">
+          {METRIC_LABELS[metric.key] ?? metric.key}
+        </div>
+        {metric.hint && (
+          <div className="mt-0.5 text-xs leading-snug text-[color:var(--muted-2)]">{metric.hint}</div>
+        )}
+      </div>
+      <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
+        <Bar value={null} height={4} muted />
+      </div>
+      <div className="text-right text-xs uppercase tracking-widest text-[color:var(--muted-2)]">н/д</div>
+    </li>
+  );
+}
+
+/** Стрелка раскрытия: смотрит вниз, у раскрытого блока поворачивается вверх. */
+function Chevron({ className }: { className?: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden className={className}>
+      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
