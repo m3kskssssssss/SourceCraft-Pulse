@@ -18,7 +18,7 @@ export const LEVEL_LABEL: Record<Level, string> = {
  * подтягивать именно её. Подписи и цвета — из lib/category-meta.ts.
  */
 export type Topic = CategoryKey;
-export const TOPICS: readonly Topic[] = ['code', 'docs', 'activity', 'security'];
+export const TOPICS: readonly Topic[] = ['security', 'code', 'activity', 'docs', 'ci', 'issues'];
 
 /** Сцены 8-битных анимаций для карточек — см. components/learn/scenes.ts. */
 export type SceneId =

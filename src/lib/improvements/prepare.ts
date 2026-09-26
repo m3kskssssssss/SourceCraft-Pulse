@@ -20,7 +20,8 @@ import { getAiProvider } from '../ai/router';
 import { DrizzleAiTelemetry } from '../ai/telemetry';
 import { runImproveCode, type ImproveCodeOutput } from '../ai/tasks/improve-code';
 import { runImproveDocs, type ImproveDocsOutput } from '../ai/tasks/improve-docs';
-import { CATEGORY_WEIGHTS } from '../scoring/config';
+import { CATEGORY_WEIGHTS, CI_WEIGHTS } from '../scoring/config';
+import { buildCiTemplate } from './ci-template';
 import type { CategoryKey } from '../scoring/types';
 import { getSetting } from '../settings';
 import { decryptToken } from '../token-crypto';
@@ -30,10 +31,16 @@ import type { ImprovementKey } from './plan';
 import { round1, type ProposalItem, type ProposalNotes } from './proposal';
 import { openWorkspace, readFileAt, withTimeout, type Workspace } from './workspace';
 
-/** Файлы кода для модели: сколько и какого размера. */
-const CODE_FILES_MAX = 6;
+/**
+ * Файлы кода для модели: сколько и какого размера. Файлы делятся на две пачки,
+ * и по каждой модель работает отдельно и параллельно: правок выходит вдвое
+ * больше, а ждать — столько же.
+ */
+const CODE_FILES_MAX = 12;
+const CODE_BATCHES = 2;
 const CODE_FILE_MAX_CHARS = 24_000;
-const CODE_TOTAL_MAX_CHARS = 70_000;
+const CODE_BATCH_MAX_CHARS = 70_000;
+const CODE_TOTAL_MAX_CHARS = CODE_BATCH_MAX_CHARS * CODE_BATCHES;
 const README_MAX_CHARS = 24_000;
 const MANIFEST_MAX_CHARS = 3_000;
 const FILE_LIST_MAX = 200;
@@ -125,14 +132,19 @@ export async function prepareProposal(
       rejected: [],
       caps: {
         docs: round1((100 - (ctx.categoryValues.docs ?? 0)) * share(ctx, 'docs')),
-        code: round1((100 - (ctx.categoryValues.code ?? 0)) * share(ctx, 'code')),
+        // Во вкладке «Код» лежит и конфиг CI — его прирост идёт в категорию CI/CD.
+        code: round1(
+          (100 - (ctx.categoryValues.code ?? 0)) * share(ctx, 'code') +
+            (100 - (ctx.categoryValues.ci ?? 0)) * share(ctx, 'ci'),
+        ),
         total: Math.max(0, 100 - (ctx.score ?? 0)),
       },
     };
 
     // ---------- ИИ ----------
     let docsOut: ImproveDocsOutput | null = null;
-    let codeOut: ImproveCodeOutput | null = null;
+    /** Ответы модели по пачкам файлов кода; в оценках шаблонов берём первую. */
+    const codeOuts: ImproveCodeOutput[] = [];
     const ai = ctx.isPrivate ? null : await openAi(ctx.analysisId);
     if (ctx.isPrivate) {
       notes.docs = notes.code =
@@ -153,7 +165,8 @@ export async function prepareProposal(
         ? (aiMetrics.codeFindings as unknown[]).filter((f): f is string => typeof f === 'string')
         : [];
 
-      const [docsResult, codeResult] = await Promise.allSettled([
+      const batches = splitBatches(codeFiles);
+      const [docsResult, ...codeResults] = await Promise.allSettled([
         withTimeout(
           runImproveDocs({
             ...ai,
@@ -176,32 +189,42 @@ export async function prepareProposal(
           budget,
           'модель не успела за отведённое время',
         ),
-        codeFiles.length === 0
-          ? Promise.reject(new Error('не нашлось файлов исходников, которые можно показать модели целиком'))
-          : withTimeout(
-              runImproveCode({
-                ...ai,
-                input: {
-                  orgRepo: `${ctx.org}/${ctx.repo}`,
-                  language: ctx.facts.language ?? null,
-                  currentCodeScore: ctx.categoryValues.code ?? null,
-                  reviewSummary: review?.summary ?? null,
-                  findings,
-                  measured: measuredOf(ctx),
-                  files: codeFiles.map((f) => ({ path: f.path, content: f.content })),
-                  otherFiles: paths.filter((p) => !codeFiles.some((f) => f.path === p)).slice(0, FILE_LIST_MAX),
-                  manifests,
-                  plannedFiles: planned('code'),
-                },
-              }),
-              budget,
-              'модель не успела за отведённое время',
-            ),
+        ...(batches.length === 0
+          ? [Promise.reject(new Error('не нашлось файлов исходников, которые можно показать модели целиком'))]
+          : batches.map((batch, i) =>
+              withTimeout(
+                runImproveCode({
+                  ...ai,
+                  input: {
+                    orgRepo: `${ctx.org}/${ctx.repo}`,
+                    language: ctx.facts.language ?? null,
+                    currentCodeScore: ctx.categoryValues.code ?? null,
+                    reviewSummary: review?.summary ?? null,
+                    findings,
+                    measured: measuredOf(ctx),
+                    files: batch.map((f) => ({ path: f.path, content: f.content })),
+                    otherFiles: paths.filter((p) => !batch.some((f) => f.path === p)).slice(0, FILE_LIST_MAX),
+                    manifests,
+                    // Шаблоны оценивает только первая пачка — иначе оценки задвоятся.
+                    plannedFiles: i === 0 ? planned('code') : [],
+                  },
+                }),
+                budget,
+                'модель не успела за отведённое время',
+              ),
+            )),
       ]);
-      if (docsResult.status === 'fulfilled') docsOut = docsResult.value.value;
-      else notes.docs = `ИИ не подготовил правки документации: ${describe(docsResult.reason)}`;
-      if (codeResult.status === 'fulfilled') codeOut = codeResult.value.value;
-      else notes.code = `ИИ не подготовил правки кода: ${describe(codeResult.reason)}`;
+      if (docsResult?.status === 'fulfilled') docsOut = docsResult.value.value;
+      else notes.docs = `ИИ не подготовил правки документации: ${describe(docsResult?.reason)}`;
+      const codeErrors: string[] = [];
+      for (const result of codeResults) {
+        if (result.status === 'fulfilled') {
+          if (result.value.value) codeOuts.push(result.value.value);
+        } else codeErrors.push(describe(result.reason));
+      }
+      if (codeOuts.length === 0 && codeErrors.length > 0) {
+        notes.code = `ИИ не подготовил правки кода: ${codeErrors[0]}`;
+      }
     }
 
     // ---------- Проверка и сборка ----------
@@ -261,7 +284,7 @@ export async function prepareProposal(
       const rec = ctx.recommendations.find((r) => r.key === TEMPLATE_METRIC[tpl.key]);
       let gain: number | null = rec ? rec.gain : null;
       if (gain === null) {
-        const est = estimate(section === 'docs' ? docsOut : codeOut, file.path);
+        const est = estimate(section === 'docs' ? docsOut : (codeOuts[0] ?? null), file.path);
         if (est !== null) gain = est * (section === 'docs' ? docsShare : codeShare);
         // Штраф за отсутствие лицензии снимается целиком.
         if (tpl.key === 'add_license') {
@@ -285,15 +308,55 @@ export async function prepareProposal(
       });
     }
 
+    // CI SourceCraft. Категория CI/CD — 15 % оценки, а без конфига она ноль.
+    // Конфиг собираем из команд, которые в проекте уже есть; нечего проверять —
+    // не предлагаем. ИИ в CI не пишет (isEditablePath), это делает только шаблон.
+    const hasCi = ctx.facts.tree?.flags?.hasCiConfig === true;
+    if (!hasCi && ctx.defaultBranch) {
+      const ci = buildCiTemplate({
+        paths,
+        defaultBranch: ctx.defaultBranch,
+        packageJson: (await readFileAt(ws, 'package.json'))?.text ?? null,
+        pyproject: (await readFileAt(ws, 'pyproject.toml'))?.text ?? null,
+      });
+      if (ci && !(await readFileAt(ws, ci.path))) {
+        // Как изменится категория CI/CD: конфиг есть, проверка PR есть, тесты и
+        // линтер — если они в конфиге. Прогоны у публичного в балл не входят.
+        const known = CI_WEIGHTS.configPresent + CI_WEIGHTS.runsTests + CI_WEIGHTS.runsLint + CI_WEIGHTS.pullRequestChecks;
+        const after =
+          (100 * (CI_WEIGHTS.configPresent + CI_WEIGHTS.pullRequestChecks) +
+            (ci.runsTests ? 100 * CI_WEIGHTS.runsTests : 0) +
+            (ci.runsLint ? 100 * CI_WEIGHTS.runsLint : 0)) /
+          known;
+        const delta = Math.max(0, after - (ctx.categoryValues.ci ?? 0));
+        const steps = [ci.runsLint ? 'линтер' : null, ci.runsTests ? 'тесты' : null].filter(Boolean).join(' и ');
+        items.push({
+          id: 'tpl-ci',
+          section: 'code',
+          source: 'template',
+          action: 'create',
+          path: ci.path,
+          title: `Настроить CI SourceCraft (${ci.label})`,
+          why: `Проверки на каждый push и pull request в основную ветку${steps ? `: ${steps}` : ''}. Ошибки ловятся до слияния, а не после.`,
+          note: 'Команды взяты из вашего проекта. Проверьте первый прогон в разделе CI/CD репозитория: образ и версию языка можно поменять под свои.',
+          baseOid: null,
+          content: ci.content,
+          diff: lineDiff('', ci.content),
+          gain: round1(delta * share(ctx, 'ci')),
+        });
+      }
+    }
+
     // Код от ИИ.
-    for (const [index, change] of (codeOut?.changes ?? []).entries()) {
+    const codeChanges = codeOuts.flatMap((out, batch) => out.changes.map((change, i) => ({ change, id: `${batch}-${i}` })));
+    for (const { change, id } of codeChanges) {
       const path = change.path.trim();
       if (!isEditablePath(path)) {
         notes.rejected.push({ path, reason: 'в этот файл Pulse не пишет (лок-файлы, CI, секреты)' });
         continue;
       }
       const common = {
-        id: `code-ai-${index}`,
+        id: `code-ai-${id}`,
         section: 'code' as const,
         source: 'ai' as const,
         path,
@@ -464,6 +527,21 @@ async function readCodeFiles(ws: Workspace, ctx: ImprovementContext): Promise<Co
     out.push({ path, oid: file.oid, content: toLf(file.text), eol: detectEol(file.text) });
   }
   return out;
+}
+
+/** Делит файлы кода на пачки для параллельных запросов, по объёму поровну. */
+function splitBatches(files: CodeFile[]): CodeFile[][] {
+  const batches: CodeFile[][] = Array.from({ length: CODE_BATCHES }, () => []);
+  const sizes = new Array<number>(CODE_BATCHES).fill(0);
+  for (const file of [...files].sort((a, b) => b.content.length - a.content.length)) {
+    let target = 0;
+    for (let i = 1; i < CODE_BATCHES; i++) if ((sizes[i] ?? 0) < (sizes[target] ?? 0)) target = i;
+    const size = sizes[target] ?? 0;
+    if (size + file.content.length > CODE_BATCH_MAX_CHARS) continue;
+    batches[target]?.push(file);
+    sizes[target] = size + file.content.length;
+  }
+  return batches.filter((b) => b.length > 0);
 }
 
 // ---------- Мелочи ----------

@@ -9,7 +9,7 @@
 // дописывает аккуратно и в общих словах, без конкретики, которую не проверить.
 
 /** Меняется вместе с правилами промпта — иначе кэш вернёт ответы по старым. */
-const PROMPT_VERSION = 2;
+const PROMPT_VERSION = 3;
 
 import { z } from 'zod';
 import type { AiCache } from '../cache';
@@ -30,7 +30,7 @@ const docsSchema = z.object({
         content: z.string().min(1).max(60_000),
       }),
     )
-    .max(3),
+    .max(6),
   estimates: z.array(z.object({ path: z.string(), category_gain: gain })).max(10).catch([]),
 });
 
@@ -72,8 +72,18 @@ const SYSTEM = `Ты — технический писатель. Улучшае
 - Главная правка — README. Есть README — улучши его: сохрани всё верное, язык и
   стиль автора, добавь недостающие разделы (что это, установка, запуск, примеры,
   конфигурация, как помочь, лицензия). Нет README — напиши его.
-- Дополнительно можешь предложить до двух новых файлов docs/*.md, только если в
-  данных есть что по-настоящему описать (например, конфигурацию или API).
+- Кроме README предложи до четырёх новых файлов документации, если в данных
+  есть что по-настоящему описать:
+  - docs/ARCHITECTURE.md — из каких частей проект, как они связаны, где что лежит
+    (по структуре файлов и манифестам);
+  - docs/CONFIGURATION.md — переменные окружения и настройки, которые видно по
+    файлам (.env.example, конфиги, манифесты);
+  - docs/DEVELOPMENT.md — как запустить локально, тесты, линтер, сборка — только
+    командами из манифестов;
+  - docs/API.md или examples/README.md — если в проекте видно API или сценарии
+    использования.
+  Каждый файл — отдельная правка со своей оценкой. Файл, который вышел бы
+  пустым или общими словами, не предлагай.
 - НЕ пиши LICENSE, CONTRIBUTING, CHANGELOG, CODE_OF_CONDUCT, .gitignore,
   .editorconfig — их добавят шаблоном. Для файлов из списка ЗАПЛАНИРОВАННЫЕ
   верни только оценку в "estimates".
@@ -116,7 +126,7 @@ function buildPrompt(input: ImproveDocsInput) {
   ]
     .filter((line) => line !== '')
     .join('\n');
-  return { system: SYSTEM, user, maxTokens: 8_000, timeoutMs: 150_000 };
+  return { system: SYSTEM, user, maxTokens: 14_000, timeoutMs: 180_000 };
 }
 
 export async function runImproveDocs(args: {

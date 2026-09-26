@@ -474,6 +474,12 @@ export default async function AnalysisPage({ params }: PageProps) {
                   </span>
                   <div className="min-w-0">
                     <div className="text-[15px] font-medium leading-snug">{r.title}</div>
+                    {r.now && (
+                      <div className="mt-0.5 text-xs text-[color:var(--muted)]">Сейчас: {r.now}</div>
+                    )}
+                    {r.how && (
+                      <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-[color:var(--ink-2)]">{r.how}</p>
+                    )}
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted)]">
                       <Chip tone="default">
                         {CATEGORY_TITLES[r.category] ?? r.category}

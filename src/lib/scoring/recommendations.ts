@@ -20,6 +20,7 @@ import type { RepoFacts } from '../collect';
 import { EFFORT, RECOMMENDATIONS_LIMIT } from './config';
 import { computeOverall, buildCategoryScores, computePenalties } from './index';
 import { clamp } from './normalize';
+import { howTo } from './how-to';
 import type { AppliedPenalty, MetricScore, Recommendation } from './types';
 
 // Человекочитаемые заголовки (RU) по kind рекомендации. AI-варианты
@@ -114,6 +115,8 @@ export function buildRecommendations(input: BuildInput): Recommendation[] {
       title:
         RECOMMENDATION_TITLES[best.candidate.recommendationKind] ??
         best.candidate.recommendationKind,
+      now: best.candidate.hint,
+      how: howTo(best.candidate.recommendationKind, facts),
       effort: best.candidate.effort,
       gain: round1(best.gain),
       gainPerEffort: round4(best.gainPerEffort),

@@ -51,6 +51,10 @@ export type Recommendation = {
   key: MetricKey;
   category: CategoryKey;
   title: string; // «Добавьте LICENSE», «Заведите CI»
+  /** Что измерено сейчас — подсказка метрики: «Тестов 2 на 100 файлов». */
+  now?: string;
+  /** Что конкретно сделать, с учётом стека репозитория. */
+  how?: string;
   effort: Effort;
   /** Прирост к overall score, если подтянуть эту метрику до target. */
   gain: number;

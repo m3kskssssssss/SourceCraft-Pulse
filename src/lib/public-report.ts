@@ -39,6 +39,8 @@ export type PublicReport = {
   penalties: Array<{ key: string; amount: number; reason: string }>;
   recommendations: Array<{
     title: string;
+    now: string | null;
+    how: string | null;
     category: string;
     metric: string;
     effort: string;
@@ -117,6 +119,8 @@ export function buildPublicReport(
     penalties: penalties.map((p) => ({ key: p.key, amount: p.amount, reason: p.reason })),
     recommendations: recommendations.map((r) => ({
       title: r.title,
+      now: r.now ?? null,
+      how: r.how ?? null,
       category: r.category,
       metric: r.key,
       effort: r.effort,

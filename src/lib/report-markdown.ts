@@ -103,6 +103,10 @@ export function buildReportMarkdown(input: ReportInput): string {
         );
       });
       lines.push('', 'Порядок — по приросту балла на единицу усилий.', '');
+      recommendations.forEach((r, i) => {
+        if (!r.now && !r.how) return;
+        lines.push(`**${i + 1}. ${r.title}.**${r.now ? ` Сейчас: ${r.now}.` : ''}${r.how ? ` ${r.how}` : ''}`, '');
+      });
     }
   }
 

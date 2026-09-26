@@ -59,8 +59,8 @@ export default async function LearnPage({ searchParams }: { searchParams: Promis
       <section className="pt-12 pb-8 sm:pt-16">
         <h1 className="rise text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">Статьи</h1>
         <p className="rise mt-4 max-w-2xl text-lg leading-relaxed text-[color:var(--muted)]" style={{ animationDelay: '60ms' }}>
-          Как держать репозиторий здоровым: код, документация, активность и безопасность — те же четыре
-          категории, по которым Pulse ставит оценку.
+          Как держать репозиторий здоровым: безопасность, код, активность, документация, CI/CD и задачи —
+          те же шесть категорий, по которым Pulse ставит оценку.
         </p>
       </section>
 

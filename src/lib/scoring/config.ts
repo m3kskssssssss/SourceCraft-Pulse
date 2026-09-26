@@ -218,7 +218,7 @@ export const README_TARGET_SECTIONS = 3;
  * после первого же подхода. Приросты считаются по очереди, с учётом уже
  * применённых, поэтому длинный список не раздувает сумму выше 100.
  */
-export const RECOMMENDATIONS_LIMIT = 9;
+export const RECOMMENDATIONS_LIMIT = 12;
 
 // ---------- Рекомендации: оценка трудозатрат ----------
 //
