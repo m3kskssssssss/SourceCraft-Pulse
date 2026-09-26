@@ -5,6 +5,7 @@ export const commitsWorthReading: Article = {
   title: 'Как писать коммиты, понятные даже через год',
   summary: 'Как писать сообщения коммитов и нарезать изменения так, чтобы история отвечала на вопрос «почему», а не только «что».',
   level: 'junior',
+  topic: 'activity',
   tags: ['git', 'коммиты', 'процессы'],
   scene: 'footprints',
   published: '2026-09-24',

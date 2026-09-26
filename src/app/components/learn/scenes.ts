@@ -1263,6 +1263,591 @@ const pitStop: Scene = {
   },
 };
 
+// ---------- босс-слизень из TODO: растёт, герой рубит его по кускам ----------
+
+/** Закрашенный купол: полуэллипс, стоящий на земле. */
+function dome(c: Ctx, cx: number, groundY: number, rx: number, ry: number): void {
+  for (let j = 0; j <= ry; j++) {
+    const w = rx * Math.sqrt(Math.max(0, 1 - (j / ry) * (j / ry)));
+    px(c, cx - w, groundY - 1 - j, Math.max(1, Math.round(w * 2)), 1);
+  }
+}
+
+const SLIME_X = 86;
+const ARENA = 50;
+const SLIME_HITS = [70, 96, 122] as const;
+const SLIME_FINAL = 152;
+const HERO_HOME = 30;
+
+function slimeR(f: number): number {
+  if (f >= SLIME_FINAL) return 0;
+  // Пока героя нет, долг растёт сам.
+  let r = 9 + 6 * easeOut(prog(f, 0, 44));
+  for (const h of SLIME_HITS) if (f >= h) r -= 3.5;
+  return r;
+}
+
+function heroStrikeX(h: number): number {
+  return SLIME_X - slimeR(h - 1) * 1.3 - 9;
+}
+
+function heroPos(f: number): { x: number; lift: number; moving: boolean } {
+  if (f < 40) return { x: -8 + (HERO_HOME + 8) * prog(f, 12, 40), lift: 0, moving: f >= 12 };
+  for (const h of SLIME_HITS) {
+    if (f >= h - 5 && f <= h + 7) {
+      const k = f < h ? easeIn(prog(f, h - 5, h)) : 1 - prog(f, h, h + 7);
+      return { x: HERO_HOME + (heroStrikeX(h) - HERO_HOME) * k, lift: 0, moving: true };
+    }
+  }
+  if (f >= SLIME_FINAL - 14 && f < SLIME_FINAL + 6) {
+    const k = prog(f, SLIME_FINAL - 14, SLIME_FINAL + 6);
+    return { x: HERO_HOME + (SLIME_X - 12 - HERO_HOME) * k, lift: 22 * 4 * k * (1 - k), moving: false };
+  }
+  return { x: f >= SLIME_FINAL ? SLIME_X - 12 : HERO_HOME, lift: 0, moving: false };
+}
+
+const bossSlime: Scene = {
+  frames: 204,
+  still: 97,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, ARENA);
+    const r = slimeR(f);
+    const struck = SLIME_HITS.some((h) => f >= h && f < h + 3);
+    if (r > 0) {
+      const rx = r * 1.3;
+      const ry = r + Math.sin(f * 0.55) * 0.9;
+      paper(c);
+      if (struck) {
+        // вспышка удара: слизень мигает полутоном
+        for (let j = 0; j <= ry; j++) {
+          const w = rx * Math.sqrt(Math.max(0, 1 - (j / ry) * (j / ry)));
+          for (let i = -w; i < w; i++) if ((Math.round(i) + j + f) % 2 === 0) px(c, SLIME_X + i, ARENA - 1 - j);
+        }
+      } else {
+        dome(c, SLIME_X, ARENA, rx, ry);
+      }
+      // злые глаза и брови
+      ink(c);
+      const eyeY = ARENA - 1 - ry * 0.55;
+      px(c, SLIME_X - 5, eyeY, 2, 2);
+      px(c, SLIME_X + 3, eyeY, 2, 2);
+      line(c, SLIME_X - 6, eyeY - 3, SLIME_X - 3, eyeY - 1);
+      line(c, SLIME_X + 5, eyeY - 3, SLIME_X + 2, eyeY - 1);
+      // рот
+      if (r > 8) px(c, SLIME_X - 3, eyeY + 4, 6, 1);
+      // пока растёт — выдувает пузыри новых пометок
+      if (f < 44) {
+        paper(c);
+        for (let k = 0; k < 3; k++) {
+          const age = (f + k * 7) % 21;
+          px(c, SLIME_X - 6 + k * 6, ARENA - 2 - ry - age * 0.8, 2, 2);
+        }
+      }
+    }
+    // отрубленные куски разлетаются и лопаются
+    for (const h of SLIME_HITS) {
+      const t = f - h;
+      if (t < 0 || t > 22) continue;
+      const top = ARENA - 1 - slimeR(h - 1);
+      const x = SLIME_X + 2 + t * 2.4;
+      const land = 12;
+      if (t < land) {
+        paper(c);
+        px(c, x, Math.min(ARENA - 3, top - 3 * t + 0.42 * t * t), 3, 3);
+      } else {
+        burst(c, SLIME_X + 2 + land * 2.4 + 1, ARENA - 2, t - land, 7, 1.3);
+      }
+    }
+    // финальный удар — большой взрыв
+    burst(c, SLIME_X, ARENA - 8, f - SLIME_FINAL, 16, 2.4);
+    burst(c, SLIME_X, ARENA - 8, f - SLIME_FINAL - 3, 10, 1.4);
+    // герой
+    const hero = heroPos(f);
+    const feet = ARENA - 1 - hero.lift;
+    walker(c, hero.x, feet, f, hero.moving);
+    paper(c);
+    const striking = SLIME_HITS.some((h) => f >= h - 1 && f < h + 3) || (f >= SLIME_FINAL - 2 && f < SLIME_FINAL + 2);
+    const won = f >= SLIME_FINAL + 12;
+    if (won) line(c, hero.x + 2, feet - 8, hero.x + 2, feet - 15);
+    else if (striking) line(c, hero.x + 5, feet - 4, hero.x + 12, feet - 4);
+    else line(c, hero.x + 5, feet - 5, hero.x + 8, feet - 9);
+    // дуга взмаха
+    for (const h of [...SLIME_HITS, SLIME_FINAL]) {
+      if (f < h || f >= h + 3) continue;
+      const sx = heroPos(h).x + 10;
+      const sy = ARENA - 1 - heroPos(h).lift - 6;
+      for (let a = -3; a <= 3; a++) px(c, sx + Math.cos(a * 0.35) * 7, sy + Math.sin(a * 0.35) * 7);
+    }
+    if (won && f < 186 && Math.floor(f / 3) % 2) text(c, '!', hero.x + 1, feet - 22);
+    curtain(c, prog(f, 188, 202));
+  },
+};
+
+// ---------- ниндзя: прыжок, взмах — огромный файл распадается на модули ----------
+
+const NINJA = ['.###.##', '#.#.#..', '.###...', '#####..', '.###...', '.#.#...', '#...#..'];
+const NINJA_JUMP = ['.###.##', '#.#.#..', '.###...', '#####..', '.#.#...', '##.##..'];
+const BIG_FILE = { x: 44, w: 30, h: 32 };
+const DOJO = 52;
+const PIECE_HOME = [14, 54, 94] as const;
+
+function ninjaAt(f: number): { x: number; feet: number; air: boolean } {
+  if (f < 40) return { x: 8, feet: DOJO - 1, air: false };
+  if (f < 64) {
+    const k = prog(f, 40, 64);
+    return { x: 8 + 94 * k, feet: DOJO - 1 - 44 * k * (1 - k) * 4 * 0.5, air: true };
+  }
+  return { x: 102, feet: DOJO - 1, air: false };
+}
+
+/** Строчки «кода» внутри файла — чтобы блок читался как файл. */
+function codeLines(c: Ctx, x: number, y: number, w: number, h: number, seed: number): void {
+  ink(c);
+  for (let j = 3; j < h - 2; j += 3) {
+    const indent = 2 + Math.floor(rand(seed + j) * 3) * 2;
+    const len = Math.max(2, Math.floor((w - indent - 2) * (0.4 + rand(seed + j * 7) * 0.6)));
+    px(c, x + indent, y + j, len, 1);
+  }
+}
+
+const ninjaSlice: Scene = {
+  frames: 184,
+  still: 100,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, DOJO);
+    // огромный файл падает с неба
+    const fallK = easeIn(prog(f, 0, 16));
+    const top = -BIG_FILE.h + (DOJO - 0) * fallK;
+    const split = prog(f, 74, 86);
+    const settle = prog(f, 92, 124);
+    if (f < 74) {
+      paper(c);
+      px(c, BIG_FILE.x, top, BIG_FILE.w, BIG_FILE.h);
+      codeLines(c, BIG_FILE.x, top, BIG_FILE.w, BIG_FILE.h, 3);
+    } else {
+      // три части: разъезжаются, потом каждая уходит на своё место
+      const pw = BIG_FILE.w / 3;
+      for (let i = 0; i < 3; i++) {
+        const baseX = BIG_FILE.x + i * pw + (i - 1) * 7 * easeOut(split);
+        const x = baseX + ((PIECE_HOME[i] ?? 0) - baseX) * easeOut(settle);
+        const drop = (i === 1 ? 0 : 2) * (1 - settle);
+        const h = BIG_FILE.h - 14 * settle;
+        paper(c);
+        px(c, x, DOJO - h + drop, pw + 2 * settle, h);
+        codeLines(c, x, DOJO - h + drop, pw + 2 * settle, h, 11 + i * 5);
+        // готовый модуль подмигивает
+        if (settle >= 1 && Math.floor((f + i * 4) / 4) % 3 === 0) {
+          paper(c);
+          sprite(c, ['.#.', '###', '.#.'], x + pw / 2, DOJO - h - 6);
+        }
+      }
+    }
+    if (f >= 16 && f < 24) burst(c, BIG_FILE.x + BIG_FILE.w / 2, DOJO - 1, f - 16, 12, 1.8);
+    // след прыжка и вспышки разреза — удар виден раньше, чем файл распадается
+    const n = ninjaAt(f);
+    if (f >= 41 && f < 66) {
+      paper(c);
+      for (let k = 1; k <= 5; k++) {
+        const p = ninjaAt(f - k);
+        if (k % 2) px(c, p.x + 2, p.feet - 4, 2, 1);
+      }
+    }
+    if (f >= 64 && f < 74) {
+      paper(c);
+      const flash = f < 68;
+      if (flash || f % 2) {
+        line(c, BIG_FILE.x - 4, 14, BIG_FILE.x + BIG_FILE.w + 4, DOJO - 2);
+        line(c, BIG_FILE.x + BIG_FILE.w + 2, 16, BIG_FILE.x - 2, DOJO - 4);
+      }
+      ink(c);
+      line(c, BIG_FILE.x + 10, top + 1, BIG_FILE.x + 10, DOJO - 1);
+      line(c, BIG_FILE.x + 20, top + 1, BIG_FILE.x + 20, DOJO - 1);
+    }
+    // ниндзя
+    paper(c);
+    sprite(c, n.air ? NINJA_JUMP : NINJA, n.x, n.feet - (n.air ? 5 : 6));
+    // лента повязки развевается
+    if (Math.floor(f / 3) % 2) px(c, n.x + 7, n.feet - 7, 1, 1);
+    // меч: за спиной, в прыжке вытянут, после — убран в ножны
+    if (n.air) line(c, n.x + 4, n.feet - 3, n.x + 10, n.feet - 3);
+    else if (f < 40) line(c, n.x - 1, n.feet - 7, n.x + 3, n.feet - 2);
+    else line(c, n.x + 5, n.feet - 2, n.x + 8, n.feet - 7);
+    curtain(c, prog(f, 168, 182));
+  },
+};
+
+// ---------- эстафета: передача палочки, рывок, ленточка финиша ----------
+
+const LANE = 50;
+const FINISH_X = 110;
+
+function runnerA(f: number): number {
+  if (f < 44) return -8 + 60 * easeOut(prog(f, 0, 44)) * 0.35 + 60 * prog(f, 0, 44) * 0.65;
+  return 52 + 8 * easeOut(prog(f, 44, 60));
+}
+
+function runnerB(f: number): number {
+  if (f < 34) return 58;
+  if (f < 96) return 58 + (FINISH_X - 58) * easeIn(prog(f, 34, 96)) * 0.4 + (FINISH_X - 58) * prog(f, 34, 96) * 0.6;
+  return FINISH_X + 30 * prog(f, 96, 112);
+}
+
+const relayRace: Scene = {
+  frames: 156,
+  still: 46,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, LANE);
+    // трибуна: зрители подпрыгивают на финише
+    paper(c);
+    for (let i = 0; i < 20; i++) {
+      const jump = f >= 96 && f < 140 && (i + Math.floor(f / 2)) % 3 === 0 ? 2 : 0;
+      px(c, 3 + i * 6, 6 - jump, 2, 2);
+      px(c, 2 + i * 6, 9 - jump, 4, 2);
+    }
+    dither(c, 0, 12, SW, 2);
+    // разметка дорожки бежит назад — чувство скорости
+    ink(c);
+    for (let x = -((f * 3) % 12); x < SW; x += 12) px(c, x, LANE + 3, 5, 1);
+    paper(c);
+    // финишный столб и ленточка
+    px(c, FINISH_X + 4, LANE - 16, 1, 16);
+    if (f < 96) line(c, FINISH_X + 4, LANE - 8, FINISH_X, LANE - 7);
+    else {
+      // порванная ленточка свисает со столба и качается
+      const sway = Math.round(Math.sin((f - 96) * 0.5) * 1.5);
+      line(c, FINISH_X + 4, LANE - 8, FINISH_X + 2 + sway, LANE - 4);
+    }
+    // бегуны: ноги мелькают каждый кадр
+    const ax = runnerA(f);
+    const bx = runnerB(f);
+    const aRun = f < 58;
+    const bRun = f >= 34 && f < 112;
+    walker(c, ax, LANE - 1, f * 2, aRun);
+    walker(c, bx, LANE - 1, f * 2 + 1, bRun);
+    paper(c);
+    // палочка: у первого до передачи, потом у второго
+    const handed = f >= 46;
+    if (!handed) px(c, ax + 5, LANE - 5, 3, 1);
+    else if (f < 112) px(c, bx + 5, LANE - 5, 3, 1);
+    // линии скорости
+    for (const [x, run] of [[ax, aRun], [bx, bRun]] as const) {
+      if (!run) continue;
+      for (let k = 0; k < 3; k++) px(c, x - 4 - k * 3 - ((f + k) % 2), LANE - 7 + k * 2, 2, 1);
+    }
+    if (f >= 44 && f < 52) {
+      burst(c, bx + 2, LANE - 5, f - 44, 6, 1.1);
+      if (f % 2) text(c, '!', bx + 1, LANE - 16);
+    }
+    // первый радуется, пока второй бежит
+    if (f >= 60 && f < 140) {
+      paper(c);
+      const up = Math.floor(f / 4) % 2;
+      px(c, ax - 1, LANE - 9 - up, 1, 3);
+      px(c, ax + 5, LANE - 9 - up, 1, 3);
+    }
+    // конфетти после финиша
+    if (f >= 96) {
+      paper(c);
+      for (let k = 0; k < 16; k++) {
+        const t = f - 96;
+        const x = FINISH_X - 30 + rand(k) * 40 + Math.sin(t * 0.3 + k) * 2;
+        const y = 14 + t * (0.5 + rand(k + 9) * 0.5) - 8 * rand(k + 3);
+        if (y < LANE - 1) px(c, x, y, (k % 3) + 1 > 2 ? 2 : 1, 1);
+      }
+    }
+    curtain(c, prog(f, 140, 154));
+  },
+};
+
+// ---------- скалолаз: крюк, подъём, флаг на каждом уступе ----------
+
+const CLIFF_BASE = 54;
+const LEDGES = [
+  { x: 56, y: 42 },
+  { x: 76, y: 30 },
+  { x: 96, y: 18 },
+] as const;
+const CLIMB_STEP = 48;
+const CLIMB_START = 8;
+
+type ClimbSpot = { x: number; feet: number };
+
+function spotBefore(i: number): ClimbSpot {
+  const prev = LEDGES[i - 1];
+  return prev ? { x: prev.x + 4, feet: prev.y - 1 } : { x: 34, feet: CLIFF_BASE - 1 };
+}
+
+function spotAfter(i: number): ClimbSpot {
+  const l = LEDGES[i]!;
+  return { x: l.x + 4, feet: l.y - 1 };
+}
+
+function climber(f: number): { x: number; feet: number; phase: 'aim' | 'zip' | 'top' | 'stand'; i: number } {
+  for (let i = 0; i < LEDGES.length; i++) {
+    const s = CLIMB_START + i * CLIMB_STEP;
+    const from = spotBefore(i);
+    const to = spotAfter(i);
+    const l = LEDGES[i]!;
+    if (f < s) return { ...from, phase: 'stand', i };
+    if (f < s + 10) return { ...from, phase: 'aim', i };
+    if (f < s + 22) {
+      // канат тянет к краю уступа
+      const k = easeIn(prog(f, s + 10, s + 22));
+      return { x: from.x + (l.x - 5 - from.x) * k, feet: from.feet + (l.y + 7 - from.feet) * k, phase: 'zip', i };
+    }
+    if (f < s + 28) {
+      const k = prog(f, s + 22, s + 28);
+      return { x: l.x - 5 + (to.x - (l.x - 5)) * k, feet: l.y + 7 + (to.feet - l.y - 7) * k, phase: 'top', i };
+    }
+  }
+  return { ...spotAfter(LEDGES.length - 1), phase: 'stand', i: LEDGES.length };
+}
+
+function flagPole(c: Ctx, x: number, y: number, h: number, f: number): void {
+  paper(c);
+  px(c, x, y - h, 1, h);
+  if (h >= 7) sprite(c, Math.floor(f / 4) % 2 ? ['###', '##.', '#..'] : ['##.', '###', '#..'], x + 1, y - h);
+}
+
+const grappleClimb: Scene = {
+  frames: 206,
+  still: 118,
+  draw(c, f) {
+    clear(c);
+    paper(c);
+    // земля и ступени скалы
+    px(c, 0, CLIFF_BASE, SW, 1);
+    dither(c, 0, CLIFF_BASE + 2, SW, SH - CLIFF_BASE - 2);
+    LEDGES.forEach((l, i) => {
+      const below = LEDGES[i - 1]?.y ?? CLIFF_BASE;
+      paper(c);
+      px(c, l.x, l.y, SW - l.x, 1);
+      px(c, l.x, l.y, 1, below - l.y);
+      dither(c, l.x + 2, l.y + 2, SW - l.x - 2, below - l.y - 2, i);
+    });
+    // флаги на пройденных уступах
+    LEDGES.forEach((l, i) => {
+      const s = CLIMB_START + i * CLIMB_STEP + 30;
+      if (f >= s) flagPole(c, l.x + 2, l.y - 1, Math.min(8, Math.round((f - s) * 1.4)), f + i);
+    });
+    const p = climber(f);
+    // крюк и канат
+    if (p.phase === 'aim' || p.phase === 'zip') {
+      const l = LEDGES[p.i]!;
+      const s = CLIMB_START + p.i * CLIMB_STEP;
+      const hand = { x: p.x + 4, y: p.feet - 6 };
+      const k = p.phase === 'aim' ? prog(f, s + 1, s + 8) : 1;
+      const hx = hand.x + (l.x + 1 - hand.x) * k;
+      const hy = hand.y + (l.y - hand.y) * k;
+      paper(c);
+      line(c, hand.x, hand.y, hx, hy);
+      sprite(c, ['#.#', '.#.'], hx - 1, hy - 1);
+      if (f >= s + 8 && f < s + 12) burst(c, l.x + 1, l.y, f - s - 8, 5, 1.1);
+    }
+    walker(c, p.x, p.feet, f, p.phase === 'top');
+    // на вершине — салют
+    const done = CLIMB_START + LEDGES.length * CLIMB_STEP;
+    if (f >= done) {
+      const top = spotAfter(LEDGES.length - 1);
+      paper(c);
+      if (Math.floor(f / 4) % 2) { px(c, top.x - 1, top.feet - 10, 1, 3); px(c, top.x + 5, top.feet - 10, 1, 3); }
+      burst(c, 30, 14, f - done - 2, 10, 1.6);
+      burst(c, 60, 8, f - done - 9, 10, 1.6);
+      burst(c, 18, 26, f - done - 16, 8, 1.4);
+    }
+    curtain(c, prog(f, 190, 204));
+  },
+};
+
+// ---------- оборона: пушка сбивает опасные метеориты, мелочь гасит щит ----------
+
+type Meteor = { s: number; x0: number; vx: number; k: 1 | 2 | 3; shootY?: number };
+const METEORS: Meteor[] = [
+  { s: 0, x0: 12, vx: 0.45, k: 3, shootY: 18 },
+  { s: 16, x0: 104, vx: -0.4, k: 2, shootY: 22 },
+  { s: 30, x0: 42, vx: 0.12, k: 1 },
+  { s: 48, x0: 116, vx: -0.62, k: 3, shootY: 16 },
+  { s: 70, x0: 2, vx: 0.7, k: 2, shootY: 24 },
+  { s: 88, x0: 84, vx: -0.25, k: 3, shootY: 14 },
+  { s: 104, x0: 26, vx: 0.3, k: 1 },
+  { s: 118, x0: 112, vx: -0.5, k: 2, shootY: 20 },
+];
+const METEOR_VY = 0.9;
+const SHIELD_Y = 40;
+const TURRET = { x: 60, y: 42 };
+const ROCKS: Record<1 | 2 | 3, readonly string[]> = {
+  1: ['##', '##'],
+  2: ['.#.', '###', '.#.'],
+  3: ['.###.', '#####', '##.##', '#####', '.###.'],
+};
+
+const meteorAt = (m: Meteor, f: number) => ({ x: m.x0 + m.vx * (f - m.s), y: -5 + METEOR_VY * (f - m.s) });
+const meteorEnd = (m: Meteor): number => m.s + ((m.shootY ?? SHIELD_Y) + 5) / METEOR_VY;
+
+const meteorDefense: Scene = {
+  frames: 192,
+  still: 106,
+  draw(c, f) {
+    clear(c);
+    paper(c);
+    for (let i = 0; i < 14; i++) px(c, rand(i + 3) * SW, rand(i + 40) * 34);
+    // город
+    const heights = [8, 12, 6, 14, 9, 5, 11, 16, 7, 10, 13, 6];
+    heights.forEach((h, i) => {
+      const x = i * 10;
+      paper(c);
+      px(c, x, SH - h, 8, h);
+      ink(c);
+      for (let y = SH - h + 2; y < SH - 1; y += 3) for (let wx = x + 1; wx < x + 7; wx += 3) if (rand(i * 31 + y + wx + Math.floor(f / 24)) > 0.35) px(c, wx, y, 1, 1);
+    });
+    // башня с пушкой
+    paper(c);
+    px(c, TURRET.x - 3, TURRET.y, 7, SH - TURRET.y);
+    px(c, TURRET.x - 4, TURRET.y - 2, 9, 3);
+    // куда смотрит ствол: на ближайшую цель, которую собьём
+    const target = METEORS.filter((m) => m.shootY !== undefined && f >= m.s && f < meteorEnd(m)).sort((a, b) => meteorEnd(a) - meteorEnd(b))[0];
+    const aim = target ? meteorAt(target, f) : { x: TURRET.x, y: 0 };
+    const ang = Math.atan2(aim.y - TURRET.y, aim.x - TURRET.x);
+    const tip = { x: TURRET.x + Math.cos(ang) * 7, y: TURRET.y - 2 + Math.sin(ang) * 7 };
+    line(c, TURRET.x, TURRET.y - 2, tip.x, tip.y);
+    // волна радара
+    const wave = (f % 48) * 1.2;
+    if (wave > 2 && wave < 30) for (let a = 1; a < 24; a += 3) px(c, TURRET.x + Math.cos(Math.PI + (a / 24) * Math.PI) * wave, TURRET.y + Math.sin(Math.PI + (a / 24) * Math.PI) * wave);
+    for (const m of METEORS) {
+      if (f < m.s) continue;
+      const end = meteorEnd(m);
+      if (f < end) {
+        const p = meteorAt(m, f);
+        const rows = ROCKS[m.k];
+        paper(c);
+        // хвост
+        for (let k = 1; k <= 3 + m.k * 2; k++) if ((k + f) % 3) px(c, p.x + 1 - m.vx * k * 1.6, p.y + 1 - METEOR_VY * k * 1.6);
+        sprite(c, rows, p.x - 1, p.y - 1);
+        continue;
+      }
+      const t = f - end;
+      const hit = meteorAt(m, end);
+      if (m.shootY !== undefined) {
+        // луч и взрыв
+        if (t < 2) { paper(c); line(c, tip.x, tip.y, hit.x + 1, hit.y + 1); }
+        burst(c, hit.x + 1, hit.y + 1, t, 6 + m.k * 3, 1 + m.k * 0.4);
+      } else if (t < 8) {
+        // мелочь гаснет о щит: вспыхивает дуга
+        paper(c);
+        for (let dx = -12; dx <= 12; dx++) if ((dx + t) % 2 === 0) px(c, hit.x + dx, SHIELD_Y + (dx * dx) / 30);
+        burst(c, hit.x + 1, SHIELD_Y, t, 5, 0.9);
+      }
+    }
+    curtain(c, prog(f, 176, 190));
+  },
+};
+
+// ---------- баскетбол: два броска и данк, счёт закрытых задач растёт ----------
+
+const COURT = 52;
+const RIM = { x0: 96, x1: 106, y: 24 };
+type Throw = { at: number; fromX: number; dunk?: boolean };
+const THROWS: Throw[] = [
+  { at: 22, fromX: 20 },
+  { at: 72, fromX: 42 },
+  { at: 124, fromX: 88, dunk: true },
+];
+const FLIGHT = 22;
+
+function playerX(f: number): number {
+  return track([[0, 16], [18, 20], [54, 20], [66, 42], [100, 42], [124, 88], [150, 88], [164, 70]], f);
+}
+
+function playerLift(f: number): number {
+  for (const t of THROWS) {
+    const a = t.at - 4;
+    const b = t.at + (t.dunk ? 14 : 8);
+    if (f >= a && f < b) {
+      const k = prog(f, a, b);
+      return (t.dunk ? 20 : 7) * 4 * k * (1 - k);
+    }
+  }
+  return 0;
+}
+
+function made(f: number): number {
+  return THROWS.filter((t) => f >= t.at + (t.dunk ? 6 : FLIGHT) + 2).length;
+}
+
+const hoopShot: Scene = {
+  frames: 186,
+  still: 108,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, COURT);
+    // табло: зарубки — закрытые задачи
+    paper(c);
+    px(c, 4, 4, 24, 1); px(c, 4, 14, 24, 1); px(c, 4, 4, 1, 11); px(c, 27, 4, 1, 11);
+    const score = made(f);
+    const flash = THROWS.some((t) => {
+      const m = t.at + (t.dunk ? 6 : FLIGHT) + 2;
+      return f >= m && f < m + 8;
+    });
+    for (let i = 0; i < score; i++) if (!(flash && i === score - 1 && f % 2)) px(c, 8 + i * 5, 7, 2, 6);
+    // стойка, щит, кольцо
+    const shake = f >= 130 && f < 140 ? (f % 2 ? 1 : -1) : 0;
+    px(c, 113, 12, 2, COURT - 12);
+    px(c, 108, 12 + shake, 2, 16);
+    px(c, RIM.x0, RIM.y + shake, RIM.x1 - RIM.x0 + 2, 1);
+    // сетка: раздувается, когда мяч проходит
+    const swish = THROWS.some((t) => {
+      const e = t.at + (t.dunk ? 6 : FLIGHT);
+      return f >= e && f < e + 6;
+    });
+    const bulge = swish ? 1 : 0;
+    for (let i = 0; i <= 5; i++) {
+      const x = RIM.x0 + i * 2;
+      line(c, x, RIM.y + 1 + shake, RIM.x0 + 3 + i * 0.8 + (i - 2.5) * bulge, RIM.y + 8 + shake, 0);
+    }
+    // игрок
+    const x = playerX(f);
+    const lift = playerLift(f);
+    const feet = COURT - 1 - lift;
+    const movingNow = Math.abs(playerX(f + 1) - x) > 0.1;
+    walker(c, x, feet, f, movingNow && lift === 0);
+    // мяч: ведение, полёт, проход через кольцо, отскок
+    paper(c);
+    const BALL = ['.#.', '###', '.#.'];
+    let ball: { x: number; y: number } | null = null;
+    const active = THROWS.find((t) => f >= t.at - 30 && f < t.at + FLIGHT + 18) ?? null;
+    for (const t of THROWS) {
+      const flight = t.dunk ? 6 : FLIGHT;
+      if (f >= t.at && f < t.at + flight) {
+        const k = prog(f, t.at, t.at + flight);
+        const sx = playerX(t.at) + 5;
+        const sy = COURT - 1 - playerLift(t.at) - 10;
+        const ex = (RIM.x0 + RIM.x1) / 2;
+        const ey = RIM.y - 2;
+        ball = { x: sx + (ex - sx) * k, y: sy + (ey - sy) * k - (t.dunk ? 0 : 20 * 4 * k * (1 - k)) };
+      } else if (f >= t.at + flight && f < t.at + flight + 16) {
+        const u = f - t.at - flight;
+        const bx = (RIM.x0 + RIM.x1) / 2 - u * 0.6;
+        const by = RIM.y - 1 + u * 2.2;
+        ball = { x: bx, y: by > COURT - 3 ? COURT - 3 - (by - COURT + 3) * 0.5 : by };
+      }
+    }
+    if (!ball && active && f < active.at) {
+      // ведение: мяч прыгает от руки к полу
+      const b = Math.abs(Math.sin(f * 0.5));
+      ball = { x: x + 5, y: COURT - 3 - b * 6 };
+    }
+    if (ball) sprite(c, BALL, ball.x - 1, ball.y - 1);
+    // данк: удар о кольцо
+    const dunk = THROWS.find((t) => t.dunk);
+    if (dunk) burst(c, (RIM.x0 + RIM.x1) / 2, RIM.y, f - dunk.at - 6, 14, 1.8);
+    if (f >= 150 && f < 172 && Math.floor(f / 3) % 2) { paper(c); text(c, '!', x + 1, feet - 14); }
+    curtain(c, prog(f, 170, 184));
+  },
+};
+
 export const SCENES: Record<SceneId, Scene> = {
   'tank-wall': tankWall,
   signpost,
@@ -1279,4 +1864,10 @@ export const SCENES: Record<SceneId, Scene> = {
   'fire-hose': fireHose,
   'gate-guard': gateGuard,
   'pit-stop': pitStop,
+  'boss-slime': bossSlime,
+  'ninja-slice': ninjaSlice,
+  'relay-race': relayRace,
+  'grapple-climb': grappleClimb,
+  'meteor-defense': meteorDefense,
+  'hoop-shot': hoopShot,
 };

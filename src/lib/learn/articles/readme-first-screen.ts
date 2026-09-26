@@ -5,6 +5,7 @@ export const readmeFirstScreen: Article = {
   title: 'Как написать README, который прочитают до конца',
   summary: 'Что человек должен понять за первые полминуты на странице репозитория и как уложить это в один экран.',
   level: 'junior',
+  topic: 'docs',
   tags: ['документация', 'README'],
   scene: 'signpost',
   published: '2026-09-24',

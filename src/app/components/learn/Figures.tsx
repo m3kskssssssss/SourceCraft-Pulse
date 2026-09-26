@@ -1149,6 +1149,335 @@ function ActionItems() {
   );
 }
 
+// ---------- CONTRIBUTING ----------
+
+function ContribFunnel() {
+  const steps = [
+    { t: 'нашёл проект', v: 100, h: 'README' },
+    { t: 'запустил локально', v: 62, h: 'CONTRIBUTING: запуск' },
+    { t: 'нашёл задачу', v: 45, h: 'good first issue' },
+    { t: 'открыл PR', v: 30, h: 'шаблон PR' },
+    { t: 'PR слит', v: 22, h: 'быстрое ревью' },
+  ];
+  return (
+    <Svg h={214} label="Воронка первого вклада: на каждом шаге часть людей отваливается, и у каждого шага своя подсказка">
+      {steps.map((s, i) => {
+        const y = 8 + i * 38;
+        const w = 40 + s.v * 1.9;
+        return (
+          <g key={s.t}>
+            <rect x={4} y={y} width={w} height={28} rx={6} fill={i === steps.length - 1 ? INK : PANEL} stroke={INK} strokeWidth={1.2} />
+            <T x={14} y={y + 18} size={11} fill={i === steps.length - 1 ? PAPER : INK}>{s.t}</T>
+            <T x={396} y={y + 18} anchor="end" size={10} fill={MUTED}>{s.h}</T>
+          </g>
+        );
+      })}
+      <T x={4} y={208} size={10} fill={MUTED}>справа — что закрывает щель на этом шаге</T>
+    </Svg>
+  );
+}
+
+function GoodFirstIssue() {
+  const card = (x: number, dark: boolean, title: string, lines: string[], foot: string) => (
+    <g>
+      <rect x={x} y={8} width={190} height={150} rx={10} fill={dark ? INK : PANEL} stroke={INK} strokeWidth={1.5} />
+      <T x={x + 12} y={32} size={12} weight={600} fill={dark ? PAPER : INK}>{title}</T>
+      {lines.map((l, i) => (
+        <T key={l} x={x + 12} y={58 + i * 22} size={10} mono fill={dark ? PAPER : MUTED}>{l}</T>
+      ))}
+      <T x={x + 95} y={180} anchor="middle" size={11} fill={MUTED}>{foot}</T>
+    </g>
+  );
+  return (
+    <Svg h={192} label="Две версии одной задачи: размытая слева и готовая для новичка справа — с местом в коде, примером и признаком готовности">
+      {card(4, false, 'Улучшить даты', ['с датами что-то', 'не так, надо', 'бы посмотреть'], 'с чего начать — непонятно')}
+      {card(206, true, 'formatDate без пояса', ['где: src/lib/date.ts', 'вход: 23:00Z 31.12', 'ждём: 31.12, а не 01.01', 'готово: тест зелёный'], 'место, пример, критерий')}
+    </Svg>
+  );
+}
+
+// ---------- записи решений ----------
+
+function AdrAnatomy() {
+  const parts = [
+    { t: 'Контекст', d: 'ограничения и варианты', h: 58, dark: true },
+    { t: 'Решение', d: 'что выбрали', h: 34, dark: false },
+    { t: 'Последствия', d: 'плюсы и цена', h: 40, dark: false },
+  ];
+  let y = 64;
+  return (
+    <Svg h={222} label="Запись решения: заголовок с номером, статус, затем контекст, решение и последствия; главная часть — контекст">
+      <rect x={4} y={8} width={250} height={206} rx={10} fill={PAPER} stroke={INK} strokeWidth={1.5} />
+      <T x={16} y={32} size={12} weight={600} mono># 7. Очередь в Postgres</T>
+      <rect x={16} y={40} width={88} height={16} rx={8} fill={INK} />
+      <T x={60} y={52} anchor="middle" size={10} fill={PAPER}>принято</T>
+      {parts.map((p) => {
+        const top = y;
+        y += p.h + 8;
+        return (
+          <g key={p.t}>
+            <rect x={16} y={top} width={226} height={p.h} rx={6} fill={p.dark ? INK : PANEL} />
+            <T x={26} y={top + 18} size={11} weight={600} fill={p.dark ? PAPER : INK}>{p.t}</T>
+            <line x1={246} y1={top + p.h / 2} x2={266} y2={top + p.h / 2} stroke={INK} strokeWidth={1.2} />
+            <T x={272} y={top + p.h / 2 + 4} size={11} fill={MUTED}>{p.d}</T>
+          </g>
+        );
+      })}
+    </Svg>
+  );
+}
+
+function AdrLifecycle() {
+  const states = ['предложено', 'принято', 'заменено'];
+  return (
+    <Svg h={190} label="Статусы записи: предложено, принято, заменено; старая запись ссылается на новую, а не удаляется">
+      {states.map((s, i) => {
+        const x = 4 + i * 134;
+        return (
+          <g key={s}>
+            <rect x={x} y={10} width={112} height={32} rx={16} fill={i === 1 ? INK : PANEL} stroke={INK} strokeWidth={1.2} />
+            <T x={x + 56} y={31} anchor="middle" size={11} fill={i === 1 ? PAPER : INK}>{s}</T>
+            {i < 2 && <Arrow x1={x + 114} y1={26} x2={x + 132} y2={26} />}
+          </g>
+        );
+      })}
+      <rect x={4} y={84} width={170} height={56} rx={8} fill={PANEL} stroke={INK} strokeDasharray="4 3" />
+      <T x={16} y={106} size={11} mono>ADR-3: брокер</T>
+      <T x={16} y={126} size={10} fill={MUTED}>заменено записью 12</T>
+      <rect x={226} y={84} width={170} height={56} rx={8} fill={INK} />
+      <T x={238} y={106} size={11} mono fill={PAPER}>ADR-12: Postgres</T>
+      <T x={238} y={126} size={10} fill={PAPER}>принято</T>
+      <Arrow x1={176} y1={112} x2={224} y2={112} />
+      <T x={4} y={172} size={11} fill={MUTED}>старая запись остаётся: видно, как к решению пришли</T>
+    </Svg>
+  );
+}
+
+// ---------- TODO ----------
+
+function TodoLifecycle() {
+  const outs = [
+    { y: 14, t: 'задача #231', d: 'хозяин и приоритет', dark: true },
+    { y: 76, t: 'исправлено сразу', d: 'пометка удалена', dark: false },
+    { y: 138, t: 'лежит годами', d: 'никто не знает, актуально ли', dark: false, ghost: true },
+  ];
+  return (
+    <Svg h={196} label="Три судьбы пометки TODO: задача в трекере, исправление сразу или вечное лежание в коде">
+      <rect x={4} y={74} width={110} height={40} rx={8} fill={PANEL} stroke={INK} strokeWidth={1.5} />
+      <T x={59} y={99} anchor="middle" size={12} mono>{'// TODO'}</T>
+      {outs.map((o) => (
+        <g key={o.t}>
+          <Arrow x1={116} y1={94} x2={176} y2={o.y + 20} dashed={o.ghost} />
+          <rect x={180} y={o.y} width={216} height={40} rx={8} fill={o.dark ? INK : o.ghost ? PAPER : PANEL} stroke={INK} strokeWidth={1.2} strokeDasharray={o.ghost ? '4 3' : undefined} />
+          <T x={192} y={o.y + 17} size={11} weight={600} fill={o.dark ? PAPER : o.ghost ? MUTED : INK}>{o.t}</T>
+          <T x={192} y={o.y + 32} size={10} fill={o.dark ? PAPER : MUTED}>{o.d}</T>
+        </g>
+      ))}
+    </Svg>
+  );
+}
+
+function DebtInterest() {
+  const pts = Array.from({ length: 9 }, (_, i) => {
+    const x = 40 + i * 42;
+    const y = 150 - Math.min(128, 6 * Math.pow(1.47, i));
+    return [x, y] as const;
+  });
+  const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y.toFixed(1)}`).join(' ');
+  return (
+    <Svg h={190} label="Цена исправить обход растёт с каждым изменением, которое на него опирается">
+      <line x1={36} y1={150} x2={392} y2={150} stroke={INK} strokeWidth={1.5} />
+      <line x1={36} y1={14} x2={36} y2={150} stroke={INK} strokeWidth={1.5} />
+      <path d={d} fill="none" stroke={INK} strokeWidth={2} />
+      {pts.map(([x, y]) => <circle key={x} cx={x} cy={y} r={3.5} fill={INK} />)}
+      <T x={48} y={132} size={10} fill={MUTED}>сегодня — минуты</T>
+      <T x={330} y={32} anchor="end" size={10} fill={MUTED}>через год — недели</T>
+      <T x={214} y={172} anchor="middle" size={10} fill={MUTED}>изменения, которые опираются на обход →</T>
+      <T x={30} y={24} anchor="end" size={10} fill={MUTED}>цена</T>
+    </Svg>
+  );
+}
+
+// ---------- размер файлов ----------
+
+function FileSizeHistogram() {
+  const bins = [
+    { t: '<100', v: 120 },
+    { t: '100–200', v: 72 },
+    { t: '200–300', v: 38 },
+    { t: '300–500', v: 20 },
+    { t: '500–1000', v: 9 },
+    { t: '1000+', v: 5 },
+  ];
+  return (
+    <Svg h={196} label="Распределение файлов по длине: большинство короткие, несколько гигантов длиннее 500 строк">
+      <line x1={10} y1={150} x2={392} y2={150} stroke={INK} strokeWidth={1.5} />
+      {bins.map((b, i) => {
+        const x = 16 + i * 62;
+        const long = i >= 4;
+        return (
+          <g key={b.t}>
+            <rect x={x} y={150 - b.v} width={48} height={b.v} fill={long ? INK : PANEL} stroke={INK} strokeWidth={1.2} />
+            <T x={x + 24} y={168} anchor="middle" size={10} mono>{b.t}</T>
+          </g>
+        );
+      })}
+      <line x1={264} y1={14} x2={264} y2={156} stroke={INK} strokeWidth={1.5} strokeDasharray="4 3" />
+      <T x={270} y={26} size={11} weight={600}>500 строк</T>
+      <T x={270} y={42} size={10} fill={MUTED}>дальше — хвост,</T>
+      <T x={270} y={56} size={10} fill={MUTED}>который мешает</T>
+      <T x={200} y={188} anchor="middle" size={10} fill={MUTED}>строк в файле</T>
+    </Svg>
+  );
+}
+
+function SplitByResponsibility() {
+  const kinds = [INK, MUTED, PANEL];
+  const stripes = [0, 1, 0, 2, 1, 2, 0, 1, 2, 0, 2, 1];
+  const outs = [
+    { t: 'dates.ts', k: 0 },
+    { t: 'money.ts', k: 1 },
+    { t: 'validate.ts', k: 2 },
+  ];
+  return (
+    <Svg h={200} label="Файл utils.ts, где вперемешку функции трёх видов, раскладывается на три модуля по смыслу">
+      <rect x={4} y={14} width={130} height={172} rx={8} fill={PAPER} stroke={INK} strokeWidth={1.5} />
+      <T x={69} y={10} anchor="middle" size={11} mono>utils.ts · 1 800</T>
+      {stripes.map((k, i) => (
+        <rect key={i} x={14} y={22 + i * 13.5} width={110} height={10} rx={2} fill={kinds[k]} stroke={INK} strokeWidth={0.8} />
+      ))}
+      {outs.map((o, i) => {
+        const y = 22 + i * 58;
+        return (
+          <g key={o.t}>
+            <Arrow x1={140} y1={100} x2={246} y2={y + 22} />
+            <rect x={250} y={y} width={146} height={44} rx={8} fill={PAPER} stroke={INK} strokeWidth={1.5} />
+            <rect x={260} y={y + 10} width={24} height={24} rx={3} fill={kinds[o.k]} stroke={INK} strokeWidth={0.8} />
+            <T x={294} y={y + 27} size={11} mono>{o.t}</T>
+          </g>
+        );
+      })}
+    </Svg>
+  );
+}
+
+// ---------- уязвимости ----------
+
+function CvssVector() {
+  const parts = [
+    { k: 'AV:N', d: ['по', 'сети'] },
+    { k: 'AC:L', d: ['просто'] },
+    { k: 'PR:N', d: ['без', 'входа'] },
+    { k: 'UI:N', d: ['без', 'жертвы'] },
+    { k: 'S:U', d: ['в своих', 'рамках'] },
+    { k: 'C:H', d: ['чтение'] },
+    { k: 'I:H', d: ['запись'] },
+    { k: 'A:H', d: ['отказ'] },
+  ];
+  return (
+    <Svg h={176} label="Вектор CVSS 3.1: атака по сети, без авторизации и без действий пользователя даёт оценку 9.8">
+      <T x={4} y={20} size={11} mono fill={MUTED}>CVSS:3.1/</T>
+      {parts.map((p, i) => {
+        const x = 4 + i * 49;
+        const exposure = i < 4;
+        return (
+          <g key={p.k}>
+            <rect x={x} y={30} width={45} height={28} rx={6} fill={exposure ? INK : PANEL} stroke={INK} strokeWidth={1.2} />
+            <T x={x + 22.5} y={49} anchor="middle" size={10} mono fill={exposure ? PAPER : INK}>{p.k}</T>
+            {p.d.map((l, j) => (
+              <T key={l} x={x + 22.5} y={76 + j * 13} anchor="middle" size={10} fill={MUTED}>{l}</T>
+            ))}
+          </g>
+        );
+      })}
+      <path d="M4 110 v6 h192 v-6" fill="none" stroke={INK} />
+      <T x={100} y={134} anchor="middle" size={11}>кто и как может атаковать</T>
+      <path d="M249 110 v6 h143 v-6" fill="none" stroke={INK} />
+      <T x={320} y={134} anchor="middle" size={11}>что пострадает</T>
+      <rect x={140} y={146} width={120} height={26} rx={13} fill={INK} />
+      <T x={200} y={164} anchor="middle" size={12} weight={600} fill={PAPER}>9.8 · critical</T>
+    </Svg>
+  );
+}
+
+function VulnTriage() {
+  const cells = [
+    { x: 0, y: 0, t: 'обновить сейчас', d: 'достижимо и есть патч', dark: true },
+    { x: 1, y: 0, t: 'закрыть доступ', d: 'патча нет — обойти', dark: false },
+    { x: 0, y: 1, t: 'плановое обновление', d: 'патч есть, но не достать', dark: false },
+    { x: 1, y: 1, t: 'записать и следить', d: 'ждём исправления', dark: false },
+  ];
+  return (
+    <Svg h={220} label="Матрица разбора: достижимость уязвимого кода извне и наличие исправленной версии определяют порядок работ">
+      <T x={86} y={18} size={10} fill={MUTED}>есть исправление</T>
+      <T x={250} y={18} size={10} fill={MUTED}>исправления нет</T>
+      <T x={10} y={74} size={10} fill={MUTED}>извне</T>
+      <T x={10} y={88} size={10} fill={MUTED}>достижимо</T>
+      <T x={10} y={160} size={10} fill={MUTED}>извне не</T>
+      <T x={10} y={174} size={10} fill={MUTED}>достать</T>
+      {cells.map((c) => {
+        const x = 80 + c.x * 160;
+        const y = 28 + c.y * 94;
+        return (
+          <g key={c.t}>
+            <rect x={x} y={y} width={152} height={86} rx={10} fill={c.dark ? INK : PANEL} stroke={INK} strokeWidth={1.2} />
+            <T x={x + 12} y={y + 38} size={12} weight={600} fill={c.dark ? PAPER : INK}>{c.t}</T>
+            <T x={x + 12} y={y + 58} size={10} fill={c.dark ? PAPER : MUTED}>{c.d}</T>
+          </g>
+        );
+      })}
+    </Svg>
+  );
+}
+
+// ---------- задачи ----------
+
+function IssueStates() {
+  const states = ['новая', 'разобрана', 'в работе', 'закрыта'];
+  return (
+    <Svg h={176} label="Состояния задачи: новая, разобрана, в работе, закрыта; из разобранной можно сразу закрыть с объяснением">
+      {states.map((s, i) => {
+        const x = 4 + i * 100;
+        return (
+          <g key={s}>
+            <rect x={x} y={62} width={84} height={34} rx={17} fill={i === 1 ? INK : i === 3 ? PANEL : PAPER} stroke={INK} strokeWidth={1.5} />
+            <T x={x + 42} y={83} anchor="middle" size={11} fill={i === 1 ? PAPER : INK}>{s}</T>
+            {i < 3 && <Arrow x1={x + 86} y1={79} x2={x + 98} y2={79} />}
+          </g>
+        );
+      })}
+      <path d="M146 60 C 180 16, 300 16, 346 58" fill="none" stroke={INK} strokeWidth={1.5} strokeDasharray="4 3" />
+      <polygon points="346,60 338,52 350,50" fill={INK} />
+      <T x={246} y={24} anchor="middle" size={10} fill={MUTED}>не будем делать — закрыть с объяснением</T>
+      <path d="M26 98 C 10 140, 80 140, 60 100" fill="none" stroke={MUTED} strokeWidth={1.5} strokeDasharray="2 3" />
+      <T x={4} y={160} size={10} fill={MUTED}>без разбора задача ходит по кругу «новой» годами</T>
+    </Svg>
+  );
+}
+
+function IssueBacklogAge() {
+  const labels = ['<1 мес', '1–6', '6–12', 'год+'];
+  const chart = (x0: number, title: string, values: number[], dark: boolean) => (
+    <g>
+      <T x={x0 + 90} y={16} anchor="middle" size={12} weight={600}>{title}</T>
+      <line x1={x0} y1={150} x2={x0 + 180} y2={150} stroke={INK} strokeWidth={1.5} />
+      {values.map((v, i) => (
+        <g key={i}>
+          <rect x={x0 + 6 + i * 44} y={150 - v} width={34} height={v} fill={dark ? INK : PANEL} stroke={INK} strokeWidth={1.2} />
+          <T x={x0 + 23 + i * 44} y={166} anchor="middle" size={9} fill={MUTED}>{labels[i]}</T>
+        </g>
+      ))}
+    </g>
+  );
+  return (
+    <Svg h={186} label="Возраст открытых задач: в здоровом трекере в основном свежие, на кладбище — старые">
+      {chart(8, 'здоровый трекер', [110, 52, 20, 8], true)}
+      {chart(214, 'кладбище', [10, 34, 70, 118], false)}
+      <T x={200} y={182} anchor="middle" size={10} fill={MUTED}>сколько открытых задач такого возраста</T>
+    </Svg>
+  );
+}
+
 const FIGURES: Record<FigureId, () => ReactNode> = {
   'secret-history': SecretHistory,
   'secret-flow': SecretFlow,
@@ -1189,6 +1518,18 @@ const FIGURES: Record<FigureId, () => ReactNode> = {
   'incident-timeline': IncidentTimeline,
   'five-whys': FiveWhys,
   'action-items': ActionItems,
+  'contrib-funnel': ContribFunnel,
+  'good-first-issue': GoodFirstIssue,
+  'adr-anatomy': AdrAnatomy,
+  'adr-lifecycle': AdrLifecycle,
+  'todo-lifecycle': TodoLifecycle,
+  'debt-interest': DebtInterest,
+  'file-size-histogram': FileSizeHistogram,
+  'split-by-responsibility': SplitByResponsibility,
+  'cvss-vector': CvssVector,
+  'vuln-triage': VulnTriage,
+  'issue-states': IssueStates,
+  'issue-backlog-age': IssueBacklogAge,
 };
 
 export function Figure({ id }: { id: FigureId }) {

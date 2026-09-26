@@ -8,18 +8,24 @@ import { ArticleCard } from '../components/learn/ArticleCard';
 import { EmptyState, cx } from '../components/ui';
 import { listArticles } from '@/lib/learn';
 import { TIME_BUCKETS, TIME_BUCKET_LABEL, type TimeBucket } from '@/lib/learn/reading-time';
-import { LEVELS, LEVEL_LABEL, type Level } from '@/lib/learn/types';
+import { LEVELS, LEVEL_LABEL, TOPICS, type Level, type Topic } from '@/lib/learn/types';
+import { CATEGORY_ACCENT_CLASS, CATEGORY_TITLES } from '@/lib/category-meta';
 
 export const metadata: Metadata = {
   title: 'Статьи — Pulse',
-  description: 'Как держать репозиторий здоровым: безопасность, документация, зависимости и процессы. Для Junior, Middle и Senior.',
+  description: 'Как держать репозиторий здоровым: код, документация, активность и безопасность. Для Junior, Middle и Senior.',
 };
 
-type Search = { q?: string; level?: string | string[]; time?: string };
+type Search = { q?: string; level?: string | string[]; topic?: string | string[]; time?: string };
 
 function parseLevels(raw: Search['level']): Level[] {
   const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
   return LEVELS.filter((l) => list.includes(l));
+}
+
+function parseTopics(raw: Search['topic']): Topic[] {
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return TOPICS.filter((t) => list.includes(t));
 }
 
 function parseTime(raw: string | undefined): TimeBucket | undefined {
@@ -30,12 +36,14 @@ export default async function LearnPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const q = sp.q?.trim() || undefined;
   const levels = parseLevels(sp.level);
+  const topics = parseTopics(sp.topic);
   const time = parseTime(sp.time);
-  const articles = listArticles({ q, levels, time });
+  const articles = listArticles({ q, levels, topics, time });
 
-  const href = (patch: { levels?: Level[]; time?: TimeBucket | null }): string => {
+  const href = (patch: { levels?: Level[]; topics?: Topic[]; time?: TimeBucket | null }): string => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
+    for (const t of patch.topics ?? topics) params.append('topic', t);
     for (const l of patch.levels ?? levels) params.append('level', l);
     const nextTime = patch.time === null ? undefined : (patch.time ?? time);
     if (nextTime) params.set('time', nextTime);
@@ -43,18 +51,21 @@ export default async function LearnPage({ searchParams }: { searchParams: Promis
     return qs ? `/learn?${qs}` : '/learn';
   };
   const toggleLevel = (l: Level): Level[] => (levels.includes(l) ? levels.filter((x) => x !== l) : [...levels, l]);
-  const filtered = Boolean(q || levels.length || time);
+  const toggleTopic = (t: Topic): Topic[] => (topics.includes(t) ? topics.filter((x) => x !== t) : [...topics, t]);
+  const filtered = Boolean(q || levels.length || topics.length || time);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 sm:px-6">
       <section className="pt-12 pb-8 sm:pt-16">
         <h1 className="rise text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">Статьи</h1>
         <p className="rise mt-4 max-w-2xl text-lg leading-relaxed text-[color:var(--muted)]" style={{ animationDelay: '60ms' }}>
-          Как держать репозиторий здоровым: безопасность, документация, зависимости и процессы в команде.
+          Как держать репозиторий здоровым: код, документация, активность и безопасность — те же четыре
+          категории, по которым Pulse ставит оценку.
         </p>
       </section>
 
       <form action="/learn" className="flex flex-col gap-2 text-sm sm:flex-row">
+        {topics.map((t) => <input key={t} type="hidden" name="topic" value={t} />)}
         {levels.map((l) => <input key={l} type="hidden" name="level" value={l} />)}
         {time && <input type="hidden" name="time" value={time} />}
         <input
@@ -74,6 +85,14 @@ export default async function LearnPage({ searchParams }: { searchParams: Promis
       </form>
 
       <div className="mt-4 flex flex-col gap-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
+        <FilterRow label="Тема">
+          <Toggle href={href({ topics: [] })} active={topics.length === 0}>Все</Toggle>
+          {TOPICS.map((t) => (
+            <Toggle key={t} href={href({ topics: toggleTopic(t) })} active={topics.includes(t)} accent={CATEGORY_ACCENT_CLASS[t]}>
+              {CATEGORY_TITLES[t]}
+            </Toggle>
+          ))}
+        </FilterRow>
         <FilterRow label="Уровень">
           <Toggle href={href({ levels: [] })} active={levels.length === 0}>Все</Toggle>
           {LEVELS.map((l) => (
@@ -122,19 +141,32 @@ function FilterRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function Toggle({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+function Toggle({
+  href,
+  active,
+  accent,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  /** Класс акцента категории: у темы — цветная точка перед подписью. */
+  accent?: string;
+  children: React.ReactNode;
+}) {
   return (
     <Link
       href={href}
       scroll={false}
       aria-current={active ? 'true' : undefined}
       className={cx(
-        'rounded-full px-3 py-1.5 transition',
+        'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition',
+        accent,
         active
           ? 'bg-[color:var(--ink)] text-[color:var(--paper)]'
           : 'bg-[color:var(--panel)] text-[color:var(--ink-2)] hover:bg-[color:var(--panel-2)]',
       )}
     >
+      {accent && <span aria-hidden className="h-2 w-2 rounded-full bg-[color:var(--accent)]" />}
       {children}
     </Link>
   );

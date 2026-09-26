@@ -5,6 +5,7 @@ export const smallPullRequests: Article = {
   title: 'Почему маленькие pull request проверяют лучше',
   summary: 'Почему большой PR одобряют не читая, как нарезать работу на части и что делать, чтобы ревью не висело по три дня.',
   level: 'middle',
+  topic: 'activity',
   tags: ['ревью', 'pull request', 'процессы'],
   scene: 'parcel-slot',
   published: '2026-09-24',

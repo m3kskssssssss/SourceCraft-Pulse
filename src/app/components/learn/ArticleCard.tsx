@@ -1,9 +1,10 @@
-// Карточка статьи: верхняя половина — 8-битная сцена, нижняя — уровень,
+// Карточка статьи: верхняя половина — 8-битная сцена, нижняя — тема, уровень,
 // время чтения, заголовок и одна строка о чём статья.
 
 import Link from 'next/link';
 import type { ArticleSummary } from '@/lib/learn';
 import { LEVEL_LABEL } from '@/lib/learn/types';
+import { CATEGORY_ACCENT_CLASS, CATEGORY_TITLES } from '@/lib/category-meta';
 import { Chip } from '../ui';
 import { PixelScene } from './PixelScene';
 
@@ -16,6 +17,9 @@ export function ArticleCard({ article }: { article: ArticleSummary }) {
       <PixelScene scene={article.scene} />
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex flex-wrap items-center gap-2">
+          <Chip tone="accent" className={CATEGORY_ACCENT_CLASS[article.topic]}>
+            {CATEGORY_TITLES[article.topic]}
+          </Chip>
           <Chip tone={article.level === 'senior' ? 'ink' : 'outline'}>{LEVEL_LABEL[article.level]}</Chip>
           <span className="text-xs text-[color:var(--muted)]">{article.minutes} мин чтения</span>
         </div>

@@ -15,8 +15,14 @@ import { releasesAndChangelog } from './articles/releases-and-changelog';
 import { secretsInGit } from './articles/secrets-in-git';
 import { smallPullRequests } from './articles/small-pull-requests';
 import { testsYouCanTrust } from './articles/tests-you-can-trust';
+import { contributingThatWorks } from './articles/contributing-that-works';
+import { decisionRecords } from './articles/decision-records';
+import { todoDebt } from './articles/todo-debt';
+import { splittingBigFiles } from './articles/splitting-big-files';
+import { readingVulnerabilityReports } from './articles/reading-vulnerability-reports';
+import { issuesThatClose } from './articles/issues-that-close';
 import { readingMinutes, timeBucket, type TimeBucket } from './reading-time';
-import { LEVELS, type Article, type Level } from './types';
+import { LEVELS, TOPICS, type Article, type Level, type Topic } from './types';
 
 export type ArticleSummary = Omit<Article, 'body'> & { minutes: number };
 
@@ -36,6 +42,12 @@ const ALL: Article[] = [
   ciSupplyChain,
   branchProtection,
   incidentPostmortem,
+  contributingThatWorks,
+  decisionRecords,
+  todoDebt,
+  splittingBigFiles,
+  readingVulnerabilityReports,
+  issuesThatClose,
 ];
 
 function summarize(article: Article): ArticleSummary {
@@ -52,13 +64,14 @@ export function allSlugs(): string[] {
   return ALL.map((a) => a.slug);
 }
 
-export type ArticleFilter = { q?: string; levels?: Level[]; time?: TimeBucket };
+export type ArticleFilter = { q?: string; levels?: Level[]; topics?: Topic[]; time?: TimeBucket };
 
 /** Поиск по заголовку, описанию, тегам и тексту статьи, без учёта регистра. */
 export function listArticles(filter: ArticleFilter = {}): ArticleSummary[] {
   const q = filter.q?.trim().toLowerCase();
   return ALL.filter((a) => {
     if (filter.levels?.length && !filter.levels.includes(a.level)) return false;
+    if (filter.topics?.length && !filter.topics.includes(a.topic)) return false;
     if (filter.time && timeBucket(readingMinutes(a.body)) !== filter.time) return false;
     if (q) {
       const haystack = [a.title, a.summary, ...a.tags, ...a.body.map(blockText)].join(' ').toLowerCase();
@@ -66,7 +79,10 @@ export function listArticles(filter: ArticleFilter = {}): ArticleSummary[] {
     }
     return true;
   })
-    .sort((a, b) => LEVELS.indexOf(a.level) - LEVELS.indexOf(b.level))
+    .sort(
+      (a, b) =>
+        LEVELS.indexOf(a.level) - LEVELS.indexOf(b.level) || TOPICS.indexOf(a.topic) - TOPICS.indexOf(b.topic),
+    )
     .map(summarize);
 }
 

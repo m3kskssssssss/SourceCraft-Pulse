@@ -5,6 +5,7 @@ export const gitignoreCleanup: Article = {
   title: 'Какие файлы не нужно хранить в репозитории',
   summary: 'Зависимости, сборки, секреты и личные файлы редактора — почему им не место в git и как убрать то, что уже попало.',
   level: 'junior',
+  topic: 'code',
   tags: ['git', 'gitignore', 'безопасность'],
   scene: 'space-shooter',
   published: '2026-09-24',

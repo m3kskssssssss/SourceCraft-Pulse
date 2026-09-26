@@ -5,6 +5,7 @@ export const licenseInFiveMinutes: Article = {
   title: 'Зачем проекту лицензия и какую из них выбрать',
   summary: 'Почему публичный репозиторий без LICENSE по умолчанию закрыт для использования и как выбрать лицензию, не будучи юристом.',
   level: 'junior',
+  topic: 'docs',
   tags: ['лицензия', 'open source', 'документация'],
   scene: 'bridge',
   published: '2026-09-24',

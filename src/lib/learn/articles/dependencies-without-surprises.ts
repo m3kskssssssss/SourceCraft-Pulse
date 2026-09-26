@@ -5,6 +5,7 @@ export const dependenciesWithoutSurprises: Article = {
   title: 'Как обновлять зависимости и не сломать проект',
   summary: 'Как диапазоны версий, lock-файл и ритм обновлений делают сборку воспроизводимой, а уязвимости — заметными.',
   level: 'middle',
+  topic: 'security',
   tags: ['безопасность', 'зависимости', 'npm'],
   scene: 'block-tower',
   published: '2026-09-24',

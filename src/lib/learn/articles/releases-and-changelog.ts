@@ -5,6 +5,7 @@ export const releasesAndChangelog: Article = {
   title: 'Как выпускать версии и вести список изменений',
   summary: 'Как выбрать номер версии, вести список изменений для людей и выпускать релизы так, чтобы их можно было воспроизвести.',
   level: 'middle',
+  topic: 'activity',
   tags: ['релизы', 'semver', 'документация'],
   scene: 'rocket-launch',
   published: '2026-09-24',

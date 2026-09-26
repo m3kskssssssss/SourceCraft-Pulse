@@ -5,6 +5,7 @@ export const secretsInGit: Article = {
   title: 'Как не выложить пароли и ключи в git по ошибке',
   summary: 'Почему удалённый ключ всё ещё в истории, куда его класть вместо кода и что делать, если он уже утёк.',
   level: 'junior',
+  topic: 'security',
   tags: ['безопасность', 'git', 'секреты'],
   scene: 'tank-wall',
   published: '2026-09-24',

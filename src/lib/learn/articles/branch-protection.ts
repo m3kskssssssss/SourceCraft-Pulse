@@ -5,6 +5,7 @@ export const branchProtection: Article = {
   title: 'Как запретить изменения в main без проверки',
   summary: 'Как сделать так, чтобы в основную ветку нельзя было попасть в обход проверок, и распределить ответственность за код по владельцам.',
   level: 'senior',
+  topic: 'security',
   tags: ['ревью', 'безопасность', 'процессы'],
   scene: 'gate-guard',
   published: '2026-09-24',

@@ -5,6 +5,7 @@ export const healthMetricsThatDontLie: Article = {
   title: 'Как по цифрам понять, жив ли проект на самом деле',
   summary: 'Почему число коммитов почти ничего не говорит, как читать концентрацию знаний и как не превратить метрики в цель.',
   level: 'senior',
+  topic: 'activity',
   tags: ['метрики', 'активность', 'команда'],
   scene: 'bus-pulse',
   published: '2026-09-24',

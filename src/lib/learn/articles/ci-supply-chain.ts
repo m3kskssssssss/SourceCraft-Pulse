@@ -5,6 +5,7 @@ export const ciSupplyChain: Article = {
   title: 'Как защитить CI от взлома через чужой код',
   summary: 'Почему сборочный конвейер — самая ценная цель для атаки, чему научили истории tj-actions, Codecov и xz и какие меры дают больше всего.',
   level: 'senior',
+  topic: 'security',
   tags: ['безопасность', 'CI', 'supply chain'],
   scene: 'chain-lift',
   published: '2026-09-24',

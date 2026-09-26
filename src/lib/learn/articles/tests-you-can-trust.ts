@@ -5,6 +5,7 @@ export const testsYouCanTrust: Article = {
   title: 'Какие тесты писать первыми и сколько их нужно',
   summary: 'Какие тесты писать первыми, почему процент покрытия плохая цель и что делать с тестами, которые падают через раз.',
   level: 'middle',
+  topic: 'code',
   tags: ['тесты', 'качество', 'CI'],
   scene: 'tightrope',
   published: '2026-09-24',

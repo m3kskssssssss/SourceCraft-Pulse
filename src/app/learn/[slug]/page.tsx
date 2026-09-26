@@ -11,6 +11,7 @@ import { PixelScene } from '@/app/components/learn/PixelScene';
 import { Chip } from '@/app/components/ui';
 import { allSlugs, getArticle, listArticles } from '@/lib/learn';
 import { LEVEL_LABEL } from '@/lib/learn/types';
+import { CATEGORY_ACCENT_CLASS, CATEGORY_TITLES } from '@/lib/category-meta';
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -30,10 +31,12 @@ export default async function ArticlePage({ params }: PageProps) {
   const article = getArticle((await params).slug);
   if (!article) notFound();
 
-  // Сначала статьи того же уровня, потом остальные.
+  // Сначала статьи той же темы, среди них — того же уровня, потом остальные.
+  const affinity = (a: { topic: string; level: string }) =>
+    Number(a.topic === article.topic) * 2 + Number(a.level === article.level);
   const more = listArticles()
     .filter((a) => a.slug !== article.slug)
-    .sort((a, b) => Number(b.level === article.level) - Number(a.level === article.level))
+    .sort((a, b) => affinity(b) - affinity(a))
     .slice(0, 3);
 
   const published = new Date(article.published).toLocaleDateString('ru-RU', {
@@ -49,8 +52,8 @@ export default async function ArticlePage({ params }: PageProps) {
           Статьи
         </Link>
         <span className="mx-2">/</span>
-        <Link href={`/learn?level=${article.level}`} className="hover:text-[color:var(--ink)]">
-          {LEVEL_LABEL[article.level]}
+        <Link href={`/learn?topic=${article.topic}`} className="hover:text-[color:var(--ink)]">
+          {CATEGORY_TITLES[article.topic]}
         </Link>
       </nav>
 
@@ -61,6 +64,11 @@ export default async function ArticlePage({ params }: PageProps) {
 
         <header className="mt-8">
           <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Link href={`/learn?topic=${article.topic}`}>
+              <Chip tone="accent" className={CATEGORY_ACCENT_CLASS[article.topic]}>
+                {CATEGORY_TITLES[article.topic]}
+              </Chip>
+            </Link>
             <Chip tone={article.level === 'senior' ? 'ink' : 'outline'}>{LEVEL_LABEL[article.level]}</Chip>
             <span className="text-[color:var(--muted)]">{article.minutes} мин чтения</span>
             <span className="text-[color:var(--muted)]">·</span>
