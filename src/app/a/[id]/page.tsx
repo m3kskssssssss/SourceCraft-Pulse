@@ -1130,11 +1130,11 @@ function SecretHintsBlock({ names }: { names: string[] }) {
 function describeAppSecGap(reason: string | undefined): string {
   switch (reason) {
     case 'appsec_no_scan':
-      return 'В AppSec нет скана этого репозитория: сканирование не включено или ещё не запускалось.';
+      return 'В AppSec нет скана этого репозитория: сканирование не включено или ещё не запускалось. У публичных репозиториев AppSec бесплатный — проверьте «Настройки безопасности» репозитория. У приватных он работает только при подключённом дополнении безопасности SourceCraft.';
     case 'appsec_scan_not_finished':
       return 'Последний скан AppSec ещё идёт или завершился с ошибкой — дождитесь окончания и оцените заново.';
     case 'appsec_forbidden':
-      return 'AppSec отказал в доступе по вашему токену: у токена нет прав на результаты сканирования.';
+      return 'AppSec отказал в доступе по вашему токену. У приватного репозитория так бывает без дополнения безопасности SourceCraft: без него AppSec такие репозитории не сканирует.';
     case 'sourcecraft_appsec_needs_owner_token':
       return 'Для AppSec нужен ваш токен SourceCraft: подключите его в «Моих репозиториях» и оцените заново.';
     case 'appsec_no_repository_id':

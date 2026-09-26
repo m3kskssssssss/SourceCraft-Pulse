@@ -40,7 +40,8 @@ const EXACT: Record<string, string> = {
     'AppSec SourceCraft отдаёт результаты только участникам репозитория — в публичный балл безопасность не входит',
   sourcecraft_appsec_needs_owner_token: 'Для AppSec SourceCraft нужен токен владельца репозитория',
   appsec_no_repository_id: 'API не вернул идентификатор репозитория — AppSec не запрашивали',
-  appsec_no_scan: 'В AppSec SourceCraft нет скана: сканирование не включено или ещё не запускалось',
+  appsec_no_scan:
+    'В AppSec SourceCraft нет скана: сканирование не включено или ещё не запускалось (у приватных репозиториев AppSec работает только с дополнением безопасности SourceCraft)',
   appsec_scan_not_finished: 'Последний скан AppSec SourceCraft ещё идёт или завершился с ошибкой',
   appsec_forbidden: 'AppSec SourceCraft отказал в доступе по токену владельца',
   appsec_findings_truncated: 'Находок AppSec больше тысячи — в балл вошла первая тысяча',
