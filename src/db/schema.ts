@@ -267,6 +267,58 @@ export const sourcecraftTokens = pgTable('sourcecraft_tokens', {
     .default(sql`now()`),
 });
 
+// ---------- Предложения pull request ----------
+//
+// Правки, которые Pulse готовит для своего репозитория владельца: шаблоны
+// недостающих файлов и правки ИИ в документации и коде. Предложение хранится,
+// потому что ИИ недетерминирован: в PR должно уйти ровно то, что владелец
+// видел в превью, а не новая генерация.
+
+export const improvementProposals = pgTable(
+  'improvement_proposals',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    analysisId: uuid('analysis_id')
+      .notNull()
+      .references(() => analyses.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    repositoryId: uuid('repository_id')
+      .notNull()
+      .references(() => repositories.id, { onDelete: 'cascade' }),
+    /** 'preparing' | 'ready' | 'failed' | 'submitted' */
+    status: text('status').notNull().default('preparing'),
+    /** Фаза подготовки для экрана ожидания. */
+    stage: text('stage'),
+    /** Коммит, от которого считались правки. */
+    baseOid: text('base_oid'),
+    /** ProposalItem[] — см. lib/improvements/proposal.ts. */
+    items: jsonb('items'),
+    /** Заметки подготовки: что не вышло у ИИ и почему. */
+    notes: jsonb('notes'),
+    error: text('error'),
+    prBranch: text('pr_branch'),
+    prSlug: text('pr_slug'),
+    /** Какие пункты ушли в PR. */
+    prItems: jsonb('pr_items'),
+    submittedAt: timestamp('submitted_at', { withTimezone: true, mode: 'date' }),
+    /** Ответ владельца «PR приняли?»: 'yes' | 'no'. */
+    mergedAnswer: text('merged_answer'),
+    /** Прогон, поставленный после ответа «да». */
+    reevaluationId: uuid('reevaluation_id').references(() => analyses.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    byAnalysisUser: index('improvement_proposals_analysis_user_idx').on(t.analysisId, t.userId),
+  }),
+);
+
 // ---------- Оценки и обсуждение анализов ----------
 //
 // Оценка — одна на пользователя и анализ, поэтому не отдельная история, а

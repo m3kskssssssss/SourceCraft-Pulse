@@ -43,7 +43,7 @@ export type RunAiTaskArgs<TInput, TOutput> = {
    */
   schema: z.ZodType<TOutput, z.ZodTypeDef, unknown>;
   /** Формирует промпты из входа. */
-  buildPrompt(input: TInput): { system: string; user: string; maxTokens?: number };
+  buildPrompt(input: TInput): { system: string; user: string; maxTokens?: number; timeoutMs?: number };
   /**
    * Fallback-значение, если модель упала/не спарсилась/бюджет исчерпан.
    * Возвращает `null` — значит fallback не поддерживается: пробрасываем ошибку.
@@ -102,7 +102,7 @@ export async function runAiTask<TInput, TOutput>(
     throw err;
   }
 
-  const { system, user, maxTokens } = buildPrompt(input);
+  const { system, user, maxTokens, timeoutMs } = buildPrompt(input);
   const baseMaxTokens = maxTokens ?? DEFAULT_MAX_TOKENS;
 
   // Одна попытка + один повтор при ошибке разбора. На повторе поднимаем лимит
@@ -112,8 +112,12 @@ export async function runAiTask<TInput, TOutput>(
     const call: AiCompleteInput = {
       system,
       user,
-      maxTokens: attempt === 1 ? baseMaxTokens : Math.min(baseMaxTokens * 2, MAX_TOKENS_CEILING),
+      // Задача с длинным ответом (правки кода) сама просит лимит выше потолка —
+      // тогда повтор идёт с тем же лимитом, а не урезанным.
+      maxTokens:
+        attempt === 1 ? baseMaxTokens : Math.max(baseMaxTokens, Math.min(baseMaxTokens * 2, MAX_TOKENS_CEILING)),
       json: true,
+      timeoutMs,
     };
 
     let result;

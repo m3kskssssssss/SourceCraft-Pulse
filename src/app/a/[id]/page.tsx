@@ -25,10 +25,17 @@ import {
 } from '@/lib/category-meta';
 import { describeMissingList } from '@/lib/missing-labels';
 import { GitTree } from '@/app/components/GitTree';
-import { ImprovementPr } from '@/app/components/ImprovementPr';
+import { ImprovementPr, type ProposalView } from '@/app/components/ImprovementPr';
 import { ReevaluateButton } from '@/app/components/ReevaluateButton';
 import { findOwnedRepoId } from '@/lib/ownership';
-import { getAnalysisImprovements } from '@/lib/improvements/for-analysis';
+import {
+  getImprovementContext,
+  getLatestProposal,
+  getPullRequestStatus,
+  isPreparing,
+  type ProposalRow,
+} from '@/lib/improvements/for-analysis';
+import type { ProposalItem, ProposalNotes } from '@/lib/improvements/proposal';
 import { RatingStars } from '@/app/components/RatingStars';
 import { CommentThread } from '@/app/components/CommentThread';
 import { getCommentTree, getRatingSummary } from '@/lib/social';
@@ -41,7 +48,8 @@ type PageProps = { params: Promise<{ id: string }> };
 
 export const dynamic = 'force-dynamic';
 /** Кнопка «Создать pull request» — действие этой страницы: клон, коммит и push
- *  укладываются в минуту, но на большом репозитории нужен запас. */
+ *  укладываются в минуту, но на большом репозитории нужен запас. Подготовка
+ *  правок идёт отдельным маршрутом /api/improvements/<id> — ей нужно больше. */
 export const maxDuration = 120;
 
 const METRIC_LABELS: Record<string, string> = {
@@ -228,8 +236,13 @@ export default async function AnalysisPage({ params }: PageProps) {
     ? kindMeta.topics.filter((t): t is string => typeof t === 'string').slice(0, 6)
     : [];
 
-  // Что Pulse может добавить через PR — null, если смотрит не владелец.
-  const improvements = await getAnalysisImprovements(analysis.id, userId ?? null);
+  // Pull request с улучшениями — null, если смотрит не владелец.
+  const improvements = await getImprovementContext(analysis.id, userId ?? null);
+  const proposalRow = improvements && userId ? await getLatestProposal(analysis.id, userId) : null;
+  const prStatus =
+    improvements && userId && proposalRow?.status === 'submitted' && !proposalRow.mergedAnswer && proposalRow.prSlug
+      ? await getPullRequestStatus(userId, improvements.org, improvements.repo, proposalRow.prSlug)
+      : null;
 
   const sortedCategories = [...categoryScores].sort(
     (a, b) => categoryOrder(a.key) - categoryOrder(b.key),
@@ -451,19 +464,22 @@ export default async function AnalysisPage({ params }: PageProps) {
       )}
 
       {/* Pull request с улучшениями — только подтверждённому владельцу. */}
-      {improvements && improvements.items.length > 0 && (
+      {improvements && (
         <section id="pr" className="rise mt-10 scroll-mt-24" style={{ animationDelay: '100ms' }}>
           <SectionHead
             eyebrow="Сделаем за вас"
             title="Предложить pull request"
-            hint="Pulse может сам добавить в репозиторий недостающие файлы. Отметьте нужное — появится ветка и PR на SourceCraft, а слить его или нет, решаете вы."
+            hint="Pulse подготовит правки документации и кода: посмотрите каждую, оставьте нужные — появится ветка и PR на SourceCraft, а слить его или нет, решаете вы."
           />
           <div className="mt-6">
             <ImprovementPr
               analysisId={analysis.id}
-              items={improvements.items}
-              blocker={improvements.blocker}
               slug={`${improvements.org}/${improvements.repo}`}
+              repoUrl={improvements.webUrl}
+              blocker={improvements.blocker}
+              isPrivate={improvements.isPrivate}
+              proposal={proposalRow ? toProposalView(proposalRow) : null}
+              prStatus={prStatus}
             />
           </div>
         </section>
@@ -881,4 +897,27 @@ function verdict(score: number | null): string {
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/** Строка предложения для клиента: без содержимого файлов, только дифф. */
+function toProposalView(row: ProposalRow): ProposalView {
+  const items = (Array.isArray(row.items) ? row.items : []) as ProposalItem[];
+  const prItems = (row.prItems ?? {}) as { applied?: string[]; skipped?: Array<{ path: string; reason: string }> };
+  const status =
+    row.status === 'preparing' && !isPreparing(row) ? 'failed' : (row.status as ProposalView['status']);
+  return {
+    id: row.id,
+    status,
+    stage: row.stage,
+    startedAt: row.createdAt.toISOString(),
+    error: status === 'failed' && row.status === 'preparing' ? 'подготовка прервалась' : row.error,
+    items: items.map(({ content: _content, ...rest }) => rest),
+    notes: (row.notes as ProposalNotes | null) ?? null,
+    prBranch: row.prBranch,
+    prSlug: row.prSlug,
+    applied: prItems.applied ?? [],
+    skipped: prItems.skipped ?? [],
+    mergedAnswer: row.mergedAnswer === 'yes' || row.mergedAnswer === 'no' ? row.mergedAnswer : null,
+    reevaluationId: row.reevaluationId,
+  };
 }

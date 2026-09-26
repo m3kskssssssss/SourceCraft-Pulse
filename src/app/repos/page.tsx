@@ -24,6 +24,7 @@ import {
   VerifyOwnedRepo,
 } from '@/app/components/OwnedRepos';
 import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
+import { LiveRunStatus } from '@/app/components/LiveRunStatus';
 import { CardDiv, CategoryMini, Chip, EmptyState, ScoreDial } from '@/app/components/ui';
 import { pickCategoryValues } from '@/lib/category-meta';
 import { refreshTimeZone } from '@/lib/ownership';
@@ -36,6 +37,7 @@ type Run = {
   id: string;
   repositoryId: string;
   status: 'queued' | 'running' | 'done' | 'failed';
+  stage: string | null;
   kind: string | null;
   score: number | null;
   categoryScores: unknown;
@@ -68,6 +70,7 @@ export default async function MyRepositoriesPage({ searchParams }: PageProps) {
           id: analyses.id,
           repositoryId: analyses.repositoryId,
           status: analyses.status,
+          stage: analyses.stage,
           kind: analyses.kind,
           score: analyses.score,
           categoryScores: analyses.categoryScores,
@@ -284,7 +287,12 @@ function RepoCard({
             {isPrivate && <Chip tone="outline">🔒 Приватный · видно только вам</Chip>}
             {language && <Chip>{language}</Chip>}
             {inProgress && (
-              <Chip tone="outline">{inProgress.status === 'running' ? 'Считается…' : 'В очереди'}</Chip>
+              <LiveRunStatus
+                analysisId={inProgress.id}
+                initialStatus={inProgress.status as 'queued' | 'running'}
+                initialStage={inProgress.stage}
+                again={Boolean(done)}
+              />
             )}
           </div>
         </div>
@@ -297,7 +305,7 @@ function RepoCard({
             Полезный материал — такие репозитории баллом не меряем.
           </p>
         ) : (
-          <div className="@container">
+          <div className={inProgress ? '@container opacity-60 transition' : '@container'}>
             <CategoryMini values={pickCategoryValues(done.categoryScores)} size="md" />
           </div>
         )
@@ -311,7 +319,9 @@ function RepoCard({
 
       {done?.finishedAt && (
         <div className="text-xs text-[color:var(--muted)]">
-          Оценка от {formatDate(done.finishedAt)} · следующий пересчёт в 00:00
+          {inProgress
+            ? `Сейчас балл от ${formatDate(done.finishedAt)} — идёт переоценка, новый появится здесь сам`
+            : `Оценка от ${formatDate(done.finishedAt)} · следующий пересчёт в 00:00`}
         </div>
       )}
 

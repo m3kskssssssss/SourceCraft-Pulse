@@ -75,7 +75,7 @@ export async function enqueueOwnerAnalysis(
   db: Db,
   userId: string,
   repositoryId: string,
-  reason: 'verified' | 'daily' | 'manual',
+  reason: 'verified' | 'daily' | 'manual' | 'pr_merged',
 ): Promise<string | null> {
   const pending = await db
     .select({ id: analyses.id })

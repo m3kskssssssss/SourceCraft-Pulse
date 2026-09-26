@@ -14,12 +14,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { db } from '@/db/client';
 import { analyses, events, ownedRepositories, repositories, sourcecraftTokens } from '@/db/schema';
 import { parseSlug, InvalidSlugError } from '@/lib/slug';
-import { LIMIT_MESSAGES, getUserLimits } from '@/lib/limits';
+import { checkUserLimits } from '@/lib/limits';
 import {
   enqueueOwnerAnalysis,
   ensureRepository,
@@ -215,22 +215,6 @@ export async function evaluateOwnedRepoAction(formData: FormData): Promise<void>
   const analysisId = await enqueueOwnerAnalysis(db, userId, row.repo.id, 'manual');
   revalidatePath('/repos');
   redirect(analysisId ? `/a/${analysisId}` : '/repos');
-}
-
-async function checkUserLimits(userId: string): Promise<string | null> {
-  const limits = await getUserLimits();
-  const dayAgo = new Date(Date.now() - 24 * 3600 * 1000);
-  const [daily] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(analyses)
-    .where(and(eq(analyses.requestedBy, userId), gte(analyses.createdAt, dayAgo)));
-  if ((daily?.count ?? 0) >= limits.daily) return LIMIT_MESSAGES.daily(limits.daily);
-  const [running] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(analyses)
-    .where(and(eq(analyses.requestedBy, userId), inArray(analyses.status, ['queued', 'running'])));
-  if ((running?.count ?? 0) >= limits.concurrent) return LIMIT_MESSAGES.concurrent(limits.concurrent);
-  return null;
 }
 
 /**

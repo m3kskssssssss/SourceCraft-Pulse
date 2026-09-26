@@ -79,13 +79,14 @@ src/
 │   │   ├── auth.ts               # signUpAction, signOutAction
 │   │   ├── analyze.ts            # analyzeRepo — slug + limits + SC check + queue
 │   │   ├── visibility.ts         # setAnalysisVisibility (публикация в рейтинг)
-│   │   ├── improvements.ts       # «Создать pull request» со страницы анализа
+│   │   ├── improvements.ts       # PR из подготовленного предложения, ответ «PR приняли?» → переоценка
 │   │   ├── repos.ts              # мои репозитории: по личному токену SC или ключом, убрать
 │   │   ├── profile.ts            # профиль, загрузка фото, смена пароля
 │   │   └── social.ts             # оценка анализа и комментарии
 │   ├── api/users/[id]/avatar/route.ts       # фото профиля из bytea
 │   ├── api/analyses/[id]/run/route.ts       # считает анализ в запросе (maxDuration 300)
 │   ├── api/analyses/[id]/status/route.ts    # статус для опроса со страницы
+│   ├── api/improvements/[analysisId]/route.ts  # POST — подготовка правок для PR (maxDuration 300), GET — статус
 │   ├── api/badge/[org]/[repo].svg/route.ts    # SVG-бейдж по последнему public
 │   ├── api/card/[org]/[repo]/route.ts         # SVG-карточка: балл, категории, язык, дата пересчёта
 │   ├── api/cron/refresh-badges/route.ts       # суточный пересчёт своих репозиториев (Bearer CRON_SECRET)
@@ -108,11 +109,11 @@ src/
 │   ├── not-found.tsx             # общий 404
 │   ├── icon.svg                  # ЧБ-логотип-favicon; favicon.ico (16/32/48) и apple-icon.png (180) — он же в PNG
 │   │                             # public/pulse-icon-512.png — крупная иконка (например, для приложения Яндекс ID)
-│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, Leaderboard (подиум и строки рейтинга), HeaderNav (вкладки шапки), UserDirectory (карточки пользователей), HowAnalysisWorks + process-scenes.tsx (анимация шагов оценки в стиле планеты), ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, learn/ (ArticleCard, ArticleBody, PixelScene + scenes.ts — 8-битные сцены на canvas, Figures — SVG-иллюстрации), ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
+│   └── components/               # AnalyzeForm, SignInForm, SignUpForm, UserBar, AdminShell, AdminSettingsForm, BadgeMarkdown, AdminSignInForm, AnalysisHistory, GitTree, Planet, Leaderboard (подиум и строки рейтинга), HeaderNav (вкладки шапки), ImprovementPr (подготовка, вкладки правок, вопрос «PR приняли?»), LiveRunStatus (живой статус оценки на карточке), UserDirectory (карточки пользователей), HowAnalysisWorks + process-scenes.tsx (анимация шагов оценки в стиле планеты), ConfirmSubmit, Avatar, RatingStars, CommentThread, ProfileForm, MobileMenu, learn/ (ArticleCard, ArticleBody, PixelScene + scenes.ts — 8-битные сцены на canvas, Figures — SVG-иллюстрации), ui.tsx (Button/Input/Field/Card/Chip/ScoreDial/Bar/Stat/EmptyState/StarIcon/CommentIcon)
 ├── cli/
 │   └── collect.ts                # pnpm collect <org> <repo>
 ├── db/
-│   ├── schema.ts                 # 15 таблиц Drizzle
+│   ├── schema.ts                 # 16 таблиц Drizzle
 │   ├── client.ts                 # neon-http, для приложения (короткоживущие serverless)
 │   ├── worker-client.ts          # pg-Pool, только для воркера (FOR UPDATE SKIP LOCKED)
 │   ├── migrate.ts                # pnpm db:migrate
@@ -131,7 +132,7 @@ src/
 │   ├── badge-shared.ts           # общее для бейджей: палитра (#000000), сетка, анимированный глобус (SMIL)
 │   ├── token-ownership.ts        # по токену SC: /user, /orgs/{org}/repos, роли admin/maintainer
 │   ├── token-sync.ts             # синхронизация по токену; автосинхронизация раз в 5 минут (воркер или /api/cron/sync-tokens)
-│   ├── improvements/             # PR с улучшениями: plan.ts (какие файлы добавить, шаблоны), pull-request.ts (isomorphic-git: коммит в дерево без checkout, push, POST /pulls), for-analysis.ts (права: подтверждённый владелец + токен)
+│   ├── improvements/             # PR с улучшениями: plan.ts (шаблоны недостающих файлов), prepare.ts (клон + ИИ + проверка → improvement_proposals), edits.ts (найти→заменить, дифф, запретные пути), proposal.ts (типы, прирост балла, описание PR), workspace.ts (клон, запись файла с проверкой версии), pull-request.ts (коммит, push, POST /pulls), for-analysis.ts (права: подтверждённый владелец + токен, статус PR)
 │   ├── theme.ts                  # ключ темы в localStorage и скрипт для <head> (без мигания)
 │   ├── token-crypto.ts           # AES-256-GCM для хранимых токенов (TOKEN_ENCRYPTION_KEY, иначе из AUTH_SECRET)
 │   ├── owner-runs.ts             # досчитать ждущие прогоны своих репозиториев в cron-запросе
@@ -143,7 +144,7 @@ src/
 │   │   ├── budget.ts             # assertUnderMonthlyBudget
 │   │   ├── runner.ts             # runAiTask: cache + budget + zod + retry + fallback
 │   │   ├── pipeline.ts           # runAiAnalysis: четыре задачи параллельно
-│   │   └── tasks/                # repo-kind.ts (проект или материал), file-selection.ts (что читать), readme-rubric.ts, code-review.ts, pr-issues-digest.ts, recommendation-copy.ts
+│   │   └── tasks/                # repo-kind.ts (проект или материал), file-selection.ts (что читать), readme-rubric.ts, code-review.ts, pr-issues-digest.ts, recommendation-copy.ts, improve-docs.ts и improve-code.ts (правки для PR)
 │   ├── scoring/
 │   │   ├── index.ts              # scoreRepo(facts, {aiDocsScore?, aiCodeScore?}) → AnalysisResult
 │   │   ├── config.ts             # веса, пороги, штрафы, effort
@@ -188,6 +189,8 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 ```
 
 ## Прогресс
+
+- [x] Этап 47 — PR с правками кода и документации: «Подготовить изменения» (`/api/improvements/[analysisId]`, 300 с) — клон токеном владельца, две ИИ-задачи параллельно (`improve_docs` дописывает README целиком, `improve_code` правит файлы ревью блоками «найти → заменить», фрагмент обязан встретиться ровно один раз), плюс шаблоны недостающих файлов; предложение хранится в `improvement_proposals` — в PR уходит ровно то, что было в превью, а файл, изменившийся после подготовки, пропускается; на странице две вкладки «Документация» и «Код» с галочками и диффом, сверху «≈ +N к оценке» по разделам, пересчёт на каждой галочке; после PR — вопрос «PR приняли?», «да» ставит переоценку; в «Моих репозиториях» живой статус «Переоценивается · фаза» (LiveRunStatus сам запускает прогон из очереди и перерисовывает карточку); приватный код во внешнюю модель не уходит — там только шаблоны
 
 - [x] Этап 46 — «Оценить заново» в карточке репозитория и «Попробовать заново» у упавшего анализа больше не ведут на пустую форму: владельцу — сразу оценка его правами (ReevaluateButton → EvaluateButton), остальным — `/analyze?target=org/repo`, оценка стартует без ввода адреса
 

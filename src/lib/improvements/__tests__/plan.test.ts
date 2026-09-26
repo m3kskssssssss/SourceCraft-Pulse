@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planImprovements, pullRequestDescription, type PlanInput } from '../plan';
+import { planImprovements, type PlanInput } from '../plan';
 
 const none = {
   hasReadme: false,
@@ -69,15 +69,5 @@ describe('planImprovements', () => {
     const items = planImprovements({ ...base, language: 'Python', paths: ['main.py', 'requirements.txt'] });
     expect(items.find((i) => i.key === 'add_gitignore')!.files[0]!.content).toContain('__pycache__/');
     expect(items.find((i) => i.key === 'add_editorconfig')!.files[0]!.content).toContain('indent_size = 4');
-  });
-});
-
-describe('pullRequestDescription', () => {
-  it('перечисляет изменения, файлы и оговорки', () => {
-    const items = planImprovements(base).filter((i) => i.key === 'add_license');
-    const text = pullRequestDescription(items, null);
-    expect(text).toContain('### Добавить LICENSE (MIT)');
-    expect(text).toContain('`LICENSE`');
-    expect(text).toContain('Существующие файлы не изменяются');
   });
 });
