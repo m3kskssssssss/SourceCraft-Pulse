@@ -76,11 +76,7 @@ function SiteFooter() {
           <Link className="transition hover:text-[color:var(--ink)]" href="/methodology">
             Как считается балл
           </Link>
-          <Link
-            className="transition hover:text-[color:var(--ink)]"
-            href="/api/public/leaderboard"
-            prefetch={false}
-          >
+          <Link className="transition hover:text-[color:var(--ink)]" href="/api-docs">
             Публичный API
           </Link>
           <a

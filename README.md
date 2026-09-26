@@ -160,6 +160,10 @@ flowchart LR
 | `GET /api/public/repos/<org>/<repo>` | последний публичный анализ репозитория |
 | `GET /api/badge/<org>/<repo>.svg` | SVG-бейдж с баллом |
 | `GET /a/<id>/report.md` | отчёт об анализе одним Markdown-файлом: категории, метрики, штрафы, рекомендации |
+| `POST /api/public/analyze` | оценить публичный репозиторий из curl: `-d '{"repo":"org/repo"}'`; ответ — полный отчёт в JSON (свежий отчёт отдаётся без пересчёта, 5 новых прогонов в час с адреса) |
+| `GET /api/public/repos/<org>/<repo>/report` | полный отчёт последней оценки в JSON, `?format=md` — в Markdown |
+
+Документация с примерами — на странице `/api-docs` сайта.
 
 ## Честно о данных
 
