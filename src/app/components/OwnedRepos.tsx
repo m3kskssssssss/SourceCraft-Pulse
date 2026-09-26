@@ -326,7 +326,7 @@ export function CardBadgeMarkdown({ org, repo }: { org: string; repo: string }) 
       {src && (
         // Сам SVG из нашего же маршрута: next/image тут только мешал бы.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={`Pulse: ${org}/${repo}`} width={440} height={132} className="max-w-full" />
+        <img src={src} alt={`Pulse: ${org}/${repo}`} width={484} height={132} className="max-w-full" />
       )}
       <CopyField value={markdown} label="Markdown карточки" />
     </div>

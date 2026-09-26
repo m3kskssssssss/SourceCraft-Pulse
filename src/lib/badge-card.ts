@@ -41,7 +41,8 @@ export type BadgeCardInput = {
   verified: boolean;
 };
 
-const WIDTH = 440;
+/** На 10% шире прежних 440: длинные имена и подписи не упирались в край. */
+const WIDTH = 484;
 const HEIGHT = 132;
 const RADIUS = 10;
 const PAD = 16;
@@ -67,7 +68,7 @@ const ROW_Y0 = TOP_Y + 22;
 const ROW_STEP = 16;
 
 /** На глаз: шрифта у нас нет, измерять нечем. */
-const TITLE_MAX_CHARS = 36;
+const TITLE_MAX_CHARS = 40;
 
 export function renderBadgeCardSvg(input: BadgeCardInput): string {
   const score =
