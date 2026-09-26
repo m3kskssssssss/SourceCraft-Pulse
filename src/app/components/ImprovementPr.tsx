@@ -116,7 +116,11 @@ function Intro({
       <div className="grid gap-3 sm:grid-cols-2">
         <SectionTeaser
           title="Документация"
-          text="README дополним или напишем по данным репозитория, добавим LICENSE, CONTRIBUTING и другие недостающие файлы."
+          text={
+            isPrivate
+              ? 'README дополним или напишем по данным репозитория, добавим LICENSE, CONTRIBUTING и другие недостающие файлы.'
+              : 'README дополним или напишем по данным репозитория и поставим в него карточку Pulse, добавим LICENSE, CONTRIBUTING и другие недостающие файлы.'
+          }
         />
         <SectionTeaser
           title="Код"

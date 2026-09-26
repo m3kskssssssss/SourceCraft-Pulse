@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySearchReplace, detectEol, isEditablePath, lineDiff, withEol } from '../edits';
+import { applySearchReplace, detectEol, insertAfterTitle, isEditablePath, lineDiff, withEol } from '../edits';
 
 describe('applySearchReplace', () => {
   const file = 'function a() {\n  return 1;\n}\n\nfunction b() {\n  return 2;\n}\n';
@@ -92,5 +92,25 @@ describe('lineDiff', () => {
       { t: 'add', text: 'a' },
       { t: 'add', text: 'b' },
     ]);
+  });
+});
+
+describe('insertAfterTitle', () => {
+  const card = '[![Pulse](https://x/card.svg)](https://x/r/a/b)';
+
+  it('ставит строку под первым заголовком', () => {
+    expect(insertAfterTitle('# Проект\n\nТекст\n', card)).toBe(`# Проект\n\n${card}\n\nТекст\n`);
+  });
+
+  it('без заголовка — в начало', () => {
+    expect(insertAfterTitle('Текст\n', card)).toBe(`${card}\n\nТекст\n`);
+  });
+
+  it('сохраняет CRLF', () => {
+    expect(insertAfterTitle('# A\r\nB\r\n', card)).toBe(`# A\r\n\r\n${card}\r\n\r\nB\r\n`);
+  });
+
+  it('README из одного заголовка', () => {
+    expect(insertAfterTitle('# A\n', card)).toBe(`# A\n\n${card}\n`);
   });
 });

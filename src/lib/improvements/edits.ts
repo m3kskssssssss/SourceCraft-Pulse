@@ -184,3 +184,20 @@ function lcsOps(a: string[], b: string[]): Op[] {
   while (j < m) ops.push({ t: 'add', text: b[j++]! });
   return ops;
 }
+
+// ---------- Строка под заголовком README ----------
+
+/**
+ * Вставляет строку сразу под первым заголовком «# …» с пустыми строками
+ * вокруг; заголовка нет — в самое начало. Перевод строк файла сохраняется.
+ */
+export function insertAfterTitle(text: string, line: string): string {
+  const eol = detectEol(text);
+  const lines = toLf(text).split('\n');
+  const title = lines.findIndex((l) => /^#\s/.test(l));
+  if (title < 0) return withEol(`${line}\n\n${toLf(text)}`, eol);
+  const rest = lines.slice(title + 1);
+  while (rest.length > 0 && rest[0]!.trim() === '') rest.shift();
+  const out = [...lines.slice(0, title + 1), '', line, ...(rest.length > 0 ? ['', ...rest] : [''])];
+  return withEol(out.join('\n'), eol);
+}

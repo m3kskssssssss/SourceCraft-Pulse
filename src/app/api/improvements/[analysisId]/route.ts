@@ -23,7 +23,7 @@ const DEADLINE_MS = 270_000;
 
 type RouteContext = { params: Promise<{ analysisId: string }> };
 
-export async function POST(_request: Request, context: RouteContext): Promise<Response> {
+export async function POST(request: Request, context: RouteContext): Promise<Response> {
   const started = Date.now();
   const { analysisId } = await context.params;
   const userId = await currentUserId();
@@ -44,7 +44,7 @@ export async function POST(_request: Request, context: RouteContext): Promise<Re
     .returning({ id: improvementProposals.id });
   if (!row) return NextResponse.json({ error: 'insert_failed' }, { status: 500 });
 
-  await prepareProposal(ctx, row.id, started + DEADLINE_MS);
+  await prepareProposal(ctx, row.id, started + DEADLINE_MS, siteOrigin(request));
 
   const fresh = await getLatestProposal(analysisId, userId);
   await db.insert(events).values({
@@ -68,6 +68,20 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     stage: latest.stage,
     startedAt: latest.createdAt.toISOString(),
   });
+}
+
+/**
+ * Адрес сайта для карточки в README. Берём тот, с которого пришёл запрос,
+ * — как и карточка в «Моих репозиториях», которая смотрит в адрес страницы.
+ */
+function siteOrigin(request: Request): string | null {
+  const raw = request.headers.get('origin') ?? new URL(request.url).origin;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null;
+  } catch {
+    return null;
+  }
 }
 
 async function currentUserId(): Promise<string | null> {

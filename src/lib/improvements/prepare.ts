@@ -24,7 +24,7 @@ import { CATEGORY_WEIGHTS } from '../scoring/config';
 import type { CategoryKey } from '../scoring/types';
 import { getSetting } from '../settings';
 import { decryptToken } from '../token-crypto';
-import { applySearchReplace, detectEol, isEditablePath, lineDiff, toLf, withEol } from './edits';
+import { applySearchReplace, detectEol, insertAfterTitle, isEditablePath, lineDiff, toLf, withEol } from './edits';
 import type { ImprovementContext } from './for-analysis';
 import type { ImprovementKey } from './plan';
 import { round1, type ProposalItem, type ProposalNotes } from './proposal';
@@ -77,6 +77,8 @@ export async function prepareProposal(
   ctx: ImprovementContext,
   proposalId: string,
   deadlineAt: number,
+  /** Адрес сайта для карточки Pulse в README; null — карточку не ставим. */
+  origin: string | null,
 ): Promise<void> {
   const setStage = (stage: string) =>
     db
@@ -334,6 +336,18 @@ export async function prepareProposal(
       }
     }
 
+    // Карточка Pulse под заголовком README. У приватного репозитория её нет:
+    // оценки не публикуются, картинка была бы битой.
+    if (origin && !ctx.isPrivate) {
+      addPulseCard(items, {
+        origin,
+        org: ctx.org,
+        repo: ctx.repo,
+        readmePath,
+        readme: readmeFile?.text ? { oid: readmeFile.oid, text: readmeFile.text } : null,
+      });
+    }
+
     // Внутри раздела — сначала то, что сильнее двигает оценку.
     items.sort((a, b) => (a.section === b.section ? (b.gain ?? 0) - (a.gain ?? 0) : a.section === 'docs' ? -1 : 1));
 
@@ -356,6 +370,57 @@ export async function prepareProposal(
   } finally {
     await ws?.cleanup();
   }
+}
+
+// ---------- Карточка Pulse ----------
+
+const README_RE = /^readme(\.(md|markdown))?$/i;
+
+/**
+ * Ставит карточку в README из предложения (правка модели или шаблон), а если
+ * README в предложение не попал — отдельным пунктом к существующему README.
+ * Карточка уже есть в файле — ничего не делаем.
+ */
+function addPulseCard(
+  items: ProposalItem[],
+  input: {
+    origin: string;
+    org: string;
+    repo: string;
+    readmePath: string | null;
+    readme: { oid: string; text: string } | null;
+  },
+): void {
+  const base = input.origin.replace(/\/+$/, '');
+  const slug = `${encodeURIComponent(input.org)}/${encodeURIComponent(input.repo)}`;
+  const card = `[![Pulse](${base}/api/card/${slug}.svg)](${base}/r/${slug})`;
+  const hasCard = (text: string) =>
+    text.includes(`/api/card/${slug}`) || text.includes(`/api/badge/${slug}`);
+
+  const item = items.find((i) => i.section === 'docs' && README_RE.test(i.path));
+  if (item) {
+    if (hasCard(item.content)) return;
+    item.content = insertAfterTitle(item.content, card);
+    item.diff = lineDiff(item.action === 'modify' ? (input.readme?.text ?? '') : '', item.content);
+    item.why = `${item.why} В начало добавлена карточка Pulse с оценкой репозитория.`;
+    return;
+  }
+
+  if (!input.readme || !input.readmePath || !README_RE.test(input.readmePath) || hasCard(input.readme.text)) return;
+  const content = insertAfterTitle(input.readme.text, card);
+  items.push({
+    id: 'docs-pulse-card',
+    section: 'docs',
+    source: 'template',
+    action: 'modify',
+    path: input.readmePath,
+    title: 'Добавить карточку Pulse в README',
+    why: 'Карточка под заголовком README показывает балл и категории репозитория и обновляется после каждой переоценки.',
+    baseOid: input.readme.oid,
+    content,
+    diff: lineDiff(input.readme.text, content),
+    gain: null,
+  });
 }
 
 // ---------- Чтение ----------
