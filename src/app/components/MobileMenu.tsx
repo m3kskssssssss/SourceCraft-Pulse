@@ -1,9 +1,13 @@
 'use client';
 
-// Меню шапки на телефоне: одна кнопка справа вместо россыпи ссылок.
+// Меню шапки на телефоне: одна кнопка «ещё» справа.
 //
-// Раньше ссылки уезжали во вторую строку, и шапка занимала два этажа ради
-// двух пунктов. Теперь всё, включая вход и выход, живёт под кнопкой справа.
+// Основная навигация на телефоне — нижняя панель (MobileTabBar), и аватар
+// живёт в ней, на вкладке профиля. Шапка его не повторяет: так устроены
+// Instagram и Telegram на iOS, так советуют Apple HIG и Material 3 — одна
+// точка идентичности, одна основная навигация. Здесь — только второстепенное:
+// разделы, которых нет в нижней панели, тема, настройки и выход. Кнопка —
+// иконка без подписи, зона нажатия 44×44 (минимум по HIG).
 //
 // Клиентский компонент, а не <details>: меню должно закрываться при переходе
 // и по клику мимо, а разметка App Router между переходами сохраняется —
@@ -14,7 +18,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOutAction } from '@/app/actions/auth';
 import type { PublicUser } from '@/lib/user-display';
-import { Avatar } from './Avatar';
 import { ThemeToggle } from './ThemeToggle';
 import { isActivePath } from './HeaderNav';
 import { cx } from './ui';
@@ -31,6 +34,13 @@ export function MobileMenu({
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const rootRef = useRef<HTMLDivElement>(null);
+  // Что уже есть в нижней панели, в меню не дублируем.
+  const inTabBar = new Set(['/', '/rating', '/analyze', user ? '/repos' : '/learn']);
+  const items = [
+    ...links.filter((link) => !inTabBar.has(link.href)),
+    { href: '/methodology', label: 'Как считается балл' },
+    { href: '/api-docs', label: 'Публичный API' },
+  ];
 
   // Переход по ссылке меню не перерисовывает шапку — закрываем сами.
   useEffect(() => {
@@ -62,14 +72,13 @@ export function MobileMenu({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label="Меню"
+        aria-label={open ? 'Закрыть меню' : 'Меню'}
         className={cx(
-          'flex items-center gap-1.5 rounded-full border border-[color:var(--line)] py-1 pl-1 pr-2 transition',
+          'tap -mr-2 flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--ink)] transition active:scale-95',
           open ? 'bg-[color:var(--panel)]' : 'hover:bg-[color:var(--panel)]',
         )}
       >
-        {user ? <Avatar user={user} size={26} /> : <BurgerIcon />}
-        <ChevronIcon open={open} />
+        <MenuIcon open={open} />
       </button>
 
       {open && (
@@ -77,21 +86,8 @@ export function MobileMenu({
           role="menu"
           className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--paper)] p-1.5 shadow-[var(--shadow-2)]"
         >
-          {user && (
-            <div className="border-b border-[color:var(--line)] px-3 pb-2.5 pt-2">
-              <div className="truncate text-sm font-medium">{user.displayName}</div>
-              <Link
-                href={`/u/${user.id}`}
-                onClick={() => setOpen(false)}
-                className="text-xs text-[color:var(--muted)] underline-offset-4 hover:underline"
-              >
-                Моя страница
-              </Link>
-            </div>
-          )}
-
           <nav className="grid py-1">
-            {links.map((link) => (
+            {items.map((link) => (
               <MenuItem
                 key={link.href}
                 href={link.href}
@@ -111,6 +107,9 @@ export function MobileMenu({
           <div className="border-t border-[color:var(--line)] pt-1">
             {user ? (
               <>
+                <div className="truncate px-3 pb-1 pt-2 text-xs text-[color:var(--muted)]">
+                  Вы вошли как {user.displayName}
+                </div>
                 <MenuItem href="/profile" onNavigate={() => setOpen(false)}>
                   Настройки профиля
                 </MenuItem>
@@ -125,9 +124,7 @@ export function MobileMenu({
               </>
             ) : (
               <>
-                <MenuItem href="/signin" onNavigate={() => setOpen(false)}>
-                  Войти
-                </MenuItem>
+                {/* «Войти» есть в нижней панели, здесь — только регистрация. */}
                 <MenuItem href="/signup" onNavigate={() => setOpen(false)}>
                   Регистрация
                 </MenuItem>
@@ -167,29 +164,17 @@ function MenuItem({
   );
 }
 
-function BurgerIcon() {
+/**
+ * Три полоски; у открытого меню верхняя и нижняя сходятся в крестик, средняя
+ * гаснет. Так кнопка сама говорит, что вторым нажатием меню закроется.
+ */
+function MenuIcon({ open }: { open: boolean }) {
+  const line = 'origin-center transition-transform duration-200 ease-out';
   return (
-    <span className="flex h-[26px] w-[26px] items-center justify-center" aria-hidden>
-      <svg viewBox="0 0 16 16" width="15" height="15" stroke="currentColor" strokeWidth="1.6">
-        <path d="M2 4h12M2 8h12M2 12h12" strokeLinecap="round" />
-      </svg>
-    </span>
-  );
-}
-
-function ChevronIcon({ open }: { open: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 12 12"
-      width="9"
-      height="9"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      aria-hidden
-      className={cx('transition-transform duration-200', open && 'rotate-180')}
-    >
-      <path d="M2.5 4.5 6 8l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+      <path d="M4 7h16" className={line} style={{ transform: open ? 'translateY(5px) rotate(45deg)' : undefined, transformBox: 'fill-box' }} />
+      <path d="M4 12h16" className="transition-opacity duration-150" style={{ opacity: open ? 0 : 1 }} />
+      <path d="M4 17h16" className={line} style={{ transform: open ? 'translateY(-5px) rotate(-45deg)' : undefined, transformBox: 'fill-box' }} />
     </svg>
   );
 }
