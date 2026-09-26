@@ -442,7 +442,7 @@ export default async function AnalysisPage({ params }: PageProps) {
       )}
 
       {/* Личная часть оценки: приватность и CI — только владельцу. */}
-      {isOwner && (repo?.isPrivate || ciMeta?.available || ownerAppSec) && (
+      {isOwner && (repo?.isPrivate || ciMeta?.available || ownerAppSec || !isMaterial) && (
         <section className="rise mt-10" style={{ animationDelay: '90ms' }}>
           <SectionHead
             eyebrow="Видно только вам"
@@ -490,6 +490,17 @@ export default async function AnalysisPage({ params }: PageProps) {
                     </p>
                   </>
                 )}
+              </CardDiv>
+            )}
+            {!repo?.isPrivate && !ownerAppSec && (
+              <CardDiv tone="outline" className="sm:col-span-2">
+                <div className="text-sm font-medium">Безопасность по SourceCraft AppSec</div>
+                <p className="mt-1 text-sm text-[color:var(--muted)]">
+                  В этом прогоне AppSec не запрашивали: оценка шла без вашего токена SourceCraft. Токен
+                  подставляется, только когда репозиторий подтверждён как ваш в «Моих репозиториях»,
+                  токен сохранён и действует, а оценку запускаете вы. Проверьте это и нажмите
+                  «Оценить заново».
+                </p>
               </CardDiv>
             )}
             {ownerAppSec && (

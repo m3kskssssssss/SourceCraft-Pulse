@@ -119,22 +119,19 @@ export async function scanTokenRepositories(
   const notes: string[] = [];
   const found: Repository[] = [];
 
-  // Основной источник — GET /me/repos: все репозитории, доступные владельцу
-  // токена, из любых его организаций. Если эндпоинт недоступен, откатываемся
-  // к прежнему способу: личное пространство плюс названные организации.
-  let fromMe = false;
+  // Основной источник — GET /me/repos: репозитории организаций, где владелец
+  // токена участник. Личное пространство он НЕ отдаёт (проверено 26.09 на
+  // аккаунте ilugly: только lct-hackaton-2026, без ilugly/*), поэтому его
+  // обходим всегда, а при недоступном /me/repos — ещё и названные организации.
   try {
     found.push(
       ...(await client.collect((p) => client.listMyRepositories(p), 'repositories', MY_REPOS_LIMIT)),
     );
-    fromMe = true;
   } catch (err) {
     notes.push(`Список «мои репозитории» недоступен (${describeError(err)}) — ищем по организациям.`);
   }
 
-  const orgs = fromMe
-    ? extraOrgs
-    : [...new Set([user.username, ...extraOrgs].filter((o): o is string => Boolean(o)))];
+  const orgs = [...new Set([user.username, ...extraOrgs].filter((o): o is string => Boolean(o)))];
   for (const org of orgs) {
     try {
       const list = await client.collect(
