@@ -15,6 +15,9 @@ import type { AiProvider } from '../provider';
 import type { AiTelemetry } from '../telemetry';
 import { runAiTask, type RunAiTaskResult } from '../runner';
 
+/** Меняется вместе с правилами промпта — иначе кэш вернёт ответы по старым. */
+const PROMPT_VERSION = 2;
+
 const gain = z.number().min(0).max(100).catch(0);
 
 const base = {
@@ -56,6 +59,8 @@ export type ImproveCodeInput = {
   otherFiles: string[];
   manifests: Array<{ path: string; excerpt: string }>;
   plannedFiles: Array<{ path: string; title: string }>;
+  /** Только для ключа кэша, ставит сама задача. */
+  promptVersion?: number;
 };
 
 const SYSTEM = `Ты — старший инженер. Готовишь небольшой, аккуратный pull request с
@@ -100,6 +105,9 @@ markdown-ограждений вокруг JSON.
 - Сохраняй стиль файла: отступы, кавычки, язык комментариев.
 - Нельзя: новые зависимости, лок-файлы, CI, конфиги сборки, .env, секреты.
 - НИЧЕГО НЕ ВЫДУМЫВАЙ: не вызывай функций и модулей, которых не видишь.
+- Не оставляй пометок TODO, FIXME, HACK и заглушек: правка должна быть
+  законченной. Где не хватает данных — сделай аккуратное решение, подходящее по
+  смыслу окружающего кода, или не предлагай эту правку.
 - Не больше 6 правок. Лучше 2 надёжные, чем 6 сомнительных. Нет уверенных
   правок — верни "changes": [].
 - category_gain реалистичный, обычно 1-6 баллов за правку; текущая оценка кода
@@ -155,7 +163,8 @@ export async function runImproveCode(args: {
     cache: args.cache,
     telemetry: args.telemetry,
     task: 'improve_code',
-    input: args.input,
+    // Версия промпта входит в ключ кэша, а в сам промпт не попадает.
+    input: { ...args.input, promptVersion: PROMPT_VERSION },
     schema: codeSchema,
     buildPrompt,
     fallback: () => null,

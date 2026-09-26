@@ -227,7 +227,10 @@ export async function prepareProposal(
         continue;
       }
       const before = existing?.text ?? '';
-      const content = withEol(ensureNewline(change.content), existing?.text ? detectEol(existing.text) : '\n');
+      const content = withEol(
+        ensureNewline(stripTodoMarks(change.content)),
+        existing?.text ? detectEol(existing.text) : '\n',
+      );
       if (content === before) continue;
       if (isReadme && !existing) aiReadme = true;
       items.push({
@@ -238,7 +241,7 @@ export async function prepareProposal(
         path,
         title: change.title,
         why: change.why,
-        note: 'Текст подготовлен моделью: проверьте факты и допишите места с пометкой TODO.',
+        note: 'Текст подготовлен моделью: перечитайте его и поправьте то, что знаете о проекте лучше.',
         baseOid: existing?.oid ?? null,
         content,
         diff: lineDiff(before, content),
@@ -504,6 +507,19 @@ function validSyntax(path: string, content: string): boolean {
     }
   }
   return true;
+}
+
+/**
+ * Страховка к правилу промпта: модель просят не оставлять пометок TODO, но
+ * если оставила — убираем HTML-комментарии с ними и строки из одной пометки.
+ */
+function stripTodoMarks(text: string): string {
+  return toLf(text)
+    .replace(/<!--\s*(TODO|FIXME)[\s\S]*?-->/gi, '')
+    .split('\n')
+    .filter((line) => !/^\s*(>\s*)?[-*]?\s*(TODO|FIXME)\b/i.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 function ensureNewline(text: string): string {
