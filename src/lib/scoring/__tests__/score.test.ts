@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scoreRepo } from '..';
+import { scoreForOwner, scoreRepo } from '..';
 import { CATEGORY_WEIGHTS, PENALTIES, RECOMMENDATIONS_LIMIT } from '../config';
 import { computeCoverage } from '../coverage';
 import type { MetricScore } from '../types';
@@ -231,6 +231,44 @@ describe('scoreRepo — шесть категорий ТЗ', () => {
     expect(full).not.toBeNull();
     expect(noAppSec).not.toBeNull();
     expect(full! - noAppSec!).toBeCloseTo(0.2, 5);
+  });
+});
+
+describe('scoreForOwner — полная оценка владельца', () => {
+  const publicFacts = () => {
+    const facts = makePerfectFacts();
+    return {
+      ...facts,
+      security: { ...facts.security, available: false, missing: ['sourcecraft_appsec_not_public'] },
+    };
+  };
+
+  it('без владельческих данных — null', () => {
+    expect(scoreForOwner(publicFacts())).toBeNull();
+  });
+
+  it('считает AppSec и прогоны CI, которых нет в публичном балле', () => {
+    const facts = publicFacts();
+    const withOwner = {
+      ...facts,
+      ownerAppSec: {
+        provider: 'sourcecraft_appsec' as const,
+        available: true,
+        vulnerabilities: [],
+        totalScanned: 0,
+        errors: [],
+        missing: [],
+      },
+      ci: { ...facts.ci, available: true, reason: null, sampled: 10, succeeded: 10, failed: 0 },
+    };
+    const pub = scoreRepo(withOwner);
+    const own = scoreForOwner(withOwner)!;
+    expect(pub.categoryScores.find((c) => c.key === 'security')?.value).toBeNull();
+    expect(own.categoryScores.find((c) => c.key === 'security')?.value).toBe(100);
+    const runs = (r: typeof pub) =>
+      r.categoryScores.find((c) => c.key === 'ci')!.metrics.find((m) => m.key === 'ci.runs_success');
+    expect(runs(pub)?.unknown).toBe(true);
+    expect(runs(own)?.value).toBe(100);
   });
 });
 

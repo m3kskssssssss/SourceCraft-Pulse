@@ -14,11 +14,11 @@ import type { MetricScore } from '../types';
 
 const CATEGORY = 'ci' as const;
 
-export function computeCiMetrics(facts: RepoFacts): MetricScore[] {
+export function computeCiMetrics(facts: RepoFacts, options: { ownerView?: boolean } = {}): MetricScore[] {
   return [
     configPresentMetric(facts),
     ...pipelineMetrics(facts),
-    runsSuccessMetric(facts),
+    runsSuccessMetric(facts, options.ownerView ?? false),
   ];
 }
 
@@ -103,10 +103,11 @@ function pipelineMetrics(facts: RepoFacts): MetricScore[] {
   });
 }
 
-function runsSuccessMetric(facts: RepoFacts): MetricScore {
+function runsSuccessMetric(facts: RepoFacts, ownerView: boolean): MetricScore {
   const key = 'ci.runs_success';
   const weight = CI_WEIGHTS.runsSuccess;
-  if (isPublicRepo(facts)) {
+  // Полная оценка владельца считает прогоны и у публичного репозитория.
+  if (isPublicRepo(facts) && !ownerView) {
     return unknownMetric(key, weight, 'Прогоны CI видны только участникам — в публичный балл не входят');
   }
   const ci = facts.ci;

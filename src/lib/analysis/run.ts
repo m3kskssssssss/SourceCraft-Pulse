@@ -22,7 +22,7 @@ import {
 } from '../../db/schema';
 import { decryptToken } from '../token-crypto';
 import { collectRepoFacts, type RepoFacts } from '../collect';
-import { scoreRepo } from '../scoring';
+import { scoreForOwner, scoreRepo } from '../scoring';
 import { DrizzleAiCache } from '../ai/cache';
 import { DrizzleAiTelemetry } from '../ai/telemetry';
 import { getAiProvider } from '../ai/router';
@@ -216,6 +216,12 @@ export async function processAnalysis(
 
     setStage('score');
     const result = scoreRepo(facts, { aiDocsScore, aiCodeScore });
+    // Полная оценка для владельца публичного репозитория — с AppSec и
+    // прогонами CI. Её видит только он; в рейтинг и бейдж идёт `result`.
+    const ownerResult =
+      !repo.isPrivate && repoKind.kind !== 'material'
+        ? scoreForOwner(facts, { aiDocsScore, aiCodeScore })
+        : null;
 
     await db
       .update(analyses)
@@ -238,6 +244,14 @@ export async function processAnalysis(
           // Форки, зеркала, шаблоны и свежие копии шаблонов балл получают,
           // а места в рейтинге — нет (см. lib/rating-eligibility.ts).
           rating: { excluded: ratingExclusion(facts) },
+          owner: ownerResult
+            ? {
+                score: ownerResult.score,
+                scoreBeforePenalties: ownerResult.scoreBeforePenalties,
+                categoryScores: ownerResult.categoryScores,
+                penalties: ownerResult.penalties,
+              }
+            : null,
         },
         recommendations: result.recommendations as unknown as Record<string, unknown>,
         missing: result.missing as unknown as Record<string, unknown>,

@@ -46,7 +46,27 @@ export type ScoreRepoOptions = {
    * категория считается по code-facts как обычно.
    */
   aiCodeScore?: AiCategoryScore | null;
+  /**
+   * Оценка для владельца: считать и те данные, что SourceCraft отдаёт только
+   * участникам репозитория (прогоны CI у публичного репозитория). AppSec для
+   * этого подставляется в `facts.security` снаружи — см. scoreForOwner.
+   */
+  ownerView?: boolean;
 };
+
+/**
+ * Полная оценка публичного репозитория для его владельца: та же формула, но с
+ * находками AppSec и прогонами CI, которые платформа отдаёт только участникам.
+ * В рейтинг не идёт — там у всех одинаковый набор данных. null — владельческих
+ * данных в прогоне нет, и полная оценка совпала бы с публичной.
+ */
+export function scoreForOwner(facts: RepoFacts, options: ScoreRepoOptions = {}): AnalysisResult | null {
+  if (!facts.ownerAppSec && !facts.ci.available) return null;
+  return scoreRepo(
+    { ...facts, security: facts.ownerAppSec ?? facts.security },
+    { ...options, ownerView: true },
+  );
+}
 
 export function scoreRepo(facts: RepoFacts, options: ScoreRepoOptions = {}): AnalysisResult {
   const docsMetrics = aiOverride('docs', 'docs.ai_rubric', options.aiDocsScore, () =>
@@ -61,7 +81,7 @@ export function scoreRepo(facts: RepoFacts, options: ScoreRepoOptions = {}): Ana
     ...codeMetrics,
     ...computeActivityMetrics(facts),
     ...docsMetrics,
-    ...computeCiMetrics(facts),
+    ...computeCiMetrics(facts, { ownerView: options.ownerView ?? false }),
     ...computeIssuesMetrics(facts),
   ];
 

@@ -14,7 +14,7 @@ import { toggleVisibilityAction } from '@/app/actions/visibility';
 import { AnalysisHistory } from '@/app/components/AnalysisHistory';
 import { AnalysisRunner } from '@/app/components/AnalysisRunner';
 import { BadgeMarkdown } from '@/app/components/BadgeMarkdown';
-import { Bar, CardDiv, Chip, EmptyState, ScoreDial } from '@/app/components/ui';
+import { Bar, CardDiv, CategoryMini, Chip, EmptyState, ScoreDial } from '@/app/components/ui';
 import type { CategoryScore, MetricScore, Recommendation } from '@/lib/scoring/types';
 import type { Effort } from '@/lib/scoring/config';
 import {
@@ -22,6 +22,7 @@ import {
   CATEGORY_BLURBS,
   CATEGORY_TITLES,
   categoryOrder,
+  pickCategoryValues,
 } from '@/lib/category-meta';
 import { describeMissingList } from '@/lib/missing-labels';
 import { GitTree } from '@/app/components/GitTree';
@@ -215,6 +216,18 @@ export default async function AnalysisPage({ params }: PageProps) {
       : null;
   const ownerAppSec = isOwner ? (appSecFacts?.ownerAppSec ?? null) : null;
   const ownerAppSecScore = ownerAppSec?.available ? appSecCategoryScore(ownerAppSec) : null;
+  // Полная оценка публичного репозитория для владельца: с AppSec и прогонами CI.
+  const ownerFullRaw = isOwner
+    ? (analysis.metrics as { owner?: { score?: unknown; categoryScores?: unknown } | null } | null)?.owner
+    : null;
+  const ownerFull =
+    ownerFullRaw && typeof ownerFullRaw.score === 'number'
+      ? {
+          score: ownerFullRaw.score,
+          categories: pickCategoryValues(ownerFullRaw.categoryScores),
+          coverage: computeCoverage(ownerFullRaw.categoryScores),
+        }
+      : null;
   // Наш поиск строк, похожих на ключи: справка, не AppSec, на балл не влияет.
   const rawSecretHits = appSecFacts?.gitHistory?.secretHits;
   const secretHints = Array.isArray(rawSecretHits)
@@ -444,7 +457,7 @@ export default async function AnalysisPage({ params }: PageProps) {
       )}
 
       {/* Личная часть оценки: приватность и CI — только владельцу. */}
-      {isOwner && (repo?.isPrivate || ciMeta?.available || ownerAppSec || !isMaterial) && (
+      {isOwner && (repo?.isPrivate || ciMeta?.available || ownerAppSec || ownerFull || !isMaterial) && (
         <section className="rise mt-10" style={{ animationDelay: '90ms' }}>
           <SectionHead
             eyebrow="Видно только вам"
@@ -456,6 +469,32 @@ export default async function AnalysisPage({ params }: PageProps) {
             }
           />
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {ownerFull && !isMaterial && (
+              <CardDiv tone="outline" className="sm:col-span-2">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">Полная оценка — только для вас</div>
+                    <p className="mt-1 max-w-xl text-sm text-[color:var(--muted)]">
+                      Та же формула, но с находками SourceCraft AppSec и прогонами CI, которые платформа
+                      отдаёт только участникам репозитория. Публичный балл — {analysis.score ?? '—'}: в нём
+                      этих данных нет, как и у всех репозиториев рейтинга.
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="text-4xl font-semibold tabular-nums">{ownerFull.score}</span>
+                    <span className="ml-1 text-sm text-[color:var(--muted)]">/ 100</span>
+                    {ownerFull.coverage !== null && (
+                      <div className="text-xs text-[color:var(--muted)]">
+                        покрытие {Math.round(ownerFull.coverage * 100)}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="@container mt-4">
+                  <CategoryMini values={ownerFull.categories} size="md" />
+                </div>
+              </CardDiv>
+            )}
             {repo?.isPrivate && (
               <CardDiv tone="outline">
                 <div className="text-sm font-medium">🔒 Приватный репозиторий</div>
