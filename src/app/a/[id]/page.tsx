@@ -11,6 +11,7 @@ import { db } from '@/db/client';
 import { analyses, repositories } from '@/db/schema';
 import { auth } from '@/auth';
 import { toggleVisibilityAction } from '@/app/actions/visibility';
+import { claimRepositoryAction } from '@/app/actions/repos';
 import { AnalysisHistory } from '@/app/components/AnalysisHistory';
 import { AnalysisRunner } from '@/app/components/AnalysisRunner';
 import { BadgeMarkdown } from '@/app/components/BadgeMarkdown';
@@ -260,6 +261,11 @@ export default async function AnalysisPage({ params }: PageProps) {
       ? await getPullRequestStatus(userId, improvements.org, improvements.repo, proposalRow.prSlug)
       : null;
 
+  // «Это ваш репозиторий?»: публичный репозиторий, чей владелец ещё не
+  // подтвердил его в «Моих репозиториях» (или смотрит не он).
+  const viewerOwnsRepo =
+    repo && !repo.isPrivate ? Boolean(await findOwnedRepoId(db, userId ?? null, { repositoryId: repo.id })) : true;
+
   const sortedCategories = [...categoryScores].sort(
     (a, b) => categoryOrder(a.key) - categoryOrder(b.key),
   );
@@ -383,6 +389,39 @@ export default async function AnalysisPage({ params }: PageProps) {
           </div>
         )}
       </section>
+
+      {!viewerOwnsRepo && (
+        <section className="rise mt-6" style={{ animationDelay: '30ms' }}>
+          <CardDiv tone="outline" className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-[15px] font-medium">Это ваш репозиторий?</div>
+              <p className="mt-1 max-w-2xl text-sm text-[color:var(--muted)]">
+                Подтвердите владение — и получите бейдж для README, который обновляется каждый день, и
+                полную оценку с SourceCraft AppSec и прогонами CI. Её увидите только вы: эти данные
+                платформа отдаёт лишь участникам репозитория.
+              </p>
+            </div>
+            {userId ? (
+              <form action={claimRepositoryAction} className="shrink-0">
+                <input type="hidden" name="analysisId" value={analysis.id} />
+                <button
+                  type="submit"
+                  className="rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm font-medium text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
+                >
+                  Подтвердить владение
+                </button>
+              </form>
+            ) : (
+              <Link
+                href="/signin"
+                className="shrink-0 rounded-full bg-[color:var(--ink)] px-4 py-2 text-center text-sm font-medium text-[color:var(--paper)] transition hover:bg-[color:var(--ink-2)]"
+              >
+                Войти и подтвердить
+              </Link>
+            )}
+          </CardDiv>
+        </section>
+      )}
 
       {/* «Что это»: описание от модели — чем репозиторий занимается и из чего
           состоит. У материала оно стоит прямо в шапке вместо оценки; проекту

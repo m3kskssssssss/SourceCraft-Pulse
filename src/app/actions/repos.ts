@@ -26,7 +26,15 @@ import {
   findVerifyKey,
   generateVerifyKey,
 } from '@/lib/ownership';
-import { describeError, parseOrgList, tokenSchema } from '@/lib/token-ownership';
+import {
+  checkRepoRole,
+  describeError,
+  isOwnerRole,
+  parseOrgList,
+  tokenSchema,
+  userClient,
+} from '@/lib/token-ownership';
+import { decryptToken } from '@/lib/token-crypto';
 import {
   MAX_OWNED,
   saveToken,
@@ -314,6 +322,104 @@ export async function deleteTokenAction(): Promise<void> {
   await db.delete(sourcecraftTokens).where(eq(sourcecraftTokens.userId, userId));
   await db.insert(events).values({ userId, kind: 'sourcecraft_token.deleted', payload: {} });
   revalidatePath('/repos');
+}
+
+/**
+ * «Это ваш репозиторий?» со страницы анализа.
+ *
+ * С сохранённым токеном подтверждаем сразу: проверяем роль владельца токена
+ * в этом репозитории (admin или maintainer) и ставим оценку его правами — с
+ * AppSec, полной оценкой и бейджем. Без токена или без роли добавляем
+ * репозиторий в «Мои репозитории» с ключом: подтвердить можно там.
+ *
+ * redirect() бросает исключение, поэтому он стоит вне try/catch.
+ */
+export async function claimRepositoryAction(formData: FormData): Promise<void> {
+  const analysisId = String(formData.get('analysisId') ?? '');
+  const back = /^[0-9a-f-]{36}$/i.test(analysisId) ? `/a/${analysisId}` : '/repos';
+  const userId = await currentUserId();
+  if (!userId) redirect('/signin');
+
+  const analysis = back === '/repos' ? null : await db.query.analyses.findFirst({ where: eq(analyses.id, analysisId) });
+  const repo = analysis
+    ? await db.query.repositories.findFirst({ where: eq(repositories.id, analysis.repositoryId) })
+    : null;
+  if (!repo || repo.isPrivate) redirect(back);
+  const slug = `${repo.orgSlug}/${repo.repoSlug}`;
+
+  // Строка «мой репозиторий»: уже есть, убранная раньше или новая.
+  let owned = await db.query.ownedRepositories.findFirst({
+    where: and(eq(ownedRepositories.userId, userId), eq(ownedRepositories.repositoryId, repo.id)),
+  });
+  if (!owned || owned.removedAt) {
+    const active = await db
+      .select({ id: ownedRepositories.id })
+      .from(ownedRepositories)
+      .where(and(eq(ownedRepositories.userId, userId), isNull(ownedRepositories.removedAt)));
+    if (active.length >= MAX_OWNED) {
+      redirect(`/repos?error=${encodeURIComponent(`В списке уже ${MAX_OWNED} репозиториев — уберите лишние, чтобы добавить ${slug}.`)}`);
+    }
+    if (owned) {
+      await db.update(ownedRepositories).set({ removedAt: null }).where(eq(ownedRepositories.id, owned.id));
+    } else {
+      await db
+        .insert(ownedRepositories)
+        .values({ userId, repositoryId: repo.id, verifyKey: generateVerifyKey() })
+        .onConflictDoNothing();
+    }
+    owned = await db.query.ownedRepositories.findFirst({
+      where: and(eq(ownedRepositories.userId, userId), eq(ownedRepositories.repositoryId, repo.id)),
+    });
+    if (!owned) redirect('/repos');
+  }
+
+  let verifiedNow = Boolean(owned.verifiedAt);
+  let note: string | null = null;
+  if (!verifiedNow) {
+    const tokenRow = await db.query.sourcecraftTokens.findFirst({
+      where: eq(sourcecraftTokens.userId, userId),
+    });
+    if (tokenRow && !tokenRow.invalidAt) {
+      try {
+        const token = decryptToken(tokenRow.tokenEncrypted);
+        const { role, note: roleNote } = await checkRepoRole(
+          userClient(token),
+          tokenRow.scUserId,
+          repo.orgSlug,
+          repo.repoSlug,
+        );
+        if (isOwnerRole(role)) {
+          await db
+            .update(ownedRepositories)
+            .set({ verifiedAt: new Date(), lastCheckAt: new Date(), lastCheckError: null })
+            .where(eq(ownedRepositories.id, owned.id));
+          await db.insert(events).values({
+            userId,
+            kind: 'repository.verified',
+            payload: { repositoryId: repo.id, org: repo.orgSlug, repo: repo.repoSlug, by: 'token' },
+          });
+          verifiedNow = true;
+        } else {
+          note = role
+            ? `У вашего токена в ${slug} роль «${role}», а для подтверждения нужна admin или maintainer.`
+            : `Токен не подтвердил владение ${slug}: ${roleNote ?? 'нет роли в репозитории'}.`;
+        }
+      } catch (err) {
+        note = `Проверить токеном не вышло: ${describeError(err)}.`;
+      }
+    }
+  }
+
+  revalidatePath('/repos');
+  if (verifiedNow) {
+    const queued = await enqueueOwnerAnalysis(db, userId, repo.id, 'verified');
+    redirect(queued ? `/a/${queued}` : '/repos');
+  }
+  redirect(
+    `/repos?error=${encodeURIComponent(
+      `${slug} добавлен в ваш список. ${note ? note + ' ' : ''}Подтвердите владение токеном SourceCraft или ключом на карточке ниже — после этого появятся бейдж и оценка с AppSec.`,
+    )}`,
+  );
 }
 
 async function findOwnRow(userId: string, id: string) {
