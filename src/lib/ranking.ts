@@ -22,6 +22,12 @@ import {
  */
 export type LeaderboardSort = 'score' | 'forks';
 
+/**
+ * Место в рейтинге есть у всех, кроме помеченных при анализе копий. У прогонов
+ * до появления пометки её нет — они участвуют, как раньше.
+ */
+const RANKED = sql`((${analyses.metrics} -> 'rating' ->> 'excluded') is null)`;
+
 export type LeaderboardItem = {
   id: string;
   org: string;
@@ -64,6 +70,7 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
   const where = and(
     eq(analyses.isPublic, true),
     eq(analyses.status, 'done'),
+    RANKED,
     params.query
       ? sql`(${ilike(repositories.orgSlug, `%${params.query}%`)} OR ${ilike(
           repositories.repoSlug,
@@ -177,6 +184,7 @@ export async function getLanguageFacets(limit = 40): Promise<LanguageFacet[]> {
       and(
         eq(analyses.isPublic, true),
         eq(analyses.status, 'done'),
+        RANKED,
         isNotNull(repositories.language),
       ),
     )
@@ -187,6 +195,19 @@ export async function getLanguageFacets(limit = 40): Promise<LanguageFacet[]> {
   return rows
     .filter((r): r is { name: string; count: number } => Boolean(r.name))
     .map((r) => ({ name: r.name, count: r.count }));
+}
+
+/**
+ * Опубликованные, но без места в рейтинге: форки, зеркала, шаблоны и свежие
+ * копии шаблонов (см. lib/rating-eligibility.ts). Страница рейтинга называет
+ * их число, чтобы пропажа не выглядела поломкой.
+ */
+export async function getUnrankedCount(): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(analyses)
+    .where(and(eq(analyses.isPublic, true), eq(analyses.status, 'done'), sql`not ${RANKED}`));
+  return row?.count ?? 0;
 }
 
 /** Диапазоны баллов для распределения на странице рейтинга. */
@@ -230,7 +251,7 @@ export async function getLeaderboardOverview(): Promise<LeaderboardOverview> {
         finishedAt: analyses.finishedAt,
       })
       .from(analyses)
-      .where(publicDone)
+      .where(and(publicDone, RANKED))
       .limit(5000),
     db
       .select({ count: sql<number>`count(*)::int` })

@@ -11,7 +11,7 @@ import { EmptyState } from './components/ui';
 import { getLeaderboard } from '@/lib/ranking';
 import { listArticles } from '@/lib/learn';
 import { LEVELS } from '@/lib/learn/types';
-import { CATEGORY_ACCENT_CLASS, CATEGORY_TITLES } from '@/lib/category-meta';
+import { CATEGORY_ACCENT_CLASS, CATEGORY_ORDER, CATEGORY_TITLES } from '@/lib/category-meta';
 
 export const revalidate = 60;
 
@@ -65,7 +65,7 @@ export default async function HomePage({
             <code className="rounded-md bg-[color:var(--panel)] px-1.5 py-0.5 font-mono text-[0.9em] text-[color:var(--ink)]">
               org/repo
             </code>{' '}
-            — получите оценку 0–100 по четырём категориям, объяснение и конкретные шаги для роста.
+            — получите оценку 0–100 по шести категориям, объяснение и конкретные шаги для роста.
           </p>
 
           <div
@@ -79,7 +79,7 @@ export default async function HomePage({
             className="rise mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-[color:var(--muted)]"
             style={{ animationDelay: '180ms' }}
           >
-            {(['activity', 'code', 'security', 'docs'] as const).map((key) => (
+            {CATEGORY_ORDER.map((key) => (
               <span key={key} className={`${CATEGORY_ACCENT_CLASS[key]} inline-flex items-center gap-2`}>
                 <span
                   className="h-2 w-2 rounded-full"

@@ -44,9 +44,15 @@ const RECOMMENDATION_TITLES: Record<string, string> = {
   fix_critical_vulns: 'Закройте критические уязвимости',
   fix_high_vulns: 'Закройте high-уязвимости',
   fix_medium_vulns: 'Закройте medium-уязвимости',
+  remove_secrets: 'Уберите секреты из репозитория и отзовите их',
   add_lockfile: 'Зафиксируйте версии зависимостей',
   add_dependency_bot: 'Включите автообновление зависимостей',
-  update_dependencies: 'Обновите зависимости',
+  ci_run_tests: 'Запускайте тесты в CI',
+  ci_run_lint: 'Добавьте линтер в CI',
+  ci_check_prs: 'Проверяйте pull request пайплайном',
+  fix_ci_runs: 'Почините падающие прогоны CI',
+  triage_stale_issues: 'Разберите заброшенные задачи',
+  react_to_issues: 'Быстрее берите задачи в работу',
   add_readme: 'Добавьте README',
   expand_readme: 'Расширьте README (разделы, длина)',
   add_license: 'Добавьте LICENSE',
@@ -150,12 +156,13 @@ function scoreWith(
 /**
  * Снимает ли набор выполненных советов этот штраф. Добавить LICENSE — значит
  * закрыть штраф за его отсутствие; закрыть критические уязвимости — штраф за
- * неисправленную critical. Штраф за секрет в истории так не снимается: убрать
- * секрет из прошлых коммитов метрикой не описывается.
+ * открытую critical; убрать секреты, чтобы AppSec закрыл находки, — штраф за
+ * секрет.
  */
 function penaltyClearedBy(penalty: AppliedPenalty, fixedKeys: Set<string>): boolean {
   if (penalty.key === 'missing_license') return fixedKeys.has('docs.license');
   if (penalty.key === 'critical_vuln_unfixed') return fixedKeys.has('security.critical_vulns');
+  if (penalty.key === 'secret_in_code') return fixedKeys.has('security.secrets');
   return false;
 }
 

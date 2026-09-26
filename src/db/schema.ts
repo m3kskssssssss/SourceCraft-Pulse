@@ -154,6 +154,42 @@ export const repositories = pgTable(
   }),
 );
 
+/**
+ * Каталог публичных репозиториев SourceCraft — полный обход GET /repos.
+ * Только карточки из каталога, без клонов и оценок: по нему рейтинг
+ * показывает «оценено N из M», а фоновая оценка выбирает, кого считать дальше.
+ * Форки, зеркала и шаблоны отмечены сразу: места в рейтинге им не положено.
+ */
+export const catalogRepositories = pgTable(
+  'catalog_repositories',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    /** UUID репозитория в SourceCraft. */
+    sourcecraftId: text('sourcecraft_id').notNull(),
+    orgSlug: varchar('org_slug', { length: 128 }).notNull(),
+    repoSlug: varchar('repo_slug', { length: 128 }).notNull(),
+    description: text('description'),
+    isEmpty: boolean('is_empty').notNull().default(false),
+    /** Форк: у репозитория есть parent. */
+    isFork: boolean('is_fork').notNull().default(false),
+    /** Зеркало или импорт: есть migration_source. */
+    isMirror: boolean('is_mirror').notNull().default(false),
+    /** Сам является шаблоном. */
+    isTemplate: boolean('is_template').notNull().default(false),
+    /** Лайки SourceCraft (rating.value). */
+    likes: integer('likes'),
+    lastUpdatedAt: timestamp('last_updated_at', { withTimezone: true, mode: 'date' }),
+    syncedAt: timestamp('synced_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    bySourcecraftId: uniqueIndex('catalog_repositories_sourcecraft_id_unique').on(t.sourcecraftId),
+    byOrgRepo: uniqueIndex('catalog_repositories_org_repo_unique').on(t.orgSlug, t.repoSlug),
+    bySyncedAt: index('catalog_repositories_synced_at_idx').on(t.syncedAt),
+  }),
+);
+
 export const analyses = pgTable(
   'analyses',
   {

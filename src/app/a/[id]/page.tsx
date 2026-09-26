@@ -43,6 +43,9 @@ import { getPublicUser } from '@/lib/users';
 import type { GitGraph } from '@/lib/git/graph';
 import type { CiFacts } from '@/lib/collect';
 import type { SecurityScanResult, Severity } from '@/lib/security/types';
+import { METRIC_LABELS } from '@/lib/metric-labels';
+import { computeCoverage, LOW_COVERAGE } from '@/lib/scoring/coverage';
+import { pickRatingExclusion, RATING_EXCLUSION_LABELS } from '@/lib/rating-eligibility';
 import { getRepoHistory } from '@/lib/history';
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -52,42 +55,6 @@ export const dynamic = 'force-dynamic';
  *  укладываются в минуту, но на большом репозитории нужен запас. Подготовка
  *  правок идёт отдельным маршрутом /api/improvements/<id> — ей нужно больше. */
 export const maxDuration = 120;
-
-const METRIC_LABELS: Record<string, string> = {
-  'activity.commits_90d': 'Коммитов за 90 дней',
-  'activity.active_authors': 'Активных авторов',
-  'activity.freshness': 'Свежесть последнего коммита',
-  'activity.bus_factor': 'Bus factor',
-  'code.tests': 'Автотесты',
-  'code.file_size': 'Размер файлов',
-  'code.comments': 'Пояснения в коде',
-  'code.todo_debt': 'Незакрытые TODO',
-  'code.has_linter': 'Линтер',
-  'code.has_ci': 'Непрерывная интеграция',
-  'code.build_manifest': 'Манифест сборки',
-  'code.gitignore': '.gitignore',
-  'code.editorconfig': '.editorconfig',
-  'code.ai_review': 'Ревью кода моделью',
-  'activity.releases': 'Релизы и теги',
-  'activity.pr_flow': 'Поток pull request',
-  'activity.issue_flow': 'Закрытие задач',
-  'security.critical_vulns': 'Critical-уязвимости',
-  'security.high_vulns': 'High-уязвимости',
-  'security.medium_vulns': 'Medium-уязвимости',
-  'security.lockfiles_present': 'Lock-файлы',
-  'security.dependency_bot': 'Автообновление зависимостей',
-  'security.fresh_dependencies': 'Свежесть зависимостей',
-  'docs.readme': 'README',
-  'docs.license': 'LICENSE',
-  'docs.contributing': 'CONTRIBUTING',
-  'docs.changelog': 'CHANGELOG',
-  'docs.usage_examples': 'Примеры использования',
-  'docs.docs_dir': 'Каталог документации',
-  'docs.code_of_conduct': 'CODE_OF_CONDUCT',
-  'docs.issue_template': 'Шаблоны задач и PR',
-  'docs.repo_description': 'Описание репозитория',
-  'docs.ai_rubric': 'Документация по рубрике модели',
-};
 
 /** Сколько работы потребует рекомендация. */
 const EFFORT_LABELS: Record<Effort, string> = {
@@ -230,6 +197,29 @@ export default async function AnalysisPage({ params }: PageProps) {
   const dependencyAudit =
     factsSecurity?.dependencyAudit ??
     (factsSecurity?.security?.provider === 'osv_dev' ? factsSecurity.security : null);
+  // AppSec: у приватного репозитория — это и есть данные категории, у
+  // публичного — личный результат владельца, в балл и рейтинг не входит.
+  const appSecFacts = (
+    analysis.metrics as {
+      facts?: {
+        security?: SecurityScanResult;
+        ownerAppSec?: SecurityScanResult | null;
+        gitHistory?: { secretHits?: Array<{ name?: string }> };
+      };
+    } | null
+  )?.facts;
+  const scoredAppSec =
+    appSecFacts?.security?.provider === 'sourcecraft_appsec' && appSecFacts.security.available
+      ? appSecFacts.security
+      : null;
+  const ownerAppSec = isOwner ? (appSecFacts?.ownerAppSec ?? null) : null;
+  // Наш поиск строк, похожих на ключи: справка, не AppSec, на балл не влияет.
+  const rawSecretHits = appSecFacts?.gitHistory?.secretHits;
+  const secretHints = Array.isArray(rawSecretHits)
+    ? [...new Set(rawSecretHits.map((s) => s?.name).filter((n): n is string => Boolean(n)))]
+    : [];
+  const coverage = computeCoverage(analysis.categoryScores);
+  const unranked = pickRatingExclusion(analysis.metrics);
   const codeMeasured = pickCodeStats(
     (analysis.metrics as { facts?: { code?: Record<string, unknown> } } | null)?.facts?.code,
   );
@@ -283,6 +273,18 @@ export default async function AnalysisPage({ params }: PageProps) {
                 <span className="text-lg text-[color:var(--muted)]">/ 100</span>
               </div>
             )}
+            {unranked && (
+              <p className="mt-2 max-w-xl text-xs text-[color:var(--muted)]">{RATING_EXCLUSION_LABELS[unranked]}</p>
+            )}
+            {!isMaterial && coverage !== null && (
+              <div
+                className="mt-2 text-xs text-[color:var(--muted)]"
+                title="Какая доля весов оценки измерена. Остальное — «нет данных»: оно не штрафует, но и не участвует в балле."
+              >
+                Покрытие данных: <span className="tabular-nums text-[color:var(--ink-2)]">{Math.round(coverage * 100)}%</span>
+                {coverage < LOW_COVERAGE && ' — балл стоит на малой части данных'}
+              </div>
+            )}
             {/* Оценка людей стоит сразу под баллом: это ответ на него, а не
                 отдельный раздел где-то внизу страницы. */}
             <div className="mt-4">
@@ -316,16 +318,32 @@ export default async function AnalysisPage({ params }: PageProps) {
               {analysis.finishedAt && (
                 <Chip tone="default">Готово {formatDate(analysis.finishedAt.toISOString())}</Chip>
               )}
-              <Chip tone={analysis.isPublic ? 'ink' : 'outline'}>
-                {analysis.isPublic ? 'В рейтинге' : 'Приватно'}
+              <Chip tone={analysis.isPublic && !unranked ? 'ink' : 'outline'}>
+                {!analysis.isPublic ? 'Приватно' : unranked ? 'Опубликован, без места в рейтинге' : 'В рейтинге'}
               </Chip>
+              <a
+                href={`/a/${analysis.id}/report.md`}
+                className="rounded-full border border-[color:var(--line-2)] px-3 py-1 text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
+              >
+                Отчёт в Markdown
+              </a>
+              <Link
+                href="/methodology"
+                className="rounded-full border border-[color:var(--line-2)] px-3 py-1 text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
+              >
+                Как считается балл
+              </Link>
             </div>
           </div>
         </div>
 
         {/* мини-разбивка по категориям: материалу не показываем вовсе */}
         {!isMaterial && sortedCategories.length > 0 && (
-          <div className="grid grid-cols-2 gap-px border-t border-[color:var(--line)] bg-[color:var(--line)] sm:grid-cols-4">
+          <div
+            className={`grid grid-cols-2 gap-px border-t border-[color:var(--line)] bg-[color:var(--line)] ${
+              sortedCategories.length > 4 ? 'sm:grid-cols-3 lg:grid-cols-6' : 'sm:grid-cols-4'
+            }`}
+          >
             {sortedCategories.map((c) => (
               <div
                 key={c.key}
@@ -424,12 +442,16 @@ export default async function AnalysisPage({ params }: PageProps) {
       )}
 
       {/* Личная часть оценки: приватность и CI — только владельцу. */}
-      {isOwner && (repo?.isPrivate || ciMeta?.available) && (
+      {isOwner && (repo?.isPrivate || ciMeta?.available || ownerAppSec) && (
         <section className="rise mt-10" style={{ animationDelay: '90ms' }}>
           <SectionHead
             eyebrow="Видно только вам"
             title="Личные данные репозитория"
-            hint="Эти сведения SourceCraft отдаёт только участникам репозитория — по вашему токену. В балл и публичный рейтинг они не входят."
+            hint={
+              repo?.isPrivate
+                ? 'Эти сведения SourceCraft отдаёт только участникам репозитория — по вашему токену. У приватного репозитория они входят в его личную оценку.'
+                : 'Эти сведения SourceCraft отдаёт только участникам репозитория — по вашему токену. В балл и публичный рейтинг они не входят: иначе место в рейтинге зависело бы от того, кто запустил оценку.'
+            }
           />
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {repo?.isPrivate && (
@@ -467,6 +489,22 @@ export default async function AnalysisPage({ params }: PageProps) {
                       {ciMeta.lastStatus && ` · последний: ${ciMeta.lastStatus}`}
                     </p>
                   </>
+                )}
+              </CardDiv>
+            )}
+            {ownerAppSec && (
+              <CardDiv tone="outline" className="sm:col-span-2">
+                <div className="text-sm font-medium">Безопасность по SourceCraft AppSec</div>
+                {ownerAppSec.available ? (
+                  <AppSecFindingsBlock
+                    result={ownerAppSec}
+                    hint="Открытые находки последнего завершённого скана. Для публичного репозитория в балл не входят."
+                    bare
+                  />
+                ) : (
+                  <p className="mt-1 text-sm text-[color:var(--muted)]">
+                    {describeAppSecGap(ownerAppSec.missing[0] ?? ownerAppSec.errors[0])}
+                  </p>
                 )}
               </CardDiv>
             )}
@@ -516,13 +554,25 @@ export default async function AnalysisPage({ params }: PageProps) {
                   cat.key === 'code'
                     ? codeReviewNote
                     : cat.key === 'security' && cat.value == null
-                      ? SECURITY_NO_APPSEC_NOTE
+                      ? repo?.isPrivate
+                        ? describeAppSecGap(appSecFacts?.security?.missing?.[0])
+                        : SECURITY_NO_APPSEC_NOTE
                       : null
                 }
                 stats={cat.key === 'code' ? codeMeasured : []}
                 extra={
-                  cat.key === 'security' && !repo?.isPrivate ? (
-                    <DependencyAuditBlock audit={dependencyAudit} />
+                  cat.key === 'security' ? (
+                    <>
+                      {scoredAppSec && (
+                        <AppSecFindingsBlock
+                          result={scoredAppSec}
+                          title="Находки SourceCraft AppSec"
+                          hint="Открытые находки последнего завершённого скана — по ним посчитана категория."
+                        />
+                      )}
+                      {!repo?.isPrivate && <DependencyAuditBlock audit={dependencyAudit} />}
+                      {secretHints.length > 0 && <SecretHintsBlock names={secretHints} />}
+                    </>
                   ) : null
                 }
               />
@@ -880,7 +930,7 @@ function CategoryBlock({
 }
 
 const SECURITY_NO_APPSEC_NOTE =
-  'Балл безопасности считается только по данным SourceCraft AppSec. В публичном API их пока нет, поэтому категория исключена из итоговой оценки, а веса остальных категорий нормированы.';
+  'Балл безопасности считается только по данным SourceCraft AppSec. Результаты AppSec платформа отдаёт лишь участникам репозитория, поэтому в публичной оценке категория исключена, а веса остальных нормированы. Владелец видит свои находки AppSec в блоке «Видно только вам».';
 
 const SEVERITY_ORDER: Severity[] = ['critical', 'high', 'medium', 'low', 'unknown'];
 const DEPENDENCY_AUDIT_LIST_LIMIT = 8;
@@ -959,6 +1009,118 @@ function DependencyAuditBlock({ audit }: { audit: SecurityScanResult | null }) {
       <div className="mt-3 text-sm text-[color:var(--ink-2)]">{body}</div>
     </div>
   );
+}
+
+const APPSEC_KIND_LABELS: Record<string, string> = {
+  secret: 'секрет',
+  sca: 'зависимость',
+  sast: 'код',
+  other: 'прочее',
+};
+const APPSEC_LIST_LIMIT = 10;
+
+/** Открытые находки SourceCraft AppSec: сводка по критичности и первые из списка. */
+function AppSecFindingsBlock({
+  result,
+  title,
+  hint,
+  bare = false,
+}: {
+  result: SecurityScanResult;
+  title?: string;
+  hint: string;
+  /** Без собственной рамки и заголовка — внутри карточки. */
+  bare?: boolean;
+}) {
+  const counts = new Map<Severity, number>();
+  for (const v of result.vulnerabilities) counts.set(v.severity, (counts.get(v.severity) ?? 0) + 1);
+  const secrets = result.vulnerabilities.filter((v) => v.kind === 'secret').length;
+  const listed = [...result.vulnerabilities]
+    .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
+    .slice(0, APPSEC_LIST_LIMIT);
+
+  const body =
+    result.vulnerabilities.length === 0 ? (
+      <div>Открытых находок нет{result.scannedAt ? ` · скан от ${formatDate(result.scannedAt)}` : ''}.</div>
+    ) : (
+      <>
+        <div>
+          Открыто: {result.vulnerabilities.length}
+          {' · '}
+          {SEVERITY_ORDER.filter((s) => counts.has(s))
+            .map((s) => `${s} ${counts.get(s)}`)
+            .join(' · ')}
+          {secrets > 0 && ` · секретов ${secrets}`}
+          {result.scannedAt && ` · скан от ${formatDate(result.scannedAt)}`}
+        </div>
+        <ul className="mt-3 grid gap-1.5">
+          {listed.map((v, i) => (
+            <li key={`${v.id}:${v.file ?? ''}:${i}`} className="flex flex-wrap items-baseline gap-x-2">
+              <span className="text-[10px] uppercase tracking-widest">{v.severity}</span>
+              <span className="text-xs text-[color:var(--muted)]">{APPSEC_KIND_LABELS[v.kind ?? 'other']}</span>
+              <span className="font-mono text-xs">{v.summary ?? v.id}</span>
+              {v.file && <span className="break-all font-mono text-xs text-[color:var(--muted)]">{v.file}</span>}
+            </li>
+          ))}
+        </ul>
+        {result.vulnerabilities.length > listed.length && (
+          <div className="mt-2 text-xs">…и ещё {result.vulnerabilities.length - listed.length}</div>
+        )}
+      </>
+    );
+
+  if (bare) {
+    return (
+      <div className="mt-2 text-sm text-[color:var(--ink-2)]">
+        <div className="mb-2 text-xs text-[color:var(--muted-2)]">{hint}</div>
+        {body}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-6 border-t border-[color:var(--line)] pt-5">
+      <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">{title}</div>
+      <div className="mt-1 text-xs text-[color:var(--muted-2)]">{hint}</div>
+      <div className="mt-3 text-sm text-[color:var(--ink-2)]">{body}</div>
+    </div>
+  );
+}
+
+/**
+ * Наш собственный поиск строк, похожих на ключи, в истории коммитов. Это не
+ * AppSec — по ТЗ собственной проверкой его не подменяем, поэтому только справка.
+ */
+function SecretHintsBlock({ names }: { names: string[] }) {
+  return (
+    <div className="mt-6 border-t border-[color:var(--line)] pt-5">
+      <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
+        Справка: строки, похожие на ключи
+      </div>
+      <div className="mt-1 text-xs text-[color:var(--muted-2)]">
+        Наша проверка истории коммитов по шаблонам, не SourceCraft AppSec. На балл не влияет — но если
+        это настоящие ключи, их стоит отозвать.
+      </div>
+      <div className="mt-3 font-mono text-xs text-[color:var(--ink-2)]">{names.join(', ')}</div>
+    </div>
+  );
+}
+
+/** Почему AppSec не дал данных — человеческим языком. */
+function describeAppSecGap(reason: string | undefined): string {
+  switch (reason) {
+    case 'appsec_no_scan':
+      return 'В AppSec нет скана этого репозитория: сканирование не включено или ещё не запускалось.';
+    case 'appsec_scan_not_finished':
+      return 'Последний скан AppSec ещё идёт или завершился с ошибкой — дождитесь окончания и оцените заново.';
+    case 'appsec_forbidden':
+      return 'AppSec отказал в доступе по вашему токену: у токена нет прав на результаты сканирования.';
+    case 'sourcecraft_appsec_needs_owner_token':
+      return 'Для AppSec нужен ваш токен SourceCraft: подключите его в «Моих репозиториях» и оцените заново.';
+    case 'appsec_no_repository_id':
+      return 'API SourceCraft не вернул идентификатор репозитория — AppSec запросить не удалось.';
+    default:
+      return 'AppSec не ответил — попробуйте оценить репозиторий заново позже.';
+  }
 }
 
 /** Почему ревью кода не прошло — человеческим языком. */

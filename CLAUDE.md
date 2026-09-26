@@ -152,7 +152,7 @@ src/
 │   │   ├── normalize.ts          # linearScore/logScore/boolScore/clamp
 │   │   ├── facts-helpers.ts      # isUnknown(), safeShare()
 │   │   ├── recommendations.ts    # top-3 через симуляцию
-│   │   └── metrics/              # activity.ts, code.ts, security.ts, docs.ts
+│   │   └── metrics/              # security, code, activity, docs, ci, issues — шесть категорий ТЗ
 │   │   └── __tests__/            # Vitest фикстуры + тесты
 │   ├── git/
 │   │   ├── clone.ts              # withRepoClone/deepenClone + индекс путь→oid + пакетное чтение
@@ -168,7 +168,7 @@ src/
 │   │   ├── types.ts              # SecurityProvider интерфейс + типы
 │   │   ├── provider.ts           # getSecurityProvider() = AppSec (балл), getDependencyAuditProvider() = OSV (справка)
 │   │   ├── osv-dev.ts            # api.osv.dev — только справка, в балл не входит
-│   │   ├── sourcecraft-appsec.ts # заглушка «нет данных»
+│   │   ├── sourcecraft-appsec.ts # appsec.sourcecraft.tech токеном владельца: scans/latest + defect-groups
 │   │   └── lockfiles.ts          # парсеры package-lock.json + pnpm-lock.yaml
 │   └── sourcecraft/
 │       ├── client.ts             # SourcecraftClient + getSourcecraftClient()
@@ -190,6 +190,7 @@ drizzle.config.ts                 # конфиг drizzle-kit (Neon Postgres)
 
 ## Прогресс
 
+- [x] Этап 50 — по сравнению с решениями других команд кейса 18: шесть категорий ТЗ (безопасность и код по 20 %, активность, документация, CI/CD, задачи по 15 %; новые metrics/ci.ts и metrics/issues.ts, lock-файл и бот обновлений переехали в «Код»); настоящий AppSec (`appsec.sourcecraft.tech`, `/v1/scans/latest` + `/v1/defect-groups` по UUID репозитория) токеном владельца — у приватного репозитория в балле, у публичного только в «Видно только вам» (`RepoFacts.ownerAppSec`); штраф за секрет — только по AppSec, наш поиск ключей регулярками стал справкой; CI/CD по тексту конфигов (`RepoFacts.ciConfig`: тесты, линтер, проверка PR), прогоны — только у приватных; покрытие данных рядом с баллом (`scoring/coverage.ts`, из сохранённых categoryScores); выгрузка `/a/<id>/report.md`; страница `/methodology` из констант движка; каталог `GET /repos` целиком в таблицу `catalog_repositories` (миграция 0012, воркер раз в `CATALOG_SYNC_HOURS`, `/api/cron/catalog`, `pnpm catalog:sync`), «оценено N из M» на /rating, фоновая оценка каталога по `CATALOG_AUTO_ANALYZE` (по умолчанию 0); форки, зеркала, шаблоны и копии шаблонов (≤2 коммитов во всей истории) без места в рейтинге (`metrics.rating.excluded`, lib/rating-eligibility.ts)
 - [x] Этап 49 — по ответу организаторов (задача №8): балл «Безопасность» — только по данным SourceCraft AppSec; без них вся категория «нет данных» и исключена из Score (веса нормируются), штраф за critical CVE — тоже только по AppSec; OSV.dev собирается отдельным полем `RepoFacts.dependencyAudit` и показывается в карточке категории как справка «не SourceCraft AppSec, на балл не влияет»; у приватных репозиториев OSV не вызывается
 - [x] Этап 48 — статьи разбиты по темам — те же четыре категории, что в оценке (`Article.topic`: код, документация, активность, безопасность); фильтр «Тема» в /learn (в URL, `?topic=`), тема на карточке и в статье, «ещё статьи» — сначала той же темы; шесть новых статей (CONTRIBUTING, записи решений, TODO-долг, разрезка больших файлов, отчёт об уязвимостях, трекер задач) с экшен-сценами (босс-слизень, ниндзя, эстафета, скалолаз с крюком, оборона от метеоритов, баскетбол) и двенадцатью иллюстрациями; бейджи без кэша (ETag), переоценка владельцем через /analyze сразу публикуется, карточка шире на 10%
 

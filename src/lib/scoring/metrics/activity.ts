@@ -6,13 +6,12 @@ import {
   ACTIVITY_WEIGHTS,
   BUS_FACTOR_HEALTHY_SHARE,
   BUS_FACTOR_MIN_SCORE,
-  CLOSED_ISSUES_SHARE_TARGET,
   COMMITS_90D_TARGET,
   FRESHNESS_MAX_STALE_DAYS,
   PULL_REQUESTS_TARGET,
   RELEASES_TARGET,
 } from '../config';
-import { clamp, invertedLinearScore, linearScore, logScore } from '../normalize';
+import { clamp, invertedLinearScore, logScore } from '../normalize';
 import { isUnknown } from '../facts-helpers';
 import type { MetricScore } from '../types';
 
@@ -26,7 +25,6 @@ export function computeActivityMetrics(facts: RepoFacts): MetricScore[] {
     busFactorMetric(facts),
     releasesMetric(facts),
     pullRequestFlowMetric(facts),
-    issueFlowMetric(facts),
   ];
 }
 
@@ -87,38 +85,6 @@ function pullRequestFlowMetric(facts: RepoFacts): MetricScore {
     target: 100,
     effort: 'medium',
     recommendationKind: 'use_pull_requests',
-  };
-}
-
-/**
- * Доводят ли задачи до конца. Выборка issue ограничена, поэтому это доля по
- * выборке, а не по всему трекеру; пустой трекер — нет данных, а не ноль.
- */
-function issueFlowMetric(facts: RepoFacts): MetricScore {
-  const sample = facts.issues;
-  if (sample.length === 0) {
-    return {
-      key: 'activity.issue_flow',
-      category: CATEGORY,
-      weight: ACTIVITY_WEIGHTS.issueFlow,
-      value: null,
-      unknown: true,
-      hint: isUnknown(facts, 'issues_fetch_failed')
-        ? 'Список задач недоступен'
-        : 'Задач в трекере не нашлось',
-    };
-  }
-  const closed = sample.filter((i) => Boolean(i.completed_at)).length;
-  const share = (closed / sample.length) * 100;
-  return {
-    key: 'activity.issue_flow',
-    category: CATEGORY,
-    weight: ACTIVITY_WEIGHTS.issueFlow,
-    value: linearScore(share, { min: 0, max: CLOSED_ISSUES_SHARE_TARGET }),
-    hint: `Закрыто ${closed} из ${sample.length} задач выборки`,
-    target: 100,
-    effort: 'medium',
-    recommendationKind: 'close_issues',
   };
 }
 

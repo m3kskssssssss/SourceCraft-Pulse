@@ -6,7 +6,15 @@ import Link from 'next/link';
 import { Podium, LeaderboardRows } from '../components/Leaderboard';
 import { RatingOverview } from '../components/RatingOverview';
 import { Chip, EmptyState } from '../components/ui';
-import { getLanguageFacets, getLeaderboard, getLeaderboardOverview, type LeaderboardSort } from '@/lib/ranking';
+import {
+  getLanguageFacets,
+  getLeaderboard,
+  getLeaderboardOverview,
+  getUnrankedCount,
+  type LeaderboardSort,
+} from '@/lib/ranking';
+import { db } from '@/db/client';
+import { getCatalogStats } from '@/lib/catalog';
 
 export const revalidate = 60;
 
@@ -28,10 +36,13 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
   const offset = (page - 1) * PAGE_SIZE;
   const filtered = Boolean(query || languages.length);
 
-  const [{ items, total }, facets, overview] = await Promise.all([
+  const [{ items, total }, facets, overview, unranked, catalog] = await Promise.all([
     getLeaderboard({ sort, query, languages, limit: PAGE_SIZE, offset }),
     getLanguageFacets(),
     getLeaderboardOverview(),
+    getUnrankedCount(),
+    // Каталог может быть ещё не обойдён (или миграция не применена) — тогда без счётчика.
+    getCatalogStats(db).catch(() => null),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -59,9 +70,29 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
       <section className="pt-10 pb-8 sm:pt-16">
         <h1 className="rise text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">Рейтинг</h1>
         <p className="rise mt-4 max-w-2xl text-lg leading-relaxed text-[color:var(--muted)]" style={{ animationDelay: '60ms' }}>
-          Все репозитории, чьи оценки опубликовали авторы. У каждого — балл здоровья, разбивка по
-          четырём категориям и отзывы людей.
+          Публичные репозитории SourceCraft с опубликованной оценкой. У каждого — балл здоровья,
+          разбивка по шести категориям и отзывы людей.
         </p>
+        {(catalog || unranked > 0) && (
+          <p className="rise mt-3 max-w-2xl text-sm text-[color:var(--muted)]" style={{ animationDelay: '90ms' }}>
+            {catalog && (
+              <>
+                Оценено <span className="tabular-nums text-[color:var(--ink-2)]">{catalog.analyzed.toLocaleString('ru-RU')}</span>{' '}
+                из <span className="tabular-nums text-[color:var(--ink-2)]">{catalog.eligible.toLocaleString('ru-RU')}</span>{' '}
+                публичных проектов каталога SourceCraft (всего в каталоге{' '}
+                {catalog.total.toLocaleString('ru-RU')}, без форков, зеркал, шаблонов и пустых).{' '}
+              </>
+            )}
+            {unranked > 0 && (
+              <>
+                Ещё {unranked.toLocaleString('ru-RU')} оценены, но без места: форки, зеркала и копии шаблонов.{' '}
+              </>
+            )}
+            <Link href="/methodology" className="underline">
+              Как считается балл
+            </Link>
+          </p>
+        )}
       </section>
 
       {overview.total > 0 && <RatingOverview overview={overview} facets={facets.slice(0, 8)} />}

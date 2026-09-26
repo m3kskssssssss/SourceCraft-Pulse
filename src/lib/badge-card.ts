@@ -1,7 +1,7 @@
 // Бейдж-карточка Pulse: оценка плюс то, из чего она сложилась.
 //
 // Маленький бейдж (lib/badge.ts) отвечает на вопрос «сколько». Карточка — для
-// своих репозиториев: общий балл, четыре категории полосами, язык и дата
+// своих репозиториев: общий балл, шесть категорий полосами, язык и дата
 // последнего пересчёта.
 //
 // Сетка: поля PAD со всех сторон, строки выровнены по общим базовым линиям —
@@ -59,13 +59,16 @@ const BAR_H = 4;
 // Правая часть: подписи категорий, полоса, число справа.
 const RIGHT_X = PLATE + PAD;
 const RIGHT_END = WIDTH - PAD;
-const LABEL_W = 92;
-const VALUE_W = 28;
-const BAR_X = RIGHT_X + LABEL_W;
-const BAR_W = RIGHT_END - VALUE_W - BAR_X;
-/** Четыре строки категорий между верхней строкой и подвалом, шаг ровный. */
+/** Шесть категорий — две колонки по три строки: в высоту карточки влезают три. */
+const COLUMNS = 2;
+const COL_GAP = 12;
+const COL_W = (RIGHT_END - RIGHT_X - COL_GAP) / COLUMNS;
+const LABEL_W = 82;
+const VALUE_W = 24;
+const BAR_W = COL_W - LABEL_W - VALUE_W;
+/** Строки категорий между верхней строкой и подвалом, шаг ровный. */
 const ROW_Y0 = TOP_Y + 22;
-const ROW_STEP = 16;
+const ROW_STEP = 18;
 
 /** На глаз: шрифта у нас нет, измерять нечем. */
 const TITLE_MAX_CHARS = 40;
@@ -95,20 +98,25 @@ export function renderBadgeCardSvg(input: BadgeCardInput): string {
   const scoreY = 84;
   const plateBarY = scoreY + 10;
 
+  const perColumn = Math.ceil(CATEGORY_ORDER.length / COLUMNS);
   const rows = CATEGORY_ORDER.map((key, i) => {
     const value = input.categories[key];
-    const y = ROW_Y0 + i * ROW_STEP;
+    const col = Math.floor(i / perColumn);
+    const x = RIGHT_X + col * (COL_W + COL_GAP);
+    const barX = x + LABEL_W;
+    const endX = x + COL_W;
+    const y = ROW_Y0 + (i % perColumn) * ROW_STEP;
     // Полоса по центру строчных букв подписи.
     const barY = y - 4 - BAR_H / 2;
     const fill =
       value === null ? 0 : Math.round((BAR_W * Math.max(0, Math.min(100, value))) / 100);
     return [
-      `<text x="${RIGHT_X}" y="${y}" fill="${INK_2}" font-size="11">${escapeXml(CATEGORY_TITLES[key])}</text>`,
-      `<rect x="${BAR_X}" y="${barY}" width="${BAR_W}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${TRACK}"/>`,
+      `<text x="${x}" y="${y}" fill="${INK_2}" font-size="11">${escapeXml(CATEGORY_TITLES[key])}</text>`,
+      `<rect x="${barX}" y="${barY}" width="${BAR_W}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${TRACK}"/>`,
       fill > 0
-        ? `<rect x="${BAR_X}" y="${barY}" width="${fill}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${INK}"/>`
+        ? `<rect x="${barX}" y="${barY}" width="${fill}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${INK}"/>`
         : '',
-      `<text x="${RIGHT_END}" y="${y}" fill="${value === null ? MUTED : INK}" font-size="11" font-weight="600" text-anchor="end">${value === null ? '—' : value}</text>`,
+      `<text x="${endX}" y="${y}" fill="${value === null ? MUTED : INK}" font-size="11" font-weight="600" text-anchor="end">${value === null ? '—' : value}</text>`,
     ].join('');
   }).join('');
 

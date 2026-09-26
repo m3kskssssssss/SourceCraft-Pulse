@@ -64,8 +64,8 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
     // Дерево коммитов на оценку не влияет — это иллюстрация на странице анализа.
     gitGraph: emptyGitGraph(),
     kind: { kind: 'project', confidence: 1, signals: ['фикстура'] },
-    // Фикстуры считают, что AppSec ответил: так проверяется сама формула
-    // категории. Боевой провайдер пока всегда «нет данных».
+    // Фикстуры считают, что AppSec ответил (как у приватного репозитория с
+    // токеном владельца): так проверяется сама формула категории.
     security: {
       provider: 'sourcecraft_appsec',
       available: true,
@@ -75,6 +75,8 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
       missing: [],
     },
     dependencyAudit: null,
+    ownerAppSec: null,
+    ciConfig: null,
     ci: {
       available: false,
       reason: 'no_owner_token',
@@ -100,11 +102,17 @@ export function makePerfectFacts(): RepoFacts {
     tags: [{ name: 'v1.0.0' }, { name: 'v1.1.0' }, { name: 'v2.0.0' }] as never[],
     releases: [{ tag: 'v2.0.0' }] as never[],
     issues: [
-      { id: '1', completed_at: '2026-01-01T00:00:00Z' },
-      { id: '2', completed_at: '2026-02-01T00:00:00Z' },
-      { id: '3', completed_at: '2026-03-01T00:00:00Z' },
+      { id: '1', created_at: '2025-12-30T00:00:00Z', completed_at: '2026-01-01T00:00:00Z' },
+      { id: '2', created_at: '2026-01-29T00:00:00Z', completed_at: '2026-02-01T00:00:00Z' },
+      { id: '3', created_at: '2026-02-28T00:00:00Z', completed_at: '2026-03-01T00:00:00Z' },
       { id: '4' },
     ] as never[],
+    ciConfig: {
+      files: ['.sourcecraft/ci.yaml'],
+      runsTests: true,
+      runsLint: true,
+      runsOnPullRequests: true,
+    },
     tree: {
       entriesCount: 20,
       entries: [
@@ -194,7 +202,17 @@ export function makePerfectFacts(): RepoFacts {
  * Ожидаемый score близок к нулю.
  */
 export function makeEmptyFacts(): RepoFacts {
-  return baseFacts();
+  // Публичный репозиторий: AppSec для него закрыт, безопасность — «нет данных».
+  return baseFacts({
+    security: {
+      provider: 'sourcecraft_appsec',
+      available: false,
+      vulnerabilities: [],
+      totalScanned: 0,
+      errors: [],
+      missing: ['sourcecraft_appsec_not_public'],
+    },
+  });
 }
 
 /**
@@ -235,15 +253,11 @@ export function makeMissingActivityFacts(): RepoFacts {
   };
 }
 
-/** Идеальный, но с secret и critical CVE — проверяем, что штрафы вычитаются. */
+/** Идеальный, но AppSec нашёл секрет и critical-уязвимость — штрафы вычитаются. */
 export function makeFactsWithPenalties(): RepoFacts {
   const facts = makePerfectFacts();
   return {
     ...facts,
-    gitHistory: {
-      ...facts.gitHistory,
-      secretHits: [{ name: 'aws_access_key', sample: 'AKIA1234…' }],
-    },
     security: {
       ...facts.security,
       vulnerabilities: [
@@ -254,10 +268,22 @@ export function makeFactsWithPenalties(): RepoFacts {
           version: '1.0.0',
           ecosystem: 'npm',
           summary: null,
-          fixedIn: null, // без исправления — включает штраф
+          fixedIn: null, // открытая находка — включает штраф
+          kind: 'sca',
+        },
+        {
+          id: 'generic-api-key',
+          severity: 'high',
+          package: 'config/prod.env',
+          version: null,
+          ecosystem: 'gitleaks',
+          summary: 'generic-api-key',
+          fixedIn: null,
+          kind: 'secret',
+          file: 'config/prod.env',
         },
       ],
-      totalScanned: 1,
+      totalScanned: 2,
     },
     tree: {
       ...facts.tree,

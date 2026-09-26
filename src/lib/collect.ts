@@ -6,8 +6,9 @@
 //   2. Клон репозитория (один): индекс файлов строится одним обходом дерева,
 //      лог коммитов читается один раз на историю и на дерево пути, файлы
 //      читаются пачками и по общему дедлайну.
-//   3. Безопасность: балл — только по SourceCraft AppSec (пока «нет данных»);
-//      lock-файлы сверяем с OSV.dev отдельно, как справку вне балла.
+//   3. Безопасность: балл — только по SourceCraft AppSec токеном владельца
+//      приватного репозитория; у публичных — «нет данных». Lock-файлы
+//      сверяем с OSV.dev отдельно, как справку вне балла.
 //
 // Всё, что не удалось получить, честно уходит в `missing: string[]`.
 
@@ -125,6 +126,14 @@ export type RepoFacts = {
    * В балл не входит; null — не проверяли (приватный репозиторий).
    */
   dependencyAudit: SecurityScanResult | null;
+  /**
+   * AppSec публичного репозитория по токену владельца. Видно только ему и в
+   * балл не входит; null — токена владельца не было или репозиторий приватный
+   * (тогда AppSec уже лежит в `security`).
+   */
+  ownerAppSec: SecurityScanResult | null;
+  /** Что делает пайплайн — по тексту CI-конфигов из клона; null — клона не было. */
+  ciConfig: CiConfigFacts | null;
   /** CI-прогоны — только с токеном владельца, в балл не входят. */
   ci: CiFacts;
   /** Полный текст README.md (если найден в git-клоне). */
@@ -293,6 +302,52 @@ export type CiFacts = {
   lastStatus: string | null;
 };
 
+/**
+ * Что делает пайплайн, по тексту CI-конфигов. Публичные данные: конфиг лежит
+ * в самом репозитории, в отличие от прогонов, которые видны только участникам.
+ */
+export type CiConfigFacts = {
+  /** Прочитанные конфиги. Пусто — конфига CI в репозитории нет. */
+  files: string[];
+  /** Запускает тесты. */
+  runsTests: boolean;
+  /** Запускает линтер или проверку форматирования. */
+  runsLint: boolean;
+  /** Срабатывает на pull request, а не только на push. */
+  runsOnPullRequests: boolean;
+};
+
+/** Больше трёх конфигов не читаем: признаки находятся в первых же. */
+const CI_CONFIG_READ_LIMIT = 3;
+const CI_TEST_RE =
+  /\b(test|tests|pytest|jest|vitest|mocha|go test|cargo test|ctest|phpunit|rspec|unittest|tox|nox)\b|gradle\w*\s+(check|test)|mvn\s+\S*\s*(verify|test)/i;
+const CI_LINT_RE =
+  /\b(lint|eslint|ruff|flake8|pylint|golangci-lint|clippy|checkstyle|ktlint|rubocop|biome|stylelint|mypy|tsc)\b|prettier\s+(--check|-c)|black\s+--check|gofmt|cargo fmt/i;
+const CI_PR_RE = /\bpull_request\b|\bpull-request\b|\bmerge_request/i;
+
+/** Пути CI-конфигов в клоне по тем же признакам, что и флаг hasCiConfig. */
+function ciPaths(files: string[]): string[] {
+  return files
+    .filter((path) => {
+      const lower = path.toLowerCase();
+      if (lower.startsWith('.github/workflows/')) return /\.ya?ml$/.test(lower);
+      return CI_CONFIG_MARKERS.some((m) => lower === m.toLowerCase());
+    })
+    .slice(0, CI_CONFIG_READ_LIMIT);
+}
+
+/** Сводка по CI-конфигам. Чистая функция — ради теста. */
+export function summarizeCiConfig(paths: string[], contents: Map<string, string>): CiConfigFacts {
+  const texts = paths.map((p) => contents.get(p)).filter((t): t is string => typeof t === 'string');
+  const any = (re: RegExp) => texts.some((t) => re.test(t));
+  return {
+    files: paths.filter((p) => contents.has(p)),
+    runsTests: any(CI_TEST_RE),
+    runsLint: any(CI_LINT_RE),
+    runsOnPullRequests: any(CI_PR_RE),
+  };
+}
+
 /** Сколько последних прогонов смотрим. */
 const CI_RUNS_SAMPLE = 30;
 const CI_FAILED = new Set(['failed', 'timeout']);
@@ -428,6 +483,7 @@ export async function collectRepoFacts(
   let languages: LanguageShare[] = [];
   let code: CodeFacts = emptyCodeFacts();
   let gitGraph: GitGraph = emptyGitGraph();
+  let ciConfig: CiConfigFacts | null = null;
 
   if ((options.runGitAnalysis ?? true) && cloneUrlHttps) {
     try {
@@ -477,10 +533,12 @@ export async function collectRepoFacts(
                 'package-lock.json',
                 'pnpm-lock.yaml',
                 clone.files.find((path) => README_FILE_RE.test(path)) ?? '',
+                ...ciPaths(clone.files),
               ].filter(Boolean),
               { deadline },
             ),
           ]);
+          ciConfig = summarizeCiConfig(ciPaths(clone.files), extras.files);
 
           trace(`чтение файлов (${codeFacts.scannedFiles})`);
 
@@ -579,14 +637,31 @@ export async function collectRepoFacts(
   });
   for (const e of parsedLocks.errors) missing.push(`lockfile_parse_error:${e}`);
 
-  // Балл «Безопасность» — только по AppSec. Пока его данных нет в API,
-  // провайдер отвечает «нет данных», и категория выпадает из расчёта.
+  // Балл «Безопасность» — только по AppSec. Его результаты SourceCraft отдаёт
+  // лишь участникам репозитория, поэтому:
+  //  - приватный репозиторий считаем по токену владельца;
+  //  - у публичного AppSec в балл не идёт: иначе его место в рейтинге зависело
+  //    бы от того, кто запустил оценку. Владельцу результат показываем
+  //    отдельно, как и CI-прогоны. Категория у всех публичных — «нет данных».
   const scanInput = {
     dependencies: parsedLocks.dependencies,
     hasSecurityMd: flags.hasSecurityMd,
     unsupportedLockfiles: parsedLocks.unsupported,
+    repositoryId: repository?.id ?? null,
   };
-  const scanResult = await security.scan(scanInput);
+  const ownerAppSec = options.ciToken
+    ? await security.scan({ ...scanInput, token: options.ciToken })
+    : null;
+  const scanResult: SecurityScanResult = options.privateRepo
+    ? (ownerAppSec ?? (await security.scan(scanInput)))
+    : {
+        provider: security.name,
+        available: false,
+        vulnerabilities: [],
+        totalScanned: 0,
+        errors: [],
+        missing: ['sourcecraft_appsec_not_public'],
+      };
   for (const e of scanResult.errors) missing.push(`security_scan_error:${e}`);
   for (const e of scanResult.missing) missing.push(e);
 
@@ -629,6 +704,8 @@ export async function collectRepoFacts(
     code,
     security: scanResult,
     dependencyAudit: auditResult,
+    ownerAppSec: options.privateRepo ? null : ownerAppSec,
+    ciConfig,
     ci,
     readme,
     missing: dedupeStrings(missing),

@@ -31,10 +31,11 @@ export function computeCodeMetrics(facts: RepoFacts): MetricScore[] {
     commentsMetric(facts),
     todoDebtMetric(facts),
     hasLinterMetric(facts),
-    hasCiMetric(facts),
     hasBuildManifestMetric(facts),
     hasGitignoreMetric(facts),
     hasEditorConfigMetric(facts),
+    lockfileMetric(facts),
+    dependencyBotMetric(facts),
   ];
 }
 
@@ -225,21 +226,43 @@ function hasLinterMetric(facts: RepoFacts): MetricScore {
   };
 }
 
-function hasCiMetric(facts: RepoFacts): MetricScore {
+/**
+ * Lock-файл: версии зависимостей зафиксированы, сборка воспроизводима.
+ * Считаем любой известный lock-файл, в том числе те, что мы не разбираем.
+ */
+function lockfileMetric(facts: RepoFacts): MetricScore {
   if (isUnknown(facts, 'tree_fetch_failed')) {
-    return unknownTreeMetric('code.has_ci', CODE_WEIGHTS.hasCi);
+    return unknownTreeMetric('code.lockfile', CODE_WEIGHTS.lockfile);
   }
-  const hasCi = facts.tree.flags.hasCiConfig;
+  const has =
+    facts.tree.flags.supportedLockfiles.length > 0 ||
+    facts.tree.flags.unsupportedLockfilesPresent.length > 0;
   return {
-    key: 'code.has_ci',
+    key: 'code.lockfile',
     category: CATEGORY,
-    weight: CODE_WEIGHTS.hasCi,
-    value: boolScore(hasCi),
-    hint: hasCi ? 'Обнаружен конфиг CI' : 'Конфиг CI не найден',
+    weight: CODE_WEIGHTS.lockfile,
+    value: boolScore(has),
+    hint: has ? 'Версии зависимостей зафиксированы lock-файлом' : 'Lock-файла нет',
     target: 100,
-    effort: 'medium',
-    recommendationKind: 'add_ci',
+    effort: 'trivial',
+    recommendationKind: 'add_lockfile',
   };
+}
+
+/**
+ * Бот обновления зависимостей. Разовое обновление стареет через месяц, а
+ * dependabot или renovate держат версии свежими без участия человека.
+ */
+function dependencyBotMetric(facts: RepoFacts): MetricScore {
+  return treeFlagMetric(facts, {
+    key: 'code.dependency_bot',
+    weight: CODE_WEIGHTS.dependencyBot,
+    flag: facts.tree.flags.hasDependencyBot,
+    yes: 'Автообновление зависимостей настроено',
+    no: 'Автообновления зависимостей нет',
+    effort: 'small',
+    recommendationKind: 'add_dependency_bot',
+  });
 }
 
 // ---------- helpers ----------

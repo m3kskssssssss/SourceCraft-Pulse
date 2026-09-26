@@ -25,6 +25,8 @@
   --accent-code: #2b4c8c;
   --accent-security: #2f6f4f;
   --accent-docs: #8a6320;
+  --accent-ci: #6a3d9a;
+  --accent-issues: #1d6b78;
 
 
   --radius-sm: 10px;
@@ -63,6 +65,8 @@
     --accent-code: #8aa9f0;
     --accent-security: #6cc796;
     --accent-docs: #e0b25c;
+    --accent-ci: #bc9bf0;
+    --accent-issues: #6cc3d1;
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 1px rgba(0, 0, 0, 0.4);
     --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
@@ -84,6 +88,8 @@
   --accent-code: #8aa9f0;
   --accent-security: #6cc796;
   --accent-docs: #e0b25c;
+  --accent-ci: #bc9bf0;
+  --accent-issues: #6cc3d1;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 1px rgba(0, 0, 0, 0.4);
   --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
@@ -179,6 +185,8 @@ html.theme-switching *::after {
   --color-accent-code: var(--accent-code);
   --color-accent-security: var(--accent-security);
   --color-accent-docs: var(--accent-docs);
+  --color-accent-ci: var(--accent-ci);
+  --color-accent-issues: var(--accent-issues);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
@@ -254,11 +262,17 @@ body {
 .accent-security {
   --accent: var(--accent-security);
 }
+.accent-ci {
+  --accent: var(--accent-ci);
+}
+.accent-issues {
+  --accent: var(--accent-issues);
+}
 .accent-docs {
   --accent: var(--accent-docs);
 }
 
-:where(.accent-activity, .accent-code, .accent-security, .accent-docs) {
+:where(.accent-activity, .accent-code, .accent-security, .accent-docs, .accent-ci, .accent-issues) {
   --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--paper));
   --accent-line: color-mix(in srgb, var(--accent) 28%, var(--paper));
 }

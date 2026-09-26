@@ -5,7 +5,7 @@ const base: BadgeCardInput = {
   org: 'acme',
   repo: 'rocket',
   score: 82,
-  categories: { activity: 70, code: 90, security: null, docs: 55 },
+  categories: { activity: 70, code: 90, security: null, docs: 55, ci: 100, issues: 40 },
   language: 'TypeScript',
   updated: '25.09.2026',
   verified: true,
@@ -20,9 +20,9 @@ describe('renderBadgeCardSvg', () => {
     expect(svg).toContain('>acme/rocket<');
   });
 
-  it('четыре категории, пустая — прочерком', () => {
+  it('шесть категорий, пустая — прочерком', () => {
     const svg = renderBadgeCardSvg(base);
-    for (const title of ['Активность', 'Код', 'Безопасность', 'Документация']) {
+    for (const title of ['Безопасность', 'Код', 'Активность', 'Документация', 'CI/CD', 'Задачи']) {
       expect(svg).toContain(`>${title}<`);
     }
     expect(svg).toContain('>—<');

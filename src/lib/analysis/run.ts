@@ -37,6 +37,7 @@ import { runFileSelection } from '../ai/tasks/file-selection';
 import type { AiCache } from '../ai/cache';
 import type { AiProvider } from '../ai/provider';
 import type { AiTelemetry } from '../ai/telemetry';
+import { ratingExclusion } from '../rating-eligibility';
 
 export type AnalysisDb = NodePgDatabase<typeof schema>;
 
@@ -234,6 +235,9 @@ export async function processAnalysis(
           penalties: result.penalties,
           scoreBeforePenalties: result.scoreBeforePenalties,
           ai: aiOutputs,
+          // Форки, зеркала, шаблоны и свежие копии шаблонов балл получают,
+          // а места в рейтинге — нет (см. lib/rating-eligibility.ts).
+          rating: { excluded: ratingExclusion(facts) },
         },
         recommendations: result.recommendations as unknown as Record<string, unknown>,
         missing: result.missing as unknown as Record<string, unknown>,

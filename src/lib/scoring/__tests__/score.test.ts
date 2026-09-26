@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { scoreRepo } from '..';
-import { PENALTIES, RECOMMENDATIONS_LIMIT } from '../config';
+import { CATEGORY_WEIGHTS, PENALTIES, RECOMMENDATIONS_LIMIT } from '../config';
+import { computeCoverage } from '../coverage';
 import type { MetricScore } from '../types';
 import {
   makeEmptyFacts,
@@ -22,7 +23,7 @@ describe('scoreRepo — идеальный репозиторий', () => {
     expect(result.penalties).toEqual([]);
   });
 
-  it('заполняет все четыре категории known значениями', () => {
+  it('заполняет все шесть категорий known значениями', () => {
     for (const c of result.categoryScores) {
       expect(c.value).not.toBeNull();
     }
@@ -169,6 +170,70 @@ describe('scoreRepo — безопасность только по AppSec', () =
   });
 });
 
+describe('scoreRepo — шесть категорий ТЗ', () => {
+  it('веса категорий 20/20/15/15/15/15', () => {
+    expect(CATEGORY_WEIGHTS).toEqual({
+      security: 0.2,
+      code: 0.2,
+      activity: 0.15,
+      docs: 0.15,
+      ci: 0.15,
+      issues: 0.15,
+    });
+  });
+
+  it('без трекера задач категория «Задачи» — нет данных, а не ноль', () => {
+    const result = scoreRepo({ ...makePerfectFacts(), issues: [] });
+    expect(result.categoryScores.find((c) => c.key === 'issues')?.value).toBeNull();
+  });
+
+  it('без CI категория держится на одной метрике и не плодит рекомендаций', () => {
+    const facts = makePerfectFacts();
+    const result = scoreRepo({
+      ...facts,
+      ciConfig: null,
+      tree: { ...facts.tree, flags: { ...facts.tree.flags, hasCiConfig: false } },
+    });
+    const ci = result.categoryScores.find((c) => c.key === 'ci');
+    expect(ci?.value).toBe(0);
+    const ciRecs = result.recommendations.filter((r) => r.category === 'ci').map((r) => r.key);
+    expect(ciRecs).toEqual(['ci.config']);
+  });
+
+  it('прогоны CI публичного репозитория в балл не входят', () => {
+    const facts = makePerfectFacts();
+    const withRuns = {
+      ...facts,
+      ci: { ...facts.ci, available: true, reason: null, sampled: 10, succeeded: 1, failed: 9 },
+    };
+    const runs = (f: typeof facts) =>
+      scoreRepo(f).categoryScores.find((c) => c.key === 'ci')!.metrics.find((m) => m.key === 'ci.runs_success');
+    expect(runs(withRuns)?.unknown).toBe(true);
+    const privateRepo = { ...withRuns, repository: { visibility: 'private' } as never };
+    expect(runs(privateRepo)?.value).toBe(0);
+  });
+
+  it('наш поиск ключей в истории не штрафует: секреты — только по AppSec', () => {
+    const facts = makePerfectFacts();
+    const result = scoreRepo({
+      ...facts,
+      gitHistory: { ...facts.gitHistory, secretHits: [{ name: 'aws_access_key', sample: 'AKIA…' }] },
+    });
+    expect(result.penalties).toEqual([]);
+  });
+
+  it('покрытие: безопасность без данных снимает её 20 %', () => {
+    const facts = makePerfectFacts();
+    const full = computeCoverage(scoreRepo(facts).categoryScores);
+    const noAppSec = computeCoverage(
+      scoreRepo({ ...facts, security: { ...facts.security, available: false } }).categoryScores,
+    );
+    expect(full).not.toBeNull();
+    expect(noAppSec).not.toBeNull();
+    expect(full! - noAppSec!).toBeCloseTo(0.2, 5);
+  });
+});
+
 describe('scoreRepo — рекомендации', () => {
   it('пустой репо получает полный список', () => {
     const result = scoreRepo(makeEmptyFacts());
@@ -217,7 +282,16 @@ function applyRecommendationsToFacts(
   let tags = facts.tags;
   let issues = facts.issues;
   let counters = { ...facts.counters };
+  let ciConfig = facts.ciConfig;
   const entries = [...facts.tree.entries];
+  const withCi = (patch: Partial<NonNullable<typeof ciConfig>>) => ({
+    files: ['.sourcecraft/ci.yaml'],
+    runsTests: false,
+    runsLint: false,
+    runsOnPullRequests: false,
+    ...ciConfig,
+    ...patch,
+  });
 
   for (const key of metricKeys) {
     switch (key) {
@@ -243,15 +317,26 @@ function applyRecommendationsToFacts(
         flags.hasTestsDir = true;
         entries.push({ path: 'tests/foo.test.ts' } as never);
         break;
-      case 'code.has_ci':
+      case 'ci.config':
         flags.hasCiConfig = true;
         entries.push({ path: '.sourcecraft/ci.yaml' } as never);
+        // Метрики пайплайна до этого были «нет данных»; после — полные.
+        ciConfig = withCi({ runsTests: true, runsLint: true, runsOnPullRequests: true });
+        break;
+      case 'ci.runs_tests':
+        ciConfig = withCi({ runsTests: true });
+        break;
+      case 'ci.runs_lint':
+        ciConfig = withCi({ runsLint: true });
+        break;
+      case 'ci.pr_checks':
+        ciConfig = withCi({ runsOnPullRequests: true });
         break;
       case 'code.has_linter':
         flags.hasLinterConfig = true;
         entries.push({ path: 'eslint.config.mjs' } as never);
         break;
-      case 'security.dependency_bot':
+      case 'code.dependency_bot':
         flags.hasDependencyBot = true;
         entries.push({ path: '.github/dependabot.yml' } as never);
         break;
@@ -294,13 +379,16 @@ function applyRecommendationsToFacts(
       case 'activity.pr_flow':
         counters = { ...counters, pullRequests: 12 };
         break;
-      case 'activity.issue_flow':
+      case 'issues.closed_share':
         issues = [
           { id: '1', completed_at: '2026-01-01T00:00:00Z' },
           { id: '2', completed_at: '2026-02-01T00:00:00Z' },
         ] as never[];
         break;
-      case 'security.lockfiles_present':
+      case 'security.secrets':
+        security = { ...security, vulnerabilities: security.vulnerabilities.filter((v) => v.kind !== 'secret') };
+        break;
+      case 'code.lockfile':
         flags.supportedLockfiles = ['package-lock.json'];
         entries.push({ path: 'package-lock.json' } as never);
         break;
@@ -309,9 +397,6 @@ function applyRecommendationsToFacts(
         break;
       case 'security.high_vulns':
         security = { ...security, vulnerabilities: security.vulnerabilities.filter((v) => v.severity !== 'high') };
-        break;
-      case 'security.fresh_dependencies':
-        // heuristic-метрика: если lock уже был — value 70 → ставим 80 через lockfile bump
         break;
       case 'activity.commits_90d':
         gh = { ...gh, commitsLast90Days: 60 };
@@ -339,6 +424,7 @@ function applyRecommendationsToFacts(
     counters,
     gitHistory: gh,
     security,
+    ciConfig,
     tree: {
       ...facts.tree,
       entriesCount: entries.length,

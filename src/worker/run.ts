@@ -19,7 +19,10 @@
 // Настройки через окружение:
 //   WORKER_BATCH_SIZE   — сколько задач захватывать за раз (по умолчанию 6);
 //   WORKER_CONCURRENCY  — сколько считать одновременно (по умолчанию 3);
-//   WORKER_MAX_SECONDS  — общий бюджет времени (по умолчанию 900).
+//   WORKER_MAX_SECONDS  — общий бюджет времени (по умолчанию 900);
+//   CATALOG_SYNC_HOURS  — как часто обходить каталог SourceCraft (по умолчанию 24, 0 — не обходить);
+//   CATALOG_AUTO_ANALYZE — сколько репозиториев каталога ставить на оценку, когда очередь пуста
+//                          (по умолчанию 0: каждая оценка — клон и вызовы модели).
 
 import 'dotenv/config';
 import { hostname } from 'node:os';
@@ -27,10 +30,13 @@ import { getWorkerDb, getWorkerPool, shutdownWorkerDb } from '../db/worker-clien
 import { MAX_ATTEMPTS, processAnalysis, type ClaimedJob, type ProcessOutcome } from '../lib/analysis/run';
 import { enqueueDailyRefresh } from '../lib/ownership';
 import { syncDueTokens } from '../lib/token-sync';
+import { catalogSyncDue, enqueueCatalogAnalyses, pendingJobs, syncCatalog } from '../lib/catalog';
 
 const DEFAULT_BATCH_SIZE = 6;
 const DEFAULT_CONCURRENCY = 3;
 const DEFAULT_MAX_SECONDS = 900;
+/** Больше этого на обход каталога за один запуск не тратим. */
+const CATALOG_SYNC_MAX_MS = 240_000;
 /** Как часто продлеваем лок взятых задач. */
 const HEARTBEAT_MS = 60_000;
 /** Лок, который старше этого, считаем брошенным — см. STALE_LOCK_MS в lib/analysis/run. */
@@ -76,6 +82,36 @@ async function main(): Promise<void> {
     }
   } catch (err) {
     console.warn(`[worker ${workerId}] Синхронизация токенов не прошла: ${describe(err)}`);
+  }
+
+  // Каталог SourceCraft: раз в сутки обходим GET /repos целиком (только
+  // карточки, без клонов), а при пустой очереди — если включено — ставим на
+  // оценку следующую пачку ещё не оценённых репозиториев.
+  const catalogHours = envIntAllowZero('CATALOG_SYNC_HOURS', 24);
+  if (catalogHours > 0) {
+    try {
+      if (await catalogSyncDue(db, catalogHours)) {
+        const sync = await syncCatalog(db, { deadline: Math.min(deadline, Date.now() + CATALOG_SYNC_MAX_MS) });
+        console.log(
+          `[worker ${workerId}] Каталог: ${sync.seen} репозиториев за ${sync.pages} страниц${
+            sync.complete ? `, удалено исчезнувших ${sync.removed}` : ', обход не закончен за отведённое время'
+          }.`,
+        );
+      }
+    } catch (err) {
+      console.warn(`[worker ${workerId}] Обход каталога не прошёл: ${describe(err)}`);
+    }
+  }
+  const autoAnalyze = envIntAllowZero('CATALOG_AUTO_ANALYZE', 0);
+  if (autoAnalyze > 0) {
+    try {
+      if ((await pendingJobs(db)) === 0) {
+        const queued = await enqueueCatalogAnalyses(db, autoAnalyze);
+        if (queued > 0) console.log(`[worker ${workerId}] Из каталога на оценку: ${queued}.`);
+      }
+    } catch (err) {
+      console.warn(`[worker ${workerId}] Не удалось поставить каталог на оценку: ${describe(err)}`);
+    }
   }
 
   const heartbeat = setInterval(() => {
@@ -189,6 +225,12 @@ async function releaseJob(jobId: string): Promise<void> {
   } catch {
     // не страшно: лок протухнет сам через шесть минут
   }
+}
+
+/** Как envInt, но ноль — законное значение («выключено»). */
+function envIntAllowZero(name: string, fallback: number): number {
+  const parsed = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function envInt(name: string, fallback: number): number {

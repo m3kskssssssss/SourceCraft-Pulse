@@ -2,13 +2,14 @@
 // RepoFacts → AnalysisResult детерминированно.
 //
 // Алгоритм:
-//   1) Считаем все метрики четырёх категорий.
+//   1) Считаем все метрики шести категорий ТЗ: безопасность, код, активность,
+//      документация, CI/CD, задачи.
 //   2) Внутри категории отфильтровываем unknown, нормируем веса известных
 //      метрик, считаем среднее взвешенное. Категория без известных метрик = null.
 //   3) Общий балл = среднее по категориям с известными баллами,
 //      с нормировкой CATEGORY_WEIGHTS среди known-категорий.
-//   4) Применяем штрафы (секрет в истории, критическая CVE без исправлений
-//      по данным AppSec, нет лицензии).
+//   4) Применяем штрафы (открытые секрет и критическая уязвимость по данным
+//      AppSec, нет лицензии).
 //   5) clamp(0..100), округляем до целого.
 //   6) Строим рекомендации (см. recommendations.ts).
 
@@ -16,7 +17,9 @@ import type { RepoFacts } from '../collect';
 import { CATEGORY_WEIGHTS, PENALTIES } from './config';
 import { computeActivityMetrics } from './metrics/activity';
 import { computeCodeMetrics } from './metrics/code';
-import { computeSecurityMetrics, hasAppSecData } from './metrics/security';
+import { appSecSecrets, computeSecurityMetrics, hasAppSecData } from './metrics/security';
+import { computeCiMetrics } from './metrics/ci';
+import { computeIssuesMetrics } from './metrics/issues';
 import { computeDocsMetrics } from './metrics/docs';
 import { clamp } from './normalize';
 import { buildRecommendations } from './recommendations';
@@ -54,10 +57,12 @@ export function scoreRepo(facts: RepoFacts, options: ScoreRepoOptions = {}): Ana
   );
 
   const metrics: MetricScore[] = [
-    ...computeActivityMetrics(facts),
-    ...codeMetrics,
     ...computeSecurityMetrics(facts),
+    ...codeMetrics,
+    ...computeActivityMetrics(facts),
     ...docsMetrics,
+    ...computeCiMetrics(facts),
+    ...computeIssuesMetrics(facts),
   ];
 
   const categoryScores = buildCategoryScores(metrics);
@@ -108,7 +113,14 @@ function aiOverride(
 
 // ---------- Категории ----------
 
-const CATEGORIES: readonly CategoryKey[] = ['activity', 'code', 'security', 'docs'] as const;
+const CATEGORIES: readonly CategoryKey[] = [
+  'security',
+  'code',
+  'activity',
+  'docs',
+  'ci',
+  'issues',
+] as const;
 
 export function buildCategoryScores(metrics: MetricScore[]): CategoryScore[] {
   return CATEGORIES.map((cat) => buildCategory(cat, metrics));
@@ -156,17 +168,19 @@ export function computeOverall(categoryScores: CategoryScore[]): number {
 export function computePenalties(facts: RepoFacts): AppliedPenalty[] {
   const penalties: AppliedPenalty[] = [];
 
-  if (facts.gitHistory.available && facts.gitHistory.secretHits.length > 0) {
+  // Оба штрафа за безопасность — только по данным AppSec. Наш поиск ключей в
+  // истории и справка OSV.dev показываются, но на балл не влияют: подменять
+  // AppSec собственным сканированием ТЗ запрещает.
+  const secrets = appSecSecrets(facts);
+  if (secrets.length > 0) {
+    const names = [...new Set(secrets.map((s) => s.summary ?? s.id))].slice(0, 5);
     penalties.push({
       key: 'secret_in_code',
       amount: PENALTIES.secretInCode,
-      reason: `Найдены признаки секретов в коде: ${facts.gitHistory.secretHits
-        .map((s) => s.name)
-        .join(', ')}`,
+      reason: `AppSec нашёл открытые секреты: ${names.join(', ')}`,
     });
   }
 
-  // Только по данным AppSec: справка OSV.dev на балл не влияет.
   const hasUnfixedCritical =
     hasAppSecData(facts) &&
     facts.security.vulnerabilities.some(
@@ -176,7 +190,7 @@ export function computePenalties(facts: RepoFacts): AppliedPenalty[] {
     penalties.push({
       key: 'critical_vuln_unfixed',
       amount: PENALTIES.criticalVulnUnfixed,
-      reason: 'Есть критическая уязвимость без исправлений',
+      reason: 'AppSec нашёл открытую критическую уязвимость',
     });
   }
 

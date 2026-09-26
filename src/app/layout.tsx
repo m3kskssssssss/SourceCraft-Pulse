@@ -73,6 +73,9 @@ function SiteFooter() {
         </div>
         {/* Шапку здесь не повторяем: в подвале только то, чего нет выше. */}
         <nav className="flex flex-wrap gap-x-5 gap-y-2">
+          <Link className="transition hover:text-[color:var(--ink)]" href="/methodology">
+            Как считается балл
+          </Link>
           <Link
             className="transition hover:text-[color:var(--ink)]"
             href="/api/public/leaderboard"

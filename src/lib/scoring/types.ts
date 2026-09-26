@@ -3,7 +3,7 @@
 import type { Effort } from './config';
 
 /** Категория верхнего уровня. */
-export type CategoryKey = 'activity' | 'code' | 'security' | 'docs';
+export type CategoryKey = 'activity' | 'code' | 'security' | 'docs' | 'ci' | 'issues';
 
 /** Ключ метрики (уникальный в рамках всей системы, не только категории). */
 export type MetricKey = string;

@@ -11,7 +11,13 @@ export type Vulnerability = {
   ecosystem: string; // 'npm', 'PyPI', ...
   summary: string | null;
   fixedIn: string[] | null; // список версий, где исправлено
+  /** Чем найдено (только AppSec): секрет, уязвимая зависимость, анализ кода. */
+  kind?: VulnerabilityKind;
+  /** Файл находки (только AppSec). */
+  file?: string | null;
 };
+
+export type VulnerabilityKind = 'secret' | 'sca' | 'sast' | 'other';
 
 /** Разобранная запись из lock-файла. */
 export type ResolvedDependency = {
@@ -27,6 +33,13 @@ export type SecurityScanInput = {
   hasSecurityMd: boolean;
   /** Отсутствующие / не поддержанные lock-файлы, чтобы честно отчитаться в missing. */
   unsupportedLockfiles: string[];
+  /** UUID репозитория из REST SourceCraft — по нему AppSec ищет сканы. */
+  repositoryId?: string | null;
+  /**
+   * Токен участника репозитория. Результаты AppSec SourceCraft отдаёт только
+   * своим: без токена владельца провайдер AppSec не делает ни одного запроса.
+   */
+  token?: string;
 };
 
 export type SecurityScanResult = {
@@ -36,6 +49,10 @@ export type SecurityScanResult = {
   totalScanned: number;
   errors: string[];
   missing: string[];
+  /** Когда завершился скан AppSec, ISO. */
+  scannedAt?: string | null;
+  /** Находок больше, чем мы дочитали: список неполный. */
+  truncated?: boolean;
 };
 
 export interface SecurityProvider {

@@ -1,56 +1,75 @@
-// Подписи и акценты четырёх категорий в одном месте: их показывают и главная,
+// Подписи и акценты шести категорий в одном месте: их показывают и главная,
 // и страница анализа, и карточка репозитория.
 //
 // Акцент задаётся классом-обёрткой (см. globals.css): внутри него дети берут
 // цвет из `var(--accent)` и сами про категорию ничего не знают.
 
+import { CATEGORY_WEIGHTS } from './scoring/config';
 import type { CategoryKey } from './scoring/types';
 
 export const CATEGORY_TITLES: Record<CategoryKey, string> = {
-  activity: 'Активность',
-  code: 'Код',
   security: 'Безопасность',
+  code: 'Код',
+  activity: 'Активность',
   docs: 'Документация',
+  ci: 'CI/CD',
+  issues: 'Задачи',
 };
 
 export const CATEGORY_BLURBS: Record<CategoryKey, string> = {
-  activity: 'Как часто пишут код, сколько людей вовлечено, свежий ли проект.',
-  code: 'Тесты, структура файлов, читаемость — из чего складывается поддерживаемость.',
-  security: 'Только по данным SourceCraft AppSec; без них — «нет данных» и вне итогового балла.',
+  security:
+    'Открытые находки SourceCraft AppSec. Видны только участникам репозитория, поэтому в публичном рейтинге — «нет данных».',
+  code: 'Тесты, структура файлов, читаемость, фиксация зависимостей — из чего складывается поддерживаемость.',
+  activity: 'Как часто пишут код, сколько людей вовлечено, выпускают ли версии.',
   docs: 'README, LICENSE, примеры — насколько легко в проект въехать.',
+  ci: 'Есть ли пайплайн, запускает ли он тесты и линтер, проверяет ли pull request.',
+  issues: 'Доводят ли задачи до конца, не копятся ли заброшенные, быстро ли за них берутся.',
 };
 
 export const CATEGORY_ACCENT_CLASS: Record<CategoryKey, string> = {
-  activity: 'accent-activity',
-  code: 'accent-code',
   security: 'accent-security',
+  code: 'accent-code',
+  activity: 'accent-activity',
   docs: 'accent-docs',
+  ci: 'accent-ci',
+  issues: 'accent-issues',
 };
 
 /** Подписи для тесных мест: строка рейтинга, карточка прогона. */
 export const CATEGORY_SHORT: Record<CategoryKey, string> = {
-  activity: 'Акт',
-  code: 'Код',
   security: 'Без',
+  code: 'Код',
+  activity: 'Акт',
   docs: 'Док',
+  ci: 'CI',
+  issues: 'Зад',
 };
 
-export const CATEGORY_ORDER: CategoryKey[] = ['activity', 'code', 'security', 'docs'];
+/** Порядок вывода: как в ТЗ, от самых весомых категорий. */
+export const CATEGORY_ORDER: CategoryKey[] = ['security', 'code', 'activity', 'docs', 'ci', 'issues'];
 
-/** Баллы по четырём категориям в фиксированном порядке. */
+/** Вес категории в итоговом балле, проценты. */
+export function categoryWeightPercent(key: CategoryKey): number {
+  return Math.round(CATEGORY_WEIGHTS[key] * 100);
+}
+
+/** Баллы по шести категориям в фиксированном порядке. */
 export type CategoryValues = Record<CategoryKey, number | null>;
 
 export const EMPTY_CATEGORY_VALUES: CategoryValues = {
-  activity: null,
-  code: null,
   security: null,
+  code: null,
+  activity: null,
   docs: null,
+  ci: null,
+  issues: null,
 };
 
 /**
  * Достаёт баллы категорий из jsonb-поля `analyses.category_scores`.
  * Данные писали мы сами, но в базе это всё равно `unknown` — разбираем
- * бережно и на любой мусор отвечаем «нет данных».
+ * бережно и на любой мусор отвечаем «нет данных». У прогонов до перехода на
+ * шесть категорий CI/CD и задач нет — они остаются «нет данных».
  */
 export function pickCategoryValues(raw: unknown): CategoryValues {
   if (!Array.isArray(raw)) return { ...EMPTY_CATEGORY_VALUES };

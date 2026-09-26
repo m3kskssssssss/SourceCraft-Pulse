@@ -1,6 +1,16 @@
 // Метрики категории «Безопасность».
+//
+// По ТЗ категория считается только по данным SourceCraft AppSec: открытые
+// находки SAST, SCA и поиска секретов. Собственных проверок здесь нет — ни
+// OSV.dev, ни поиска ключей регулярками: выдавать их за security-сканирование
+// ТЗ запрещает. Lock-файл и бот обновлений — гигиена сборки, они в «Коде».
+//
+// AppSec отдаёт результаты только участникам репозитория, поэтому данные есть
+// лишь у приватного репозитория, оценённого токеном владельца. У остальных вся
+// категория «нет данных» и выпадает из итогового балла.
 
 import type { RepoFacts } from '../../collect';
+import type { Vulnerability } from '../../security/types';
 import {
   CRITICAL_VULNS_MAX,
   HIGH_VULNS_MAX,
@@ -12,30 +22,48 @@ import type { MetricScore } from '../types';
 
 const CATEGORY = 'security' as const;
 
-/**
- * SECURITY.md здесь больше нет. У обычного проекта его отсутствие не говорит
- * о безопасности ничего, а в списке метрик выглядело обвинением. Факт
- * собирается по-прежнему и уходит провайдеру — просто баллов не отнимает.
- */
+export const APPSEC_UNAVAILABLE_HINT = 'Нет данных SourceCraft AppSec';
+
 export function computeSecurityMetrics(facts: RepoFacts): MetricScore[] {
-  // По ТЗ категория считается только по данным SourceCraft AppSec. Нет их —
-  // вся категория «нет данных» и выпадает из итогового балла; собственной
-  // проверкой (OSV.dev, lock-файлы, бот обновлений) её не подменяем.
   if (!hasAppSecData(facts)) return appSecUnavailableMetrics();
+  const findings = facts.security.vulnerabilities;
   return [
-    criticalVulnsMetric(facts),
-    highVulnsMetric(facts),
-    mediumVulnsMetric(facts),
-    lockfilesMetric(facts),
-    freshDependenciesMetric(facts),
-    dependencyBotMetric(facts),
+    severityMetric(findings, 'critical', {
+      key: 'security.critical_vulns',
+      weight: SECURITY_WEIGHTS.criticalVulns,
+      worst: CRITICAL_VULNS_MAX,
+      none: 'Открытых critical-находок нет',
+      some: 'Открытых critical-находок',
+      recommendationKind: 'fix_critical_vulns',
+    }),
+    severityMetric(findings, 'high', {
+      key: 'security.high_vulns',
+      weight: SECURITY_WEIGHTS.highVulns,
+      worst: HIGH_VULNS_MAX,
+      none: 'Открытых high-находок нет',
+      some: 'Открытых high-находок',
+      recommendationKind: 'fix_high_vulns',
+    }),
+    severityMetric(findings, 'medium', {
+      key: 'security.medium_vulns',
+      weight: SECURITY_WEIGHTS.mediumVulns,
+      worst: MEDIUM_VULNS_MAX,
+      none: 'Открытых medium-находок нет',
+      some: 'Открытых medium-находок',
+      recommendationKind: 'fix_medium_vulns',
+    }),
+    secretsMetric(findings),
   ];
 }
 
-export const APPSEC_UNAVAILABLE_HINT = 'Нет данных SourceCraft AppSec';
-
 export function hasAppSecData(facts: RepoFacts): boolean {
   return facts.security.provider === 'sourcecraft_appsec' && facts.security.available;
+}
+
+/** Открытые секреты по данным AppSec. */
+export function appSecSecrets(facts: RepoFacts): Vulnerability[] {
+  if (!hasAppSecData(facts)) return [];
+  return facts.security.vulnerabilities.filter((v) => v.kind === 'secret');
 }
 
 function appSecUnavailableMetrics(): MetricScore[] {
@@ -43,9 +71,7 @@ function appSecUnavailableMetrics(): MetricScore[] {
     ['security.critical_vulns', SECURITY_WEIGHTS.criticalVulns],
     ['security.high_vulns', SECURITY_WEIGHTS.highVulns],
     ['security.medium_vulns', SECURITY_WEIGHTS.mediumVulns],
-    ['security.lockfiles_present', SECURITY_WEIGHTS.lockfilesPresent],
-    ['security.fresh_dependencies', SECURITY_WEIGHTS.freshDependencies],
-    ['security.dependency_bot', SECURITY_WEIGHTS.dependencyBot],
+    ['security.secrets', SECURITY_WEIGHTS.secrets],
   ];
   return weights.map(([key, weight]) => ({
     key,
@@ -57,106 +83,42 @@ function appSecUnavailableMetrics(): MetricScore[] {
   }));
 }
 
-function mediumVulnsMetric(facts: RepoFacts): MetricScore {
-  const count = facts.security.vulnerabilities.filter((v) => v.severity === 'medium').length;
+function severityMetric(
+  findings: Vulnerability[],
+  severity: Vulnerability['severity'],
+  spec: {
+    key: string;
+    weight: number;
+    worst: number;
+    none: string;
+    some: string;
+    recommendationKind: string;
+  },
+): MetricScore {
+  const count = findings.filter((v) => v.severity === severity).length;
   return {
-    key: 'security.medium_vulns',
+    key: spec.key,
     category: CATEGORY,
-    weight: SECURITY_WEIGHTS.mediumVulns,
-    value: invertedLinearScore(count, { best: 0, worst: MEDIUM_VULNS_MAX }),
-    hint: count === 0 ? 'Уязвимостей medium нет' : `Medium: ${count}`,
+    weight: spec.weight,
+    value: invertedLinearScore(count, { best: 0, worst: spec.worst }),
+    hint: count === 0 ? spec.none : `${spec.some}: ${count}`,
     target: 100,
     effort: 'medium',
-    recommendationKind: 'fix_medium_vulns',
+    recommendationKind: spec.recommendationKind,
   };
 }
 
-/**
- * Бот обновления зависимостей. Разовое обновление стареет через месяц, а
- * dependabot или renovate держат версии свежими без участия человека.
- */
-function dependencyBotMetric(facts: RepoFacts): MetricScore {
-  const has = facts.tree.flags.hasDependencyBot;
+/** Секрет в репозитории — ноль баллов сразу: ключ уже доступен всем, у кого есть клон. */
+function secretsMetric(findings: Vulnerability[]): MetricScore {
+  const count = findings.filter((v) => v.kind === 'secret').length;
   return {
-    key: 'security.dependency_bot',
+    key: 'security.secrets',
     category: CATEGORY,
-    weight: SECURITY_WEIGHTS.dependencyBot,
-    value: boolScore(has),
-    hint: has ? 'Автообновление зависимостей настроено' : 'Автообновления зависимостей нет',
+    weight: SECURITY_WEIGHTS.secrets,
+    value: boolScore(count === 0),
+    hint: count === 0 ? 'Открытых секретов нет' : `Открытых секретов: ${count}`,
     target: 100,
     effort: 'small',
-    recommendationKind: 'add_dependency_bot',
-  };
-}
-
-function criticalVulnsMetric(facts: RepoFacts): MetricScore {
-  const count = facts.security.vulnerabilities.filter((v) => v.severity === 'critical').length;
-  return {
-    key: 'security.critical_vulns',
-    category: CATEGORY,
-    weight: SECURITY_WEIGHTS.criticalVulns,
-    value: invertedLinearScore(count, { best: 0, worst: CRITICAL_VULNS_MAX }),
-    hint: count === 0 ? 'Критических уязвимостей нет' : `Критических: ${count}`,
-    target: 100,
-    effort: 'medium',
-    recommendationKind: 'fix_critical_vulns',
-  };
-}
-
-function highVulnsMetric(facts: RepoFacts): MetricScore {
-  const count = facts.security.vulnerabilities.filter((v) => v.severity === 'high').length;
-  return {
-    key: 'security.high_vulns',
-    category: CATEGORY,
-    weight: SECURITY_WEIGHTS.highVulns,
-    value: invertedLinearScore(count, { best: 0, worst: HIGH_VULNS_MAX }),
-    hint: count === 0 ? 'Уязвимостей high нет' : `High: ${count}`,
-    target: 100,
-    effort: 'medium',
-    recommendationKind: 'fix_high_vulns',
-  };
-}
-
-function lockfilesMetric(facts: RepoFacts): MetricScore {
-  // Смотрим на tree.flags: если lockfiles поддержаны или не поддержаны — важно, что они вообще есть.
-  const supported = facts.tree.flags.supportedLockfiles.length > 0;
-  const unsupported = facts.tree.flags.unsupportedLockfilesPresent.length > 0;
-  const anyPresent = supported || unsupported;
-  return {
-    key: 'security.lockfiles_present',
-    category: CATEGORY,
-    weight: SECURITY_WEIGHTS.lockfilesPresent,
-    value: boolScore(anyPresent),
-    hint: anyPresent ? 'lock-файлы обнаружены' : 'lock-файлы отсутствуют',
-    target: 100,
-    effort: 'trivial',
-    recommendationKind: 'add_lockfile',
-  };
-}
-
-function freshDependenciesMetric(facts: RepoFacts): MetricScore {
-  // MVP: если lock-файл есть — считаем, что зависимости «известны».
-  // Полноценная свежесть требует опроса реестра пакетов — отложено на будущее.
-  const hasLock = facts.tree.flags.supportedLockfiles.length > 0;
-  if (!hasLock) {
-    return {
-      key: 'security.fresh_dependencies',
-      category: CATEGORY,
-      weight: SECURITY_WEIGHTS.freshDependencies,
-      value: null,
-      unknown: true,
-      hint: 'Нет поддержанного lock-файла — нечего оценивать',
-    };
-  }
-  // Пока принимаем как «нормально».
-  return {
-    key: 'security.fresh_dependencies',
-    category: CATEGORY,
-    weight: SECURITY_WEIGHTS.freshDependencies,
-    value: 70,
-    hint: 'Свежесть по heuristic (наличие lock-файла)',
-    target: 80,
-    effort: 'medium',
-    recommendationKind: 'update_dependencies',
+    recommendationKind: 'remove_secrets',
   };
 }
