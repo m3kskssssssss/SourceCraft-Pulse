@@ -11,6 +11,7 @@ import { EMPTY_CATEGORY_VALUES } from '@/lib/category-meta';
 import { isRepositoryVerified, refreshTimeZone } from '@/lib/ownership';
 import { InvalidSlugError, parseSlug, stripSvgSuffix } from '@/lib/slug';
 import { clientIp, rateLimit } from '@/lib/rate-limit';
+import { svgResponse } from '@/lib/svg-response';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   } catch (err) {
     if (err instanceof InvalidSlugError) {
       return svgResponse(
+        request,
         renderBadgeCardSvg({
           org: rawOrg,
           repo: rawRepo,
@@ -56,6 +58,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
 
   if (latest && latest.kind !== 'material' && latest.score !== null) {
     return svgResponse(
+      request,
       renderBadgeCardSvg({
         org: latest.org,
         repo: latest.repo,
@@ -77,6 +80,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
         : 'нет оценки';
   // 200, а не 404: иначе в README вместо подписи будет битая картинка.
   return svgResponse(
+    request,
     renderBadgeCardSvg({
       org: latest?.org ?? org,
       repo: latest?.repo ?? repo,
@@ -88,7 +92,6 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       verified,
     }),
     200,
-    30,
   );
 }
 
@@ -100,18 +103,4 @@ function formatDay(date: Date): string {
     month: '2-digit',
     year: 'numeric',
   }).format(date);
-}
-
-/**
- * Кэш короткий: пересчёт идёт раз в сутки, но заканчивается в разное время,
- * и карточка должна подхватить свежий балл вскоре после него.
- */
-function svgResponse(svg: string, status: number, maxAge = 300): Response {
-  return new Response(svg, {
-    status,
-    headers: {
-      'Content-Type': 'image/svg+xml; charset=utf-8',
-      'Cache-Control': `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=600`,
-    },
-  });
 }

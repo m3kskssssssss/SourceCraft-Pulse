@@ -21,6 +21,7 @@ import {
   LIMIT_MESSAGES,
   getUserLimits,
 } from '@/lib/limits';
+import { findOwnedRepoId } from '@/lib/ownership';
 import { getSourcecraftClient } from '@/lib/sourcecraft/client';
 import { SourcecraftApiError, SourcecraftNotFoundError } from '@/lib/sourcecraft/errors';
 
@@ -113,10 +114,13 @@ export async function analyzeRepo(target: string): Promise<AnalyzeState> {
     repositoryId = inserted[0].id;
   }
 
-  // Ставим анализ в очередь.
+  // Ставим анализ в очередь. Оценка подтверждённого владельца сразу идёт в
+  // бейдж и рейтинг — как по кнопке «Оценить заново»: иначе после переоценки
+  // через форму бейдж так и показывал бы старый балл.
+  const owned = await findOwnedRepoId(db, userId, { repositoryId });
   const [analysis] = await db
     .insert(analyses)
-    .values({ repositoryId, requestedBy: userId, status: 'queued' })
+    .values({ repositoryId, requestedBy: userId, status: 'queued', isPublic: owned !== null })
     .returning({ id: analyses.id });
   if (!analysis) return { ok: false, error: 'Не удалось создать анализ.' };
 

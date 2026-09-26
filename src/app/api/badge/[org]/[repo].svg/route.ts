@@ -1,12 +1,13 @@
 // GET /api/badge/{org}/{repo}.svg — публичный SVG-бейдж.
-// Кэшируем на минуту, но с stale-while-revalidate 5 минут:
-// README на GitHub кэширует картинки, чтобы страничка не тормозила.
+// Без кэша (lib/svg-response.ts): после переоценки бейдж сразу показывает
+// новый балл.
 
 import { NextResponse } from 'next/server';
 import { describeBadgeLookup, getLatestPublicAnalysis, hasUnpublishedAnalysis } from '@/lib/ranking';
 import { renderBadgeSvg } from '@/lib/badge';
 import { InvalidSlugError, parseSlug, stripSvgSuffix } from '@/lib/slug';
 import { clientIp, rateLimit } from '@/lib/rate-limit';
+import { svgResponse } from '@/lib/svg-response';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     ({ org, repo } = parseSlug(`${rawOrg}/${repoClean}`));
   } catch (err) {
     if (err instanceof InvalidSlugError) {
-      return svgResponse(renderBadgeSvg({ score: null, note: 'неверный адрес' }), 400);
+      return svgResponse(request, renderBadgeSvg({ score: null, note: 'неверный адрес' }), 400);
     }
     throw err;
   }
@@ -55,26 +56,15 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   const latest = await getLatestPublicAnalysis(org, repo);
   // Подборке ссылок балл не рисуем: у неё его нет по существу.
   if (latest && latest.kind === 'material') {
-    return svgResponse(renderBadgeSvg({ score: null, note: 'полезный материал' }), 200);
+    return svgResponse(request, renderBadgeSvg({ score: null, note: 'полезный материал' }), 200);
   }
   if (latest && latest.score !== null) {
-    return svgResponse(renderBadgeSvg({ score: latest.score }), 200);
+    return svgResponse(request, renderBadgeSvg({ score: latest.score }), 200);
   }
 
   // Оценки нет — объясняем, почему именно. Прочерк без пояснения читается
   // как сломанный бейдж, и первым делом грешат на нас.
   const note = (await hasUnpublishedAnalysis(org, repo)) ? 'не опубликован' : 'нет оценки';
   // Отдаём 200: при 404 GitHub показывает битую картинку вместо подписи.
-  // И кэшируем короче — бейдж должен ожить сразу после публикации.
-  return svgResponse(renderBadgeSvg({ score: null, note }), 200, 30);
-}
-
-function svgResponse(svg: string, status: number, maxAge = 60): Response {
-  return new Response(svg, {
-    status,
-    headers: {
-      'Content-Type': 'image/svg+xml; charset=utf-8',
-      'Cache-Control': `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=300`,
-    },
-  });
+  return svgResponse(request, renderBadgeSvg({ score: null, note }), 200);
 }

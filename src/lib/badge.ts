@@ -46,6 +46,8 @@ const LABEL_FONT = 12;
 const SCORE_FONT = 15;
 const NOTE_FONT = 10;
 const TRACK_H = 3;
+/** Во сколько раз шире делаем место под пояснение без балла. */
+const NOTE_SLACK = 1.1;
 /** Минимальная ширина правой части: полоса короче не читается как шкала. */
 const RIGHT_MIN = 64;
 
@@ -68,9 +70,11 @@ export function renderBadgeSvg(input: BadgeInput): string {
 
   // Правая часть растёт под длинное пояснение: обрезать слово хуже, чем
   // добавить ширины.
+  // Пояснение набрано полужирным, а textWidth меряет обычное начертание:
+  // «полезный материал» не влезал. Запас 10% на правую часть.
   const contentW =
     score === null
-      ? textWidth(input.note ?? '—', NOTE_FONT)
+      ? Math.ceil(textWidth(input.note ?? '—', NOTE_FONT) * NOTE_SLACK)
       : textWidth(value, SCORE_FONT, true) + 2 + textWidth('/100', NOTE_FONT);
   const width = x0 + Math.max(RIGHT_MIN, contentW) + PAD;
   const trackW = width - x0 - PAD;
