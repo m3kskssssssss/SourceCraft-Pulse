@@ -6,7 +6,8 @@
 //   2. Клон репозитория (один): индекс файлов строится одним обходом дерева,
 //      лог коммитов читается один раз на историю и на дерево пути, файлы
 //      читаются пачками и по общему дедлайну.
-//   3. SecurityProvider (OSV по умолчанию): вход — резолвленные lock-файлы.
+//   3. Безопасность: балл — только по SourceCraft AppSec (пока «нет данных»);
+//      lock-файлы сверяем с OSV.dev отдельно, как справку вне балла.
 //
 // Всё, что не удалось получить, честно уходит в `missing: string[]`.
 
@@ -15,7 +16,7 @@ import {
   SUPPORTED_LOCKFILES,
   parseLockfiles,
 } from './security/lockfiles';
-import { getSecurityProvider } from './security/provider';
+import { getDependencyAuditProvider, getSecurityProvider } from './security/provider';
 import type { SecurityScanResult } from './security/types';
 import {
   deepenClone,
@@ -117,7 +118,13 @@ export type RepoFacts = {
   kind: RepoKind;
   /** Измерения по самим исходникам. */
   code: CodeFacts;
+  /** Данные SourceCraft AppSec — единственный источник балла «Безопасность». */
   security: SecurityScanResult;
+  /**
+   * Справка по OSV.dev: известные уязвимости в зависимостях из lock-файлов.
+   * В балл не входит; null — не проверяли (приватный репозиторий).
+   */
+  dependencyAudit: SecurityScanResult | null;
   /** CI-прогоны — только с токеном владельца, в балл не входят. */
   ci: CiFacts;
   /** Полный текст README.md (если найден в git-клоне). */
@@ -321,6 +328,7 @@ export async function collectRepoFacts(
   // Приватный репозиторий Pulse своим токеном не видит — ходим токеном владельца.
   const client = options.token ? new SourcecraftClient({ token: options.token }) : getSourcecraftClient();
   const security = getSecurityProvider();
+  const dependencyAudit = getDependencyAuditProvider();
 
   const now = new Date().toISOString();
 
@@ -571,24 +579,24 @@ export async function collectRepoFacts(
   });
   for (const e of parsedLocks.errors) missing.push(`lockfile_parse_error:${e}`);
 
-  // Зависимости приватного репозитория во внешнюю базу уязвимостей не шлём:
-  // это уже сведения о закрытом коде. Для него — честное «нет данных».
-  const scanResult: SecurityScanResult = options.privateRepo
-    ? {
-        provider: security.name,
-        available: false,
-        vulnerabilities: [],
-        totalScanned: 0,
-        errors: [],
-        missing: ['security_skipped_private_repo'],
-      }
-    : await security.scan({
-        dependencies: parsedLocks.dependencies,
-        hasSecurityMd: flags.hasSecurityMd,
-        unsupportedLockfiles: parsedLocks.unsupported,
-      });
+  // Балл «Безопасность» — только по AppSec. Пока его данных нет в API,
+  // провайдер отвечает «нет данных», и категория выпадает из расчёта.
+  const scanInput = {
+    dependencies: parsedLocks.dependencies,
+    hasSecurityMd: flags.hasSecurityMd,
+    unsupportedLockfiles: parsedLocks.unsupported,
+  };
+  const scanResult = await security.scan(scanInput);
   for (const e of scanResult.errors) missing.push(`security_scan_error:${e}`);
   for (const e of scanResult.missing) missing.push(e);
+
+  // Справка по OSV.dev — вне балла. Зависимости приватного репозитория во
+  // внешнюю базу уязвимостей не шлём: это уже сведения о закрытом коде.
+  // Сбой OSV в пробелы не пишем: на балл он не влияет, а справочный блок
+  // сам скажет, что проверка не удалась.
+  const auditResult: SecurityScanResult | null = options.privateRepo
+    ? null
+    : await dependencyAudit.scan(scanInput);
 
   const ci = await collectCiFacts(org, repo, options.ciToken);
 
@@ -620,6 +628,7 @@ export async function collectRepoFacts(
     kind,
     code,
     security: scanResult,
+    dependencyAudit: auditResult,
     ci,
     readme,
     missing: dedupeStrings(missing),

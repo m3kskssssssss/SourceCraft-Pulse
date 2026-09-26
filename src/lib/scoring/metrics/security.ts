@@ -18,6 +18,10 @@ const CATEGORY = 'security' as const;
  * собирается по-прежнему и уходит провайдеру — просто баллов не отнимает.
  */
 export function computeSecurityMetrics(facts: RepoFacts): MetricScore[] {
+  // По ТЗ категория считается только по данным SourceCraft AppSec. Нет их —
+  // вся категория «нет данных» и выпадает из итогового балла; собственной
+  // проверкой (OSV.dev, lock-файлы, бот обновлений) её не подменяем.
+  if (!hasAppSecData(facts)) return appSecUnavailableMetrics();
   return [
     criticalVulnsMetric(facts),
     highVulnsMetric(facts),
@@ -28,17 +32,32 @@ export function computeSecurityMetrics(facts: RepoFacts): MetricScore[] {
   ];
 }
 
+export const APPSEC_UNAVAILABLE_HINT = 'Нет данных SourceCraft AppSec';
+
+export function hasAppSecData(facts: RepoFacts): boolean {
+  return facts.security.provider === 'sourcecraft_appsec' && facts.security.available;
+}
+
+function appSecUnavailableMetrics(): MetricScore[] {
+  const weights: Array<[string, number]> = [
+    ['security.critical_vulns', SECURITY_WEIGHTS.criticalVulns],
+    ['security.high_vulns', SECURITY_WEIGHTS.highVulns],
+    ['security.medium_vulns', SECURITY_WEIGHTS.mediumVulns],
+    ['security.lockfiles_present', SECURITY_WEIGHTS.lockfilesPresent],
+    ['security.fresh_dependencies', SECURITY_WEIGHTS.freshDependencies],
+    ['security.dependency_bot', SECURITY_WEIGHTS.dependencyBot],
+  ];
+  return weights.map(([key, weight]) => ({
+    key,
+    category: CATEGORY,
+    weight,
+    value: null,
+    unknown: true,
+    hint: APPSEC_UNAVAILABLE_HINT,
+  }));
+}
+
 function mediumVulnsMetric(facts: RepoFacts): MetricScore {
-  if (!facts.security.available) {
-    return {
-      key: 'security.medium_vulns',
-      category: CATEGORY,
-      weight: SECURITY_WEIGHTS.mediumVulns,
-      value: null,
-      unknown: true,
-      hint: 'Провайдер безопасности недоступен',
-    };
-  }
   const count = facts.security.vulnerabilities.filter((v) => v.severity === 'medium').length;
   return {
     key: 'security.medium_vulns',
@@ -71,16 +90,6 @@ function dependencyBotMetric(facts: RepoFacts): MetricScore {
 }
 
 function criticalVulnsMetric(facts: RepoFacts): MetricScore {
-  if (!facts.security.available) {
-    return {
-      key: 'security.critical_vulns',
-      category: CATEGORY,
-      weight: SECURITY_WEIGHTS.criticalVulns,
-      value: null,
-      unknown: true,
-      hint: 'Провайдер безопасности недоступен',
-    };
-  }
   const count = facts.security.vulnerabilities.filter((v) => v.severity === 'critical').length;
   return {
     key: 'security.critical_vulns',
@@ -95,16 +104,6 @@ function criticalVulnsMetric(facts: RepoFacts): MetricScore {
 }
 
 function highVulnsMetric(facts: RepoFacts): MetricScore {
-  if (!facts.security.available) {
-    return {
-      key: 'security.high_vulns',
-      category: CATEGORY,
-      weight: SECURITY_WEIGHTS.highVulns,
-      value: null,
-      unknown: true,
-      hint: 'Провайдер безопасности недоступен',
-    };
-  }
   const count = facts.security.vulnerabilities.filter((v) => v.severity === 'high').length;
   return {
     key: 'security.high_vulns',
@@ -119,9 +118,6 @@ function highVulnsMetric(facts: RepoFacts): MetricScore {
 }
 
 function lockfilesMetric(facts: RepoFacts): MetricScore {
-  if (facts.security.provider === 'sourcecraft_appsec' && !facts.security.available) {
-    // AppSec-заглушка — метрика формально известна: смотрим на дерево напрямую.
-  }
   // Смотрим на tree.flags: если lockfiles поддержаны или не поддержаны — важно, что они вообще есть.
   const supported = facts.tree.flags.supportedLockfiles.length > 0;
   const unsupported = facts.tree.flags.unsupportedLockfilesPresent.length > 0;
@@ -139,19 +135,8 @@ function lockfilesMetric(facts: RepoFacts): MetricScore {
 }
 
 function freshDependenciesMetric(facts: RepoFacts): MetricScore {
-  // MVP: если lock-файл есть и провайдер отвечает — считаем, что зависимости
-  // «известны». Полноценная свежесть требует опроса реестра пакетов —
-  // отложено на будущее.
-  if (!facts.security.available) {
-    return {
-      key: 'security.fresh_dependencies',
-      category: CATEGORY,
-      weight: SECURITY_WEIGHTS.freshDependencies,
-      value: null,
-      unknown: true,
-      hint: 'Свежесть зависимостей пока не оценивается',
-    };
-  }
+  // MVP: если lock-файл есть — считаем, что зависимости «известны».
+  // Полноценная свежесть требует опроса реестра пакетов — отложено на будущее.
   const hasLock = facts.tree.flags.supportedLockfiles.length > 0;
   if (!hasLock) {
     return {

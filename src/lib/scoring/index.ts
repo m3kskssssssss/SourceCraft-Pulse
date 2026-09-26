@@ -7,7 +7,8 @@
 //      метрик, считаем среднее взвешенное. Категория без известных метрик = null.
 //   3) Общий балл = среднее по категориям с известными баллами,
 //      с нормировкой CATEGORY_WEIGHTS среди known-категорий.
-//   4) Применяем штрафы (секрет в истории, критическая CVE без исправлений, нет лицензии).
+//   4) Применяем штрафы (секрет в истории, критическая CVE без исправлений
+//      по данным AppSec, нет лицензии).
 //   5) clamp(0..100), округляем до целого.
 //   6) Строим рекомендации (см. recommendations.ts).
 
@@ -15,7 +16,7 @@ import type { RepoFacts } from '../collect';
 import { CATEGORY_WEIGHTS, PENALTIES } from './config';
 import { computeActivityMetrics } from './metrics/activity';
 import { computeCodeMetrics } from './metrics/code';
-import { computeSecurityMetrics } from './metrics/security';
+import { computeSecurityMetrics, hasAppSecData } from './metrics/security';
 import { computeDocsMetrics } from './metrics/docs';
 import { clamp } from './normalize';
 import { buildRecommendations } from './recommendations';
@@ -165,8 +166,9 @@ export function computePenalties(facts: RepoFacts): AppliedPenalty[] {
     });
   }
 
+  // Только по данным AppSec: справка OSV.dev на балл не влияет.
   const hasUnfixedCritical =
-    facts.security.available &&
+    hasAppSecData(facts) &&
     facts.security.vulnerabilities.some(
       (v) => v.severity === 'critical' && (!v.fixedIn || v.fixedIn.length === 0),
     );

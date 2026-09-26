@@ -1,25 +1,33 @@
-// Фабрика провайдера безопасности.
-// По умолчанию — OSV.dev. Реализация SourceCraft AppSec — заглушка,
-// подключается флагом окружения только для будущей интеграции.
+// Провайдеры безопасности.
+//
+// Балл категории «Безопасность» по ТЗ считается только по данным SourceCraft
+// AppSec. Пока их нет в публичном API, провайдер отвечает «нет данных» — и
+// категория честно исключается из расчёта, а не подменяется своим сканом.
+//
+// OSV.dev — отдельный справочный провайдер: сверяет lock-файлы с открытой
+// базой уязвимостей. Его результат показывается на странице анализа с
+// подписью «по данным OSV.dev, не SourceCraft AppSec» и в балл не входит.
 
 import { OsvDevProvider } from './osv-dev';
 import { SourcecraftAppSecProvider } from './sourcecraft-appsec';
 import type { SecurityProvider } from './types';
 
-export type SecurityProviderName = 'osv_dev' | 'sourcecraft_appsec';
+let appSec: SecurityProvider | null = null;
+let osv: SecurityProvider | null = null;
 
-let cached: SecurityProvider | null = null;
-let cachedName: SecurityProviderName | null = null;
-
+/** Источник балла категории «Безопасность» — только AppSec. */
 export function getSecurityProvider(): SecurityProvider {
-  const requested = (process.env.SECURITY_PROVIDER as SecurityProviderName | undefined) ?? 'osv_dev';
-  if (cached && cachedName === requested) return cached;
-  cached = requested === 'sourcecraft_appsec' ? new SourcecraftAppSecProvider() : new OsvDevProvider();
-  cachedName = requested;
-  return cached;
+  appSec ??= new SourcecraftAppSecProvider();
+  return appSec;
+}
+
+/** Справочная проверка зависимостей по OSV.dev — в балл не входит. */
+export function getDependencyAuditProvider(): SecurityProvider {
+  osv ??= new OsvDevProvider();
+  return osv;
 }
 
 export function resetSecurityProviderForTesting(): void {
-  cached = null;
-  cachedName = null;
+  appSec = null;
+  osv = null;
 }

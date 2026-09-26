@@ -128,6 +128,13 @@ async function main(): Promise<void> {
       vulnerabilities: facts.security.vulnerabilities.length,
       totalScanned: facts.security.totalScanned,
     },
+    // Справка по OSV.dev — в балл не входит.
+    dependencyAudit: facts.dependencyAudit && {
+      available: facts.dependencyAudit.available,
+      vulnerabilities: facts.dependencyAudit.vulnerabilities.length,
+      totalScanned: facts.dependencyAudit.totalScanned,
+      errors: facts.dependencyAudit.errors,
+    },
     missing: facts.missing,
     elapsedMs: elapsedCollect,
   };

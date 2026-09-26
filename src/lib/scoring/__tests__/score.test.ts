@@ -111,6 +111,64 @@ describe('scoreRepo — категория «Код»', () => {
   });
 });
 
+describe('scoreRepo — безопасность только по AppSec', () => {
+  const noAppSec = (): ReturnType<typeof makePerfectFacts> => {
+    const facts = makePerfectFacts();
+    return {
+      ...facts,
+      security: {
+        provider: 'sourcecraft_appsec',
+        available: false,
+        vulnerabilities: [],
+        totalScanned: 0,
+        errors: [],
+        missing: ['sourcecraft_appsec_not_public'],
+      },
+    };
+  };
+
+  it('без AppSec категория «Безопасность» — нет данных и без рекомендаций', () => {
+    const result = scoreRepo(noAppSec());
+    const security = result.categoryScores.find((c) => c.key === 'security');
+    expect(security?.value).toBeNull();
+    expect(security?.metrics.every((m) => m.unknown)).toBe(true);
+    expect(result.recommendations.some((r) => r.category === 'security')).toBe(false);
+  });
+
+  it('справка OSV.dev не влияет ни на балл, ни на штрафы', () => {
+    const base = scoreRepo(noAppSec());
+    const withOsv = scoreRepo({
+      ...noAppSec(),
+      dependencyAudit: {
+        provider: 'osv_dev',
+        available: true,
+        vulnerabilities: [
+          {
+            id: 'GHSA-critical-1',
+            severity: 'critical',
+            package: 'left-pad',
+            version: '1.0.0',
+            ecosystem: 'npm',
+            summary: null,
+            fixedIn: null,
+          },
+        ],
+        totalScanned: 1,
+        errors: [],
+        missing: [],
+      },
+    });
+    expect(withOsv.score).toBe(base.score);
+    expect(withOsv.penalties).toEqual(base.penalties);
+  });
+
+  it('старые факты, где OSV был провайдером балла, тоже не считаются', () => {
+    const facts = makePerfectFacts();
+    const result = scoreRepo({ ...facts, security: { ...facts.security, provider: 'osv_dev' } });
+    expect(result.categoryScores.find((c) => c.key === 'security')?.value).toBeNull();
+  });
+});
+
 describe('scoreRepo — рекомендации', () => {
   it('пустой репо получает полный список', () => {
     const result = scoreRepo(makeEmptyFacts());

@@ -42,6 +42,7 @@ import { getCommentTree, getRatingSummary } from '@/lib/social';
 import { getPublicUser } from '@/lib/users';
 import type { GitGraph } from '@/lib/git/graph';
 import type { CiFacts } from '@/lib/collect';
+import type { SecurityScanResult, Severity } from '@/lib/security/types';
 import { getRepoHistory } from '@/lib/history';
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -219,6 +220,16 @@ export default async function AnalysisPage({ params }: PageProps) {
   const ciMeta = isOwner
     ? (analysis.metrics as { facts?: { ci?: CiFacts } } | null)?.facts?.ci ?? null
     : null;
+  // Справка по OSV.dev — вне балла. В старых прогонах OSV лежал в `security`
+  // (тогда он ещё входил в балл), в новых — отдельным `dependencyAudit`.
+  const factsSecurity = (
+    analysis.metrics as {
+      facts?: { security?: SecurityScanResult; dependencyAudit?: SecurityScanResult | null };
+    } | null
+  )?.facts;
+  const dependencyAudit =
+    factsSecurity?.dependencyAudit ??
+    (factsSecurity?.security?.provider === 'osv_dev' ? factsSecurity.security : null);
   const codeMeasured = pickCodeStats(
     (analysis.metrics as { facts?: { code?: Record<string, unknown> } } | null)?.facts?.code,
   );
@@ -501,8 +512,19 @@ export default async function AnalysisPage({ params }: PageProps) {
                 category={cat}
                 rank={idx + 1}
                 findings={cat.key === 'code' ? codeFindings : []}
-                note={cat.key === 'code' ? codeReviewNote : null}
+                note={
+                  cat.key === 'code'
+                    ? codeReviewNote
+                    : cat.key === 'security' && cat.value == null
+                      ? SECURITY_NO_APPSEC_NOTE
+                      : null
+                }
                 stats={cat.key === 'code' ? codeMeasured : []}
+                extra={
+                  cat.key === 'security' && !repo?.isPrivate ? (
+                    <DependencyAuditBlock audit={dependencyAudit} />
+                  ) : null
+                }
               />
             ))}
             {sortedCategories.length === 0 && (
@@ -709,9 +731,12 @@ function CategoryBlock({
   findings = [],
   note = null,
   stats = [],
+  extra = null,
 }: {
   category: CategoryScore;
   rank: number;
+  /** Дополнительный блок под метриками — справка, в балл не входит. */
+  extra?: React.ReactNode;
   /** Наблюдения модели по этой категории — сейчас приходят только для кода. */
   findings?: string[];
   /** Почему ревью не состоялось. */
@@ -847,8 +872,92 @@ function CategoryBlock({
             </ul>
           </div>
         )}
+
+        {extra}
       </div>
     </CardDiv>
+  );
+}
+
+const SECURITY_NO_APPSEC_NOTE =
+  'Балл безопасности считается только по данным SourceCraft AppSec. В публичном API их пока нет, поэтому категория исключена из итоговой оценки, а веса остальных категорий нормированы.';
+
+const SEVERITY_ORDER: Severity[] = ['critical', 'high', 'medium', 'low', 'unknown'];
+const DEPENDENCY_AUDIT_LIST_LIMIT = 8;
+
+/**
+ * Справка по OSV.dev: известные уязвимости в версиях зависимостей из
+ * lock-файлов. Это не SourceCraft AppSec и не скан кода — в балл не входит.
+ */
+function DependencyAuditBlock({ audit }: { audit: SecurityScanResult | null }) {
+  const counts = new Map<Severity, number>();
+  for (const v of audit?.vulnerabilities ?? []) {
+    counts.set(v.severity, (counts.get(v.severity) ?? 0) + 1);
+  }
+  const listed = [...(audit?.vulnerabilities ?? [])]
+    .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
+    .slice(0, DEPENDENCY_AUDIT_LIST_LIMIT);
+
+  let body: React.ReactNode;
+  if (!audit) {
+    body = 'Проверку зависимостей в этом прогоне не делали.';
+  } else if (!audit.available) {
+    body = 'Проверка по OSV.dev не удалась — база не ответила.';
+  } else if (audit.totalScanned === 0) {
+    body = 'Lock-файлов, которые мы умеем разбирать (package-lock.json, pnpm-lock.yaml), нет — проверять было нечего.';
+  } else if (audit.vulnerabilities.length === 0) {
+    body = `Проверено пакетов: ${audit.totalScanned}. Известных уязвимостей не найдено.`;
+  } else {
+    body = (
+      <>
+        <div>
+          Проверено пакетов: {audit.totalScanned}. Найдено:{' '}
+          {SEVERITY_ORDER.filter((s) => counts.has(s))
+            .map((s) => `${s} ${counts.get(s)}`)
+            .join(' · ')}
+        </div>
+        <ul className="mt-3 grid gap-1.5">
+          {listed.map((v) => (
+            <li key={`${v.id}:${v.package}@${v.version}`} className="flex flex-wrap items-baseline gap-x-2">
+              <span className="text-[10px] uppercase tracking-widest">{v.severity}</span>
+              <a
+                href={`https://osv.dev/vulnerability/${encodeURIComponent(v.id)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-xs underline decoration-dotted underline-offset-2"
+              >
+                {v.id}
+              </a>
+              <span className="break-all font-mono text-xs">
+                {v.package}
+                {v.version ? `@${v.version}` : ''}
+              </span>
+              {v.fixedIn && v.fixedIn.length > 0 && (
+                <span className="text-xs">исправлено в {v.fixedIn.join(', ')}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+        {audit.vulnerabilities.length > listed.length && (
+          <div className="mt-2 text-xs">
+            …и ещё {audit.vulnerabilities.length - listed.length}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <div className="mt-6 border-t border-[color:var(--line)] pt-5">
+      <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">
+        Справка: зависимости по данным OSV.dev
+      </div>
+      <div className="mt-1 text-xs text-[color:var(--muted-2)]">
+        Не SourceCraft AppSec и не проверка кода — сверка версий из lock-файлов с открытой базой
+        уязвимостей. На балл не влияет.
+      </div>
+      <div className="mt-3 text-sm text-[color:var(--ink-2)]">{body}</div>
+    </div>
   );
 }
 

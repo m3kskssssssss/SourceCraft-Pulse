@@ -64,14 +64,17 @@ function baseFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
     // Дерево коммитов на оценку не влияет — это иллюстрация на странице анализа.
     gitGraph: emptyGitGraph(),
     kind: { kind: 'project', confidence: 1, signals: ['фикстура'] },
+    // Фикстуры считают, что AppSec ответил: так проверяется сама формула
+    // категории. Боевой провайдер пока всегда «нет данных».
     security: {
-      provider: 'osv_dev',
+      provider: 'sourcecraft_appsec',
       available: true,
       vulnerabilities: [],
       totalScanned: 0,
       errors: [],
       missing: [],
     },
+    dependencyAudit: null,
     ci: {
       available: false,
       reason: 'no_owner_token',

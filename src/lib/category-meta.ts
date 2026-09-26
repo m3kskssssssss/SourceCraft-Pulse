@@ -16,7 +16,7 @@ export const CATEGORY_TITLES: Record<CategoryKey, string> = {
 export const CATEGORY_BLURBS: Record<CategoryKey, string> = {
   activity: 'Как часто пишут код, сколько людей вовлечено, свежий ли проект.',
   code: 'Тесты, структура файлов, читаемость — из чего складывается поддерживаемость.',
-  security: 'Уязвимости в зависимостях, lock-файлы, SECURITY.md.',
+  security: 'Только по данным SourceCraft AppSec; без них — «нет данных» и вне итогового балла.',
   docs: 'README, LICENSE, примеры — насколько легко в проект въехать.',
 };
 
