@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const splittingBigFiles: Article = {
   slug: 'splitting-big-files',
-  title: 'Файл на две тысячи строк: как его разрезать и ничего не сломать',
+  title: 'Как разделить большой файл',
   summary: 'Почему большие файлы тормозят всю команду, по какому признаку их делить и как провести разрезку серией безопасных шагов.',
   level: 'middle',
   topic: 'code',

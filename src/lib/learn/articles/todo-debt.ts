@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const todoDebt: Article = {
   slug: 'todo-debt',
-  title: 'TODO в коде: долг, который растёт сам',
+  title: 'Как разобрать TODO в коде',
   summary: 'Почему пометки TODO и FIXME копятся, как отличить полезную от мёртвой и как разобрать завал за один вечер.',
   level: 'junior',
   topic: 'code',

@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const contributingThatWorks: Article = {
   slug: 'contributing-that-works',
-  title: 'CONTRIBUTING, который правда читают',
+  title: 'Как написать CONTRIBUTING.md',
   summary: 'Что написать в CONTRIBUTING.md, чтобы первый PR от незнакомого человека пришёл готовым к слиянию, а не через пять кругов правок.',
   level: 'junior',
   topic: 'docs',

@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const decisionRecords: Article = {
   slug: 'decision-records',
-  title: 'Записи решений: почему через год никто не помнит «почему»',
+  title: 'Записи решений (ADR)',
   summary: 'Architecture Decision Records — короткие файлы в репозитории, которые объясняют, почему проект устроен так, а не иначе. Как их писать и не забросить.',
   level: 'senior',
   topic: 'docs',

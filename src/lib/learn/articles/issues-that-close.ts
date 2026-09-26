@@ -2,7 +2,7 @@ import type { Article } from '../types';
 
 export const issuesThatClose: Article = {
   slug: 'issues-that-close',
-  title: 'Задачи, которые закрываются: трекер без кладбища',
+  title: 'Как навести порядок в задачах',
   summary: 'Почему список открытых задач растёт бесконечно, как разбирать входящие и когда честно закрыть задачу, которую никто не сделает.',
   level: 'junior',
   topic: 'activity',
