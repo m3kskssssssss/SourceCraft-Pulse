@@ -101,7 +101,7 @@ export default async function RepositoryPage({ params }: PageProps) {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={`/a/${latest.id}`}
-                  className="rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm font-medium text-[color:var(--paper)] hover:bg-[color:var(--ink-2)]"
+                  className="inline-flex items-center justify-center rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm font-medium text-[color:var(--paper)] hover:bg-[color:var(--ink-2)]"
                 >
                   Подробности анализа →
                 </Link>
