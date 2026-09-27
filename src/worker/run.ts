@@ -23,10 +23,6 @@
 //   CATALOG_SYNC_HOURS  — как часто обходить каталог SourceCraft (по умолчанию 24, 0 — не обходить);
 //   CATALOG_AUTO_ANALYZE — сколько репозиториев каталога ставить на оценку, когда очередь пуста
 //                          (по умолчанию 0: каждая оценка — клон и вызовы модели).
-//
-// Прогон каталога включается и выключается в админке (/admin/catalog): когда
-// очередь пуста, воркер держит WORKER_CONCURRENCY оценок каталога одновременно
-// и перед каждым новым репозиторием перечитывает флаг.
 
 import 'dotenv/config';
 import { hostname } from 'node:os';
@@ -34,14 +30,7 @@ import { getWorkerDb, getWorkerPool, shutdownWorkerDb } from '../db/worker-clien
 import { MAX_ATTEMPTS, processAnalysis, type ClaimedJob, type ProcessOutcome } from '../lib/analysis/run';
 import { enqueueDailyRefresh } from '../lib/ownership';
 import { syncDueTokens } from '../lib/token-sync';
-import {
-  catalogSyncDue,
-  claimNextCatalogJob,
-  enqueueCatalogAnalyses,
-  isCatalogRunning,
-  pendingJobs,
-  syncCatalog,
-} from '../lib/catalog';
+import { catalogSyncDue, enqueueCatalogAnalyses, pendingJobs, syncCatalog } from '../lib/catalog';
 
 const DEFAULT_BATCH_SIZE = 6;
 const DEFAULT_CONCURRENCY = 3;
@@ -165,10 +154,6 @@ async function main(): Promise<void> {
         }),
       );
     }
-
-    if (Date.now() < deadline && (await isCatalogRunning(db))) {
-      await runCatalog(db, concurrency, deadline, totals);
-    }
   } finally {
     clearInterval(heartbeat);
   }
@@ -178,53 +163,6 @@ async function main(): Promise<void> {
     `[worker ${workerId}] Готово за ${elapsed} с: посчитано ${totals.done}, упало ${totals.failed}, вернулось в очередь ${totals.requeued}.`,
   );
   await shutdownWorkerDb();
-}
-
-/**
- * Прогон каталога: `concurrency` слотов, каждый берёт следующий репозиторий,
- * как только освободится. Задачи обычной очереди идут первыми — пользователь
- * не ждёт, пока каталог досчитается. Слот выходит, когда флаг сняли, каталог
- * кончился или вышло время.
- */
-async function runCatalog(
-  db: ReturnType<typeof getWorkerDb>,
-  concurrency: number,
-  deadline: number,
-  totals: Record<ProcessOutcome, number>,
-): Promise<void> {
-  console.log(`[worker ${workerId}] Прогон каталога: по ${concurrency} одновременно.`);
-  // Выбор следующего — строго по одному: иначе два слота схватят один репозиторий.
-  let claiming: Promise<unknown> = Promise.resolve();
-  const claimNext = (): Promise<ClaimedJob | null> => {
-    const next = claiming.then(async () => {
-      const [queued] = await lockNextBatch(1);
-      return queued ?? (await claimNextCatalogJob(db, workerId));
-    });
-    claiming = next.catch(() => undefined);
-    return next;
-  };
-
-  await Promise.all(
-    Array.from({ length: concurrency }, async () => {
-      while (Date.now() < deadline) {
-        let job: ClaimedJob | null;
-        try {
-          job = await claimNext();
-        } catch (err) {
-          console.warn(`[worker ${workerId}] Не удалось взять репозиторий каталога: ${describe(err)}`);
-          return;
-        }
-        if (!job) return;
-        inFlight.add(job.jobId);
-        try {
-          const outcome = await processAnalysis(db, job, workerId);
-          totals[outcome] += 1;
-        } finally {
-          inFlight.delete(job.jobId);
-        }
-      }
-    }),
-  );
 }
 
 async function lockNextBatch(batchSize: number): Promise<ClaimedJob[]> {

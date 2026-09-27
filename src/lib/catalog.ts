@@ -15,6 +15,7 @@ import { analyses, analysisJobs, catalogRepositories, repositories, settings } f
 import { getSourcecraftClient, type Repository, type SourcecraftClient } from './sourcecraft/client';
 
 type Db = NodePgDatabase<typeof schema>;
+type DbOrTx = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
 
 const PAGE_SIZE = 100;
 
@@ -180,7 +181,7 @@ export async function getCatalogStats(db: Db): Promise<CatalogStats | null> {
  * упавший прогон тоже считается обработанным, повторно его не берём.
  */
 export async function nextCatalogCandidates(
-  db: Db,
+  db: DbOrTx,
   limit: number,
 ): Promise<{ org: string; repo: string; likes: number | null }[]> {
   return db
@@ -213,19 +214,11 @@ export async function nextCatalogCandidates(
 }
 
 /**
- * Заводит анализ и задачу для репозитория каталога. С `lockedBy` задача
- * сразу захвачена этим исполнителем: в очереди она не ждёт, и «Стоп» в
- * админке не оставляет за собой хвоста из поставленных задач.
- *
- * Оценка публичного репозитория по публичным данным сразу публикуется: это и
- * есть публичный рейтинг из ТЗ.
+ * Заводит анализ и задачу для репозитория каталога. Оценка публичного
+ * репозитория по публичным данным сразу публикуется: это и есть публичный
+ * рейтинг из ТЗ.
  */
-async function createCatalogJob(
-  db: Db,
-  org: string,
-  repo: string,
-  lockedBy?: string,
-): Promise<{ jobId: string; analysisId: string } | null> {
+async function createCatalogJob(db: DbOrTx, org: string, repo: string): Promise<string | null> {
   const existing = await db.query.repositories.findFirst({
     where: and(eq(repositories.orgSlug, org), eq(repositories.repoSlug, repo)),
   });
@@ -244,12 +237,8 @@ async function createCatalogJob(
     .values({ repositoryId, status: 'queued', isPublic: true })
     .returning({ id: analyses.id });
   if (!analysis) return null;
-  const [job] = await db
-    .insert(analysisJobs)
-    .values({ analysisId: analysis.id, ...(lockedBy ? { lockedAt: new Date(), lockedBy } : {}) })
-    .returning({ id: analysisJobs.id });
-  if (!job) return null;
-  return { jobId: job.id, analysisId: analysis.id };
+  await db.insert(analysisJobs).values({ analysisId: analysis.id });
+  return analysis.id;
 }
 
 /**
@@ -268,13 +257,19 @@ export async function enqueueCatalogAnalyses(db: Db, limit: number): Promise<num
 
 // ---------- Прогон каталога из админки ----------
 //
-// Флаг в settings: админка его ставит и снимает, воркер перечитывает перед
-// каждым новым репозиторием. «Стоп» не прерывает уже начатые оценки — они
-// доходят до конца, новые не берутся.
+// Флаг в settings ставят и снимают кнопки «Старт» и «Стоп». Диспетчер
+// (/api/cron/catalog-run) перед каждым новым репозиторием перечитывает флаг и
+// держит не больше CATALOG_CONCURRENCY оценок одновременно; каждая оценка —
+// отдельная функция /api/analyses/<id>/run. «Стоп» не прерывает начатые:
+// они доходят до конца, новые не берутся.
 
 const RUNNING_KEY = 'catalog.running';
+/** Повтор MAX_ATTEMPTS из lib/analysis/run: импорт потянул бы весь конвейер анализа в рейтинг. */
+const MAX_ATTEMPTS = 3;
+/** Сколько репозиториев каталога считается одновременно. */
+export const CATALOG_CONCURRENCY = 3;
 
-export async function isCatalogRunning(db: Db): Promise<boolean> {
+export async function isCatalogRunning(db: DbOrTx): Promise<boolean> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, RUNNING_KEY) });
   return row?.value === true;
 }
@@ -287,19 +282,65 @@ export async function setCatalogRunning(db: Db, running: boolean): Promise<void>
     .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
 }
 
+/** Задача анализа репозитория из каталога (j — analysis_jobs). */
+const catalogJobSql = sql`exists (
+  select 1 from analyses a
+  join repositories r on r.id = a.repository_id
+  join catalog_repositories c
+    on lower(c.org_slug) = lower(r.org_slug) and lower(c.repo_slug) = lower(r.repo_slug)
+  where a.id = j.analysis_id
+)`;
+
 /**
- * Берёт следующий неоценённый репозиторий каталога и сразу захватывает его
- * задачу за `runnerId`. null — прогон выключен или каталог кончился.
+ * Задача занята: её считают прямо сейчас (свежий лок) или её только что
+ * отдали на запуск и она вот-вот будет захвачена. Лок старше шести минут —
+ * брошенный, как и в lib/analysis/run.
  */
-export async function claimNextCatalogJob(
-  db: Db,
-  runnerId: string,
-): Promise<{ jobId: string; analysisId: string; attempts: number } | null> {
-  if (!(await isCatalogRunning(db))) return null;
-  const [next] = await nextCatalogCandidates(db, 1);
-  if (!next) return null;
-  const job = await createCatalogJob(db, next.org, next.repo, runnerId);
-  return job ? { ...job, attempts: 0 } : null;
+const busyJobSql = sql`(
+  j.locked_at > now() - interval '6 minutes'
+  or (j.locked_at is null and j.created_at > now() - interval '2 minutes')
+)`;
+
+/**
+ * Выбирает, что запустить следующим, и возвращает id анализа. null — прогон
+ * выключен, заняты все слоты или каталог кончился.
+ *
+ * Сначала брошенные и вернувшиеся в очередь задачи каталога, потом новый
+ * неоценённый репозиторий. Всё под advisory-локом: два диспетчера, пришедшие
+ * одновременно (крон и открытая админка), не превысят число слотов и не
+ * возьмут один репозиторий дважды.
+ */
+export async function dispatchCatalogJob(db: Db): Promise<string | null> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('catalog.dispatch'))`);
+    if (!(await isCatalogRunning(tx))) return null;
+
+    const busy = await tx.execute<{ count: number }>(sql`
+      select count(*)::int as count from analysis_jobs j
+      where ${catalogJobSql} and ${busyJobSql} and j.attempts < ${MAX_ATTEMPTS}
+    `);
+    if ((busy.rows[0]?.count ?? 0) >= CATALOG_CONCURRENCY) return null;
+
+    const stale = await tx.execute<{ id: string; analysis_id: string }>(sql`
+      select j.id, j.analysis_id from analysis_jobs j
+      where ${catalogJobSql} and not ${busyJobSql} and j.attempts < ${MAX_ATTEMPTS}
+      order by j.created_at asc
+      limit 1
+    `);
+    const retry = stale.rows[0];
+    if (retry) {
+      // Свежий created_at помечает задачу занятой, пока её не захватит запуск.
+      await tx
+        .update(analysisJobs)
+        .set({ lockedAt: null, lockedBy: null, createdAt: new Date() })
+        .where(eq(analysisJobs.id, retry.id));
+      return retry.analysis_id;
+    }
+
+    const [next] = await nextCatalogCandidates(tx, 1);
+    if (!next) return null;
+    return createCatalogJob(tx, next.org, next.repo);
+  });
 }
 
 export type CatalogRunRow = {

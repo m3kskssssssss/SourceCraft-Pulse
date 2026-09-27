@@ -2,15 +2,19 @@ import Link from 'next/link';
 import {
   adminCatalogStartAction,
   adminCatalogStopAction,
+  adminCatalogSyncAction,
   requireAdmin,
 } from '@/app/actions/admin';
 import { AutoRefresh } from '@/app/components/AutoRefresh';
+import { CatalogDriver } from '@/app/components/CatalogDriver';
 import { Bar, Chip, EmptyState, Stat } from '@/app/components/ui';
 import { db } from '@/db/client';
 import { getCatalogProgress, type CatalogRunRow } from '@/lib/catalog';
 import { stageLabel } from '@/lib/stages';
 
 export const dynamic = 'force-dynamic';
+/** «Обновить каталог» читает GET /repos после ответа — нужен весь лимит функции. */
+export const maxDuration = 300;
 
 function fmt(n: number): string {
   return n.toLocaleString('ru-RU');
@@ -28,16 +32,25 @@ export default async function AdminCatalog() {
   return (
     <section>
       <AutoRefresh ms={5000} />
+      <CatalogDriver running={p.running} />
       <Chip tone="outline">Админка</Chip>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Каталог</h1>
           <p className="mt-1 max-w-xl text-sm text-[color:var(--muted)]">
             Оценка всех публичных репозиториев SourceCraft по очереди, по три одновременно.
-            Считает воркер; оценённые и упавшие повторно не берутся.
+            Оценённые и упавшие повторно не берутся.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <form action={adminCatalogSyncAction}>
+            <button
+              type="submit"
+              className="rounded-full border border-[color:var(--line)] px-4 py-2 text-sm transition active:scale-[0.97] hover:bg-[color:var(--panel)]"
+            >
+              Обновить каталог
+            </button>
+          </form>
           <Chip tone={p.running ? 'ink' : 'default'}>
             {p.running ? 'идёт' : stopping ? 'останавливается' : 'остановлен'}
           </Chip>
@@ -68,7 +81,7 @@ export default async function AdminCatalog() {
         <EmptyState
           className="mt-8"
           title="Каталог ещё не загружен"
-          hint="Воркер обходит GET /repos раз в сутки; вручную — pnpm catalog:sync."
+          hint="Нажмите «Обновить каталог»: обход GET /repos занимает пару минут, счётчики появятся здесь сами."
         />
       ) : (
         <>
@@ -120,8 +133,10 @@ export default async function AdminCatalog() {
           )}
 
           <p className="mt-6 text-xs text-[color:var(--muted)]">
-            «Стоп» не обрывает начатые оценки: они доходят до конца, новые не берутся. Задачи
-            пользователей идут вперёд каталога. Страница обновляется сама каждые 5 секунд.
+            «Стоп» не обрывает начатые оценки: они доходят до конца, новые не берутся. Пока
+            эта вкладка открыта, прогон ведёт она сама. Чтобы он шёл и с закрытой, внешний
+            планировщик раз в минуту вызывает /api/cron/catalog-run с заголовком
+            Authorization: Bearer $CRON_SECRET. Страница обновляется каждые 5 секунд.
           </p>
         </>
       )}

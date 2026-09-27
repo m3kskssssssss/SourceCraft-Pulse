@@ -5,6 +5,7 @@
 
 import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { redirect } from 'next/navigation';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
@@ -28,7 +29,7 @@ import {
 } from '@/lib/admin-session';
 import { rateLimit } from '@/lib/rate-limit';
 import { claimJobForAnalysis, processAnalysis, type ProcessOutcome } from '@/lib/analysis/run';
-import { setCatalogRunning } from '@/lib/catalog';
+import { setCatalogRunning, syncCatalog } from '@/lib/catalog';
 
 const RATE_LIMIT_ATTEMPTS = 5;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
@@ -479,7 +480,7 @@ async function recordEvent(kind: string, payload: Record<string, unknown>): Prom
 
 // ---------- Прогон каталога ----------
 
-/** «Старт»: воркер начнёт брать неоценённые репозитории каталога по три. */
+/** «Старт»: диспетчер начнёт брать неоценённые репозитории каталога по три. */
 export async function adminCatalogStartAction(): Promise<void> {
   await requireAdmin();
   await setCatalogRunning(db, true);
@@ -493,4 +494,17 @@ export async function adminCatalogStopAction(): Promise<void> {
   await setCatalogRunning(db, false);
   await recordEvent('admin_catalog_stop', {});
   revalidatePath('/admin/catalog');
+}
+
+/**
+ * «Обновить каталог»: обход GET /repos после ответа — кнопка не висит, а
+ * счётчики на странице растут по мере чтения страниц. Время берётся из
+ * maxDuration страницы /admin/catalog.
+ */
+export async function adminCatalogSyncAction(): Promise<void> {
+  await requireAdmin();
+  await recordEvent('admin_catalog_sync', {});
+  after(async () => {
+    await syncCatalog(db, { deadline: Date.now() + 280_000 }).catch(() => undefined);
+  });
 }
