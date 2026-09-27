@@ -11,7 +11,7 @@
 import { and, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
-import { analyses, analysisJobs, catalogRepositories, repositories } from '../db/schema';
+import { analyses, analysisJobs, catalogRepositories, repositories, settings } from '../db/schema';
 import { getSourcecraftClient, type Repository, type SourcecraftClient } from './sourcecraft/client';
 
 type Db = NodePgDatabase<typeof schema>;
@@ -174,18 +174,21 @@ export async function getCatalogStats(db: Db): Promise<CatalogStats | null> {
 // ---------- Фоновая оценка каталога ----------
 
 /**
- * Ставит в очередь до `limit` ещё не оценённых репозиториев каталога: сначала
- * самые залайканные, потом недавно обновлённые. Форки, зеркала, шаблоны и
- * пустые пропускаем — места в рейтинге им всё равно не положено.
- *
- * Оценка публичного репозитория по публичным данным сразу публикуется: это и
- * есть публичный рейтинг из ТЗ. Каждая стоит клона и вызовов модели, поэтому
- * по умолчанию выключено (CATALOG_AUTO_ANALYZE=0).
+ * Следующие неоценённые репозитории каталога: сначала самые залайканные, потом
+ * недавно обновлённые. Форки, зеркала, шаблоны и пустые пропускаем — места в
+ * рейтинге им всё равно не положено. «Неоценённый» — без единого анализа:
+ * упавший прогон тоже считается обработанным, повторно его не берём.
  */
-export async function enqueueCatalogAnalyses(db: Db, limit: number): Promise<number> {
-  if (limit <= 0) return 0;
-  const candidates = await db
-    .select({ org: catalogRepositories.orgSlug, repo: catalogRepositories.repoSlug })
+export async function nextCatalogCandidates(
+  db: Db,
+  limit: number,
+): Promise<{ org: string; repo: string; likes: number | null }[]> {
+  return db
+    .select({
+      org: catalogRepositories.orgSlug,
+      repo: catalogRepositories.repoSlug,
+      likes: catalogRepositories.likes,
+    })
     .from(catalogRepositories)
     .where(
       and(
@@ -207,29 +210,217 @@ export async function enqueueCatalogAnalyses(db: Db, limit: number): Promise<num
       sql`${catalogRepositories.lastUpdatedAt} desc nulls last`,
     )
     .limit(limit);
+}
 
+/**
+ * Заводит анализ и задачу для репозитория каталога. С `lockedBy` задача
+ * сразу захвачена этим исполнителем: в очереди она не ждёт, и «Стоп» в
+ * админке не оставляет за собой хвоста из поставленных задач.
+ *
+ * Оценка публичного репозитория по публичным данным сразу публикуется: это и
+ * есть публичный рейтинг из ТЗ.
+ */
+async function createCatalogJob(
+  db: Db,
+  org: string,
+  repo: string,
+  lockedBy?: string,
+): Promise<{ jobId: string; analysisId: string } | null> {
+  const existing = await db.query.repositories.findFirst({
+    where: and(eq(repositories.orgSlug, org), eq(repositories.repoSlug, repo)),
+  });
+  let repositoryId = existing?.id;
+  if (!repositoryId) {
+    const [inserted] = await db
+      .insert(repositories)
+      .values({ orgSlug: org, repoSlug: repo })
+      .onConflictDoNothing()
+      .returning({ id: repositories.id });
+    repositoryId = inserted?.id;
+  }
+  if (!repositoryId) return null;
+  const [analysis] = await db
+    .insert(analyses)
+    .values({ repositoryId, status: 'queued', isPublic: true })
+    .returning({ id: analyses.id });
+  if (!analysis) return null;
+  const [job] = await db
+    .insert(analysisJobs)
+    .values({ analysisId: analysis.id, ...(lockedBy ? { lockedAt: new Date(), lockedBy } : {}) })
+    .returning({ id: analysisJobs.id });
+  if (!job) return null;
+  return { jobId: job.id, analysisId: analysis.id };
+}
+
+/**
+ * Ставит в очередь до `limit` ещё не оценённых репозиториев каталога. Каждая
+ * оценка стоит клона и вызовов модели, поэтому по умолчанию выключено
+ * (CATALOG_AUTO_ANALYZE=0).
+ */
+export async function enqueueCatalogAnalyses(db: Db, limit: number): Promise<number> {
+  if (limit <= 0) return 0;
   let queued = 0;
-  for (const { org, repo } of candidates) {
-    const existing = await db.query.repositories.findFirst({
-      where: and(eq(repositories.orgSlug, org), eq(repositories.repoSlug, repo)),
-    });
-    let repositoryId = existing?.id;
-    if (!repositoryId) {
-      const [inserted] = await db
-        .insert(repositories)
-        .values({ orgSlug: org, repoSlug: repo })
-        .onConflictDoNothing()
-        .returning({ id: repositories.id });
-      repositoryId = inserted?.id;
-    }
-    if (!repositoryId) continue;
-    const [analysis] = await db
-      .insert(analyses)
-      .values({ repositoryId, status: 'queued', isPublic: true })
-      .returning({ id: analyses.id });
-    if (!analysis) continue;
-    await db.insert(analysisJobs).values({ analysisId: analysis.id });
-    queued += 1;
+  for (const { org, repo } of await nextCatalogCandidates(db, limit)) {
+    if (await createCatalogJob(db, org, repo)) queued += 1;
   }
   return queued;
+}
+
+// ---------- Прогон каталога из админки ----------
+//
+// Флаг в settings: админка его ставит и снимает, воркер перечитывает перед
+// каждым новым репозиторием. «Стоп» не прерывает уже начатые оценки — они
+// доходят до конца, новые не берутся.
+
+const RUNNING_KEY = 'catalog.running';
+
+export async function isCatalogRunning(db: Db): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, RUNNING_KEY) });
+  return row?.value === true;
+}
+
+export async function setCatalogRunning(db: Db, running: boolean): Promise<void> {
+  const value = running as unknown as Record<string, unknown>;
+  await db
+    .insert(settings)
+    .values({ key: RUNNING_KEY, value, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
+}
+
+/**
+ * Берёт следующий неоценённый репозиторий каталога и сразу захватывает его
+ * задачу за `runnerId`. null — прогон выключен или каталог кончился.
+ */
+export async function claimNextCatalogJob(
+  db: Db,
+  runnerId: string,
+): Promise<{ jobId: string; analysisId: string; attempts: number } | null> {
+  if (!(await isCatalogRunning(db))) return null;
+  const [next] = await nextCatalogCandidates(db, 1);
+  if (!next) return null;
+  const job = await createCatalogJob(db, next.org, next.repo, runnerId);
+  return job ? { ...job, attempts: 0 } : null;
+}
+
+export type CatalogRunRow = {
+  analysisId: string;
+  orgRepo: string;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  stage: string | null;
+  score: number | null;
+  error: string | null;
+  at: string;
+};
+
+export type CatalogProgress = {
+  running: boolean;
+  total: number;
+  eligible: number;
+  done: number;
+  failed: number;
+  inProgress: number;
+  /** Ещё не тронуты: подходят в рейтинг и без единого анализа. */
+  remaining: number;
+  syncedAt: string | null;
+  active: CatalogRunRow[];
+  recent: CatalogRunRow[];
+  next: { org: string; repo: string; likes: number | null }[];
+};
+
+type RunDbRow = {
+  id: string;
+  org_slug: string;
+  repo_slug: string;
+  status: CatalogRunRow['status'];
+  stage: string | null;
+  score: number | null;
+  error: string | null;
+  at: string | Date;
+};
+
+/** Анализы репозиториев из каталога — для списков «в работе» и «последние». */
+async function catalogRuns(db: Db, finished: boolean, limit: number): Promise<CatalogRunRow[]> {
+  const result = await db.execute<RunDbRow>(sql`
+    select a.id, r.org_slug, r.repo_slug, a.status, a.stage, a.score, a.error,
+      coalesce(a.finished_at, a.created_at) as at
+    from analyses a
+    join repositories r on r.id = a.repository_id
+    where ${finished ? sql`a.status in ('done', 'failed')` : sql`a.status in ('queued', 'running')`}
+      and exists (
+        select 1 from catalog_repositories c
+        where lower(c.org_slug) = lower(r.org_slug) and lower(c.repo_slug) = lower(r.repo_slug)
+      )
+    order by ${finished ? sql`a.finished_at desc nulls last` : sql`a.created_at asc`}
+    limit ${limit}
+  `);
+  return result.rows.map((r) => ({
+    analysisId: r.id,
+    orgRepo: `${r.org_slug}/${r.repo_slug}`,
+    status: r.status,
+    stage: r.stage,
+    score: r.score,
+    error: r.error,
+    at: new Date(r.at).toISOString(),
+  }));
+}
+
+export async function getCatalogProgress(db: Db): Promise<CatalogProgress> {
+  // По каждому репозиторию каталога — статус его последнего анализа.
+  const counts = await db.execute<{
+    total: number;
+    eligible: number;
+    done: number;
+    failed: number;
+    in_progress: number;
+    remaining: number;
+    synced_at: string | Date | null;
+  }>(sql`
+    with last as (
+      select distinct on (lower(r.org_slug), lower(r.repo_slug))
+        lower(r.org_slug) as org, lower(r.repo_slug) as repo, a.status
+      from repositories r
+      join analyses a on a.repository_id = r.id
+      order by lower(r.org_slug), lower(r.repo_slug), a.created_at desc
+    ),
+    c as (
+      select
+        not c.is_fork and not c.is_mirror and not c.is_template and not c.is_empty as eligible,
+        last.status as last_status,
+        c.synced_at
+      from catalog_repositories c
+      left join last on last.org = lower(c.org_slug) and last.repo = lower(c.repo_slug)
+    )
+    select
+      count(*)::int as total,
+      count(*) filter (where eligible)::int as eligible,
+      count(*) filter (where last_status = 'done')::int as done,
+      count(*) filter (where last_status = 'failed')::int as failed,
+      count(*) filter (where last_status in ('queued', 'running'))::int as in_progress,
+      count(*) filter (where eligible and last_status is null)::int as remaining,
+      max(synced_at) as synced_at
+    from c
+  `);
+
+  const [active, recent, next, running] = await Promise.all([
+    catalogRuns(db, false, 20),
+    catalogRuns(db, true, 20),
+    nextCatalogCandidates(db, 10),
+    isCatalogRunning(db),
+  ]);
+
+  const row = counts.rows[0];
+  const synced = row?.synced_at ? new Date(row.synced_at) : null;
+  return {
+    running,
+    total: row?.total ?? 0,
+    eligible: row?.eligible ?? 0,
+    done: row?.done ?? 0,
+    failed: row?.failed ?? 0,
+    inProgress: row?.in_progress ?? 0,
+    remaining: row?.remaining ?? 0,
+    syncedAt: synced && !Number.isNaN(synced.getTime()) ? synced.toISOString() : null,
+    active,
+    recent,
+    next,
+  };
 }

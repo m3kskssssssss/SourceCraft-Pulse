@@ -28,6 +28,7 @@ import {
 } from '@/lib/admin-session';
 import { rateLimit } from '@/lib/rate-limit';
 import { claimJobForAnalysis, processAnalysis, type ProcessOutcome } from '@/lib/analysis/run';
+import { setCatalogRunning } from '@/lib/catalog';
 
 const RATE_LIMIT_ATTEMPTS = 5;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
@@ -474,4 +475,22 @@ async function recordEvent(kind: string, payload: Record<string, unknown>): Prom
   } catch {
     // журнал не должен ломать основной flow
   }
+}
+
+// ---------- Прогон каталога ----------
+
+/** «Старт»: воркер начнёт брать неоценённые репозитории каталога по три. */
+export async function adminCatalogStartAction(): Promise<void> {
+  await requireAdmin();
+  await setCatalogRunning(db, true);
+  await recordEvent('admin_catalog_start', {});
+  revalidatePath('/admin/catalog');
+}
+
+/** «Стоп»: новые не берутся, начатые оценки доходят до конца. */
+export async function adminCatalogStopAction(): Promise<void> {
+  await requireAdmin();
+  await setCatalogRunning(db, false);
+  await recordEvent('admin_catalog_stop', {});
+  revalidatePath('/admin/catalog');
 }

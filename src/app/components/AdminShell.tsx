@@ -12,6 +12,11 @@ const NAV = [
   { href: '/admin', label: 'Сводка', match: (p: string) => p === '/admin' },
   { href: '/admin/ai', label: 'ИИ и расходы', match: (p: string) => p.startsWith('/admin/ai') },
   { href: '/admin/queue', label: 'Очередь', match: (p: string) => p.startsWith('/admin/queue') },
+  {
+    href: '/admin/catalog',
+    label: 'Каталог',
+    match: (p: string) => p.startsWith('/admin/catalog'),
+  },
   { href: '/admin/users', label: 'Пользователи', match: (p: string) => p.startsWith('/admin/users') },
   {
     href: '/admin/social',
