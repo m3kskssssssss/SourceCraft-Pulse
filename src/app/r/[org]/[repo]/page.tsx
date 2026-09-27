@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { getLatestPublicAnalysis } from '@/lib/ranking';
 import { getRepoHistory } from '@/lib/history';
-import { Chip, EmptyState, ScoreDial } from '@/app/components/ui';
+import { Bar, Chip, EmptyState, ScoreDial } from '@/app/components/ui';
+import { CATEGORY_ACCENT_CLASS, CATEGORY_ORDER, CATEGORY_TITLES } from '@/lib/category-meta';
 import { AnalysisHistory } from '@/app/components/AnalysisHistory';
 import { BadgeMarkdown } from '@/app/components/BadgeMarkdown';
 import { ReevaluateButton } from '@/app/components/ReevaluateButton';
+import { ExportLinks } from '@/app/components/ExportLinks';
 import { db } from '@/db/client';
 import { findOwnedRepoId } from '@/lib/ownership';
 import { APP_TIME_ZONE } from '@/lib/time';
@@ -109,6 +111,42 @@ export default async function RepositoryPage({ params }: PageProps) {
                 <ReevaluateButton org={latest.org} repo={latest.repo} ownedId={ownedId} />
               </div>
             </div>
+          </div>
+
+          {/* Баллы по категориям — только числа, без пояснений: они на
+              странице анализа. Две колонки на телефоне, три на планшете,
+              шесть в строку на широком экране. */}
+          {latest.kind !== 'material' && (
+            <div className="grid grid-cols-2 gap-px border-t border-[color:var(--line)] bg-[color:var(--line)] sm:grid-cols-3">
+              {CATEGORY_ORDER.map((key, i) => {
+                const value = latest.categories[key];
+                return (
+                  <div
+                    key={key}
+                    className={`${CATEGORY_ACCENT_CLASS[key]} rise bg-[color:var(--paper-2)] px-5 py-5 sm:px-8 sm:py-6`}
+                    style={{ animationDelay: `${i * 40}ms` }}
+                  >
+                    <div className="flex items-center gap-2 text-sm text-[color:var(--ink-2)]">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: 'var(--accent)' }} aria-hidden />
+                      <span className="truncate">{CATEGORY_TITLES[key]}</span>
+                    </div>
+                    <div
+                      className={`mt-2 text-4xl font-semibold leading-none tabular-nums sm:text-5xl ${
+                        value == null ? 'text-[color:var(--muted-2)]' : ''
+                      }`}
+                    >
+                      {value ?? '—'}
+                    </div>
+                    <Bar value={value} height={5} accent className="mt-4" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 border-t border-[color:var(--line)] bg-[color:var(--paper-2)] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+            <div className="text-xs uppercase tracking-widest text-[color:var(--muted)]">Скачать</div>
+            <ExportLinks analysisId={latest.id} />
           </div>
 
           <div className="border-t border-[color:var(--line)] bg-[color:var(--paper)] p-5 sm:p-8">
