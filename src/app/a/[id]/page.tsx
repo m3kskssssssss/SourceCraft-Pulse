@@ -355,7 +355,7 @@ export default async function AnalysisPage({ params }: PageProps) {
                 download
                 className="rounded-full border border-[color:var(--line-2)] px-3 py-1 text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
               >
-                Плакат PNG
+                Отчёт в PNG
               </a>
               <a
                 href={`/a/${analysis.id}/report.md`}

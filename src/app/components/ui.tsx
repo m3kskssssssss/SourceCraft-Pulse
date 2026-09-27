@@ -503,25 +503,25 @@ function CategoryMiniPrioritized({
       {empty.length > 0 && (
         <div
           className={cx(
-            'flex items-end gap-1.5 opacity-45',
+            'flex flex-wrap items-end gap-3 opacity-[0.36]',
             md && known.length > 0 && 'mt-3',
           )}
         >
           {empty.map((key) => (
             <div
               key={key}
-              className="w-7"
+              className="w-14"
               title={`${CATEGORY_TITLES[key]}: ${values[key] == null ? 'нет данных' : '0'}`}
             >
-              <div className="flex items-baseline justify-between gap-0.5">
-                <span className="text-[8px] uppercase tracking-wide text-[color:var(--muted-2)]">
+              <div className="flex items-baseline justify-between gap-1">
+                <span className="text-base uppercase leading-none tracking-wide text-[color:var(--muted-2)]">
                   {CATEGORY_SHORT[key]}
                 </span>
-                <span className="text-[9px] tabular-nums text-[color:var(--muted-2)]">
+                <span className="text-lg leading-none tabular-nums text-[color:var(--muted-2)]">
                   {values[key] ?? '—'}
                 </span>
               </div>
-              <Bar value={values[key]} height={2} muted className="mt-0.5" />
+              <Bar value={values[key]} height={4} muted className="mt-1" />
             </div>
           ))}
         </div>

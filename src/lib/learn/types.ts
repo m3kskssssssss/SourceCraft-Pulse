@@ -42,7 +42,11 @@ export type SceneId =
   | 'relay-race'
   | 'grapple-climb'
   | 'meteor-defense'
-  | 'hoop-shot';
+  | 'hoop-shot'
+  | 'conveyor-check'
+  | 'hurdle-run'
+  | 'bug-net'
+  | 'sort-drop';
 
 /** Иллюстрации внутри статей — см. components/learn/Figures.tsx. */
 export type FigureId =
@@ -96,7 +100,11 @@ export type FigureId =
   | 'cvss-vector'
   | 'vuln-triage'
   | 'issue-states'
-  | 'issue-backlog-age';
+  | 'issue-backlog-age'
+  | 'pipeline-stages'
+  | 'ci-cache-timeline'
+  | 'bug-report-anatomy'
+  | 'priority-matrix';
 
 export type Block =
   | { type: 'p'; text: string }

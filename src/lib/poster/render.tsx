@@ -297,13 +297,13 @@ function CardPoster({ report, host }: ExportContext) {
             <Chips items={metaChips(report)} />
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: u(40), marginTop: u(44), width: inner }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: u(44), marginTop: u(48), width: inner }}>
           {material ? (
             <span style={{ fontSize: u(56), fontWeight: 700 }}>Полезный материал</span>
           ) : (
             <>
-              <Dial value={report.score} size={u(220)} />
-              <div style={{ display: 'flex', flexDirection: 'column', width: inner - u(220) - u(40) }}>
+              <Dial value={report.score} size={u(250)} />
+              <div style={{ display: 'flex', flexDirection: 'column', width: inner - u(250) - u(44) }}>
                 <span style={{ fontSize: u(20), color: C.muted, textTransform: 'uppercase', letterSpacing: u(2) }}>
                   Балл здоровья
                 </span>
@@ -314,15 +314,11 @@ function CardPoster({ report, host }: ExportContext) {
             </>
           )}
         </div>
-        {/* «О проекте»: у проекта — пара строк над категориями, у материала
-            места больше (категорий нет) — пересказ и темы целиком. */}
-        {report.about.summary && (
-          <div style={{ display: 'flex', marginTop: u(material ? 36 : 32), width: inner }}>
-            <About
-              summary={material ? clip(report.about.summary, 620) : clip(report.about.summary, 170)}
-              topics={material ? report.about.topics : []}
-              size={material ? 26 : 22}
-            />
+        {/* «О проекте» на карточке — только у материала: вместо категорий.
+            У проекта карточка — балл и категории, пересказ живёт в отчёте. */}
+        {material && report.about.summary && (
+          <div style={{ display: 'flex', marginTop: u(36), width: inner }}>
+            <About summary={clip(report.about.summary, 620)} topics={report.about.topics} size={26} />
           </div>
         )}
       </div>
