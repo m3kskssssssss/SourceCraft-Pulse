@@ -197,19 +197,6 @@ export async function getLanguageFacets(limit = 40): Promise<LanguageFacet[]> {
     .map((r) => ({ name: r.name, count: r.count }));
 }
 
-/**
- * Опубликованные, но без места в рейтинге: форки, зеркала, шаблоны и свежие
- * копии шаблонов (см. lib/rating-eligibility.ts). Страница рейтинга называет
- * их число, чтобы пропажа не выглядела поломкой.
- */
-export async function getUnrankedCount(): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(analyses)
-    .where(and(eq(analyses.isPublic, true), eq(analyses.status, 'done'), sql`not ${RANKED}`));
-  return row?.count ?? 0;
-}
-
 /** Диапазоны баллов для распределения на странице рейтинга. */
 export const SCORE_BUCKETS = [
   { from: 0, to: 29, label: '0–29' },

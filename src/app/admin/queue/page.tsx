@@ -51,7 +51,7 @@ export default async function AdminQueue() {
       ) : (
         <>
           <div className="mt-8 overflow-x-auto rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
-            <table className="w-full text-sm">
+            <table className="admin-table w-full text-sm">
               <thead className="text-left text-[color:var(--muted)]">
                 <tr>
                   <th className="px-5 py-3 font-normal">Репозиторий</th>
@@ -65,12 +65,12 @@ export default async function AdminQueue() {
                 {rows.map((row) => (
                   <tr key={row.jobId} className="border-t border-[color:var(--line)] align-top">
                     <td className="px-5 py-3">
-                      <div className="font-medium">{row.orgRepo ?? '—'}</div>
+                      <div className="break-all font-medium">{row.orgRepo ?? '—'}</div>
                       <div className="mt-0.5 text-xs text-[color:var(--muted)]">
                         {new Date(row.createdAt).toLocaleString('ru-RU', { timeZone: APP_TIME_ZONE })}
                       </div>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3" data-label="Статус">
                       <Chip tone="default">{STATUS_LABELS[row.status]}</Chip>
                       {row.lockedBy && (
                         <div className="mt-1 text-[11px] text-[color:var(--muted-2)]">
@@ -78,8 +78,8 @@ export default async function AdminQueue() {
                         </div>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-right tabular-nums">{row.attempts}</td>
-                    <td className="max-w-md px-5 py-3 text-xs text-[color:var(--muted)]">
+                    <td className="px-5 py-3 text-right tabular-nums" data-label="Попыток">{row.attempts}</td>
+                    <td className="max-w-md break-words px-5 py-3 text-xs text-[color:var(--muted)]" data-label="Ошибка">
                       {row.lastError ? truncate(row.lastError, 240) : '—'}
                     </td>
                     <td className="px-5 py-3">

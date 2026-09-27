@@ -55,7 +55,7 @@ export function Podium({ items }: { items: LeaderboardItem[] }) {
           </div>
           <SocialLine item={item} className="relative mt-2" />
           {item.kind !== 'material' && (
-            <CategoryMini values={item.categories} size="md" className="mt-5" />
+            <CategoryMini values={item.categories} size="md" prioritize className="mt-5" />
           )}
         </div>
       ))}
@@ -117,6 +117,7 @@ export function LeaderboardRows({ items, startPlace }: { items: LeaderboardItem[
               {!isMaterial && (
                 <CategoryMini
                   values={item.categories}
+                  prioritize
                   className="col-span-2 col-start-1 row-start-2 mt-2.5 sm:col-start-2 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:mt-0"
                 />
               )}

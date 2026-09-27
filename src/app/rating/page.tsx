@@ -10,7 +10,6 @@ import {
   getLanguageFacets,
   getLeaderboard,
   getLeaderboardOverview,
-  getUnrankedCount,
   type LeaderboardSort,
 } from '@/lib/ranking';
 import { db } from '@/db/client';
@@ -36,11 +35,10 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
   const offset = (page - 1) * PAGE_SIZE;
   const filtered = Boolean(query || languages.length);
 
-  const [{ items, total }, facets, overview, unranked, catalog] = await Promise.all([
+  const [{ items, total }, facets, overview, catalog] = await Promise.all([
     getLeaderboard({ sort, query, languages, limit: PAGE_SIZE, offset }),
     getLanguageFacets(),
     getLeaderboardOverview(),
-    getUnrankedCount(),
     // Каталог может быть ещё не обойдён (или миграция не применена) — тогда без счётчика.
     getCatalogStats(db).catch(() => null),
   ]);
@@ -73,21 +71,11 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
           Публичные репозитории SourceCraft с опубликованной оценкой. У каждого — балл здоровья,
           разбивка по шести категориям и отзывы людей.
         </p>
-        {(catalog || unranked > 0) && (
+        {catalog && (
           <p className="rise mt-3 max-w-2xl text-sm text-[color:var(--muted)]" style={{ animationDelay: '90ms' }}>
-            {catalog && (
-              <>
-                Оценено <span className="tabular-nums text-[color:var(--ink-2)]">{catalog.analyzed.toLocaleString('ru-RU')}</span>{' '}
-                из <span className="tabular-nums text-[color:var(--ink-2)]">{catalog.eligible.toLocaleString('ru-RU')}</span>{' '}
-                публичных проектов каталога SourceCraft (всего в каталоге{' '}
-                {catalog.total.toLocaleString('ru-RU')}, без форков, зеркал, шаблонов и пустых).{' '}
-              </>
-            )}
-            {unranked > 0 && (
-              <>
-                Ещё {unranked.toLocaleString('ru-RU')} оценены, но без места: форки, зеркала и копии шаблонов.{' '}
-              </>
-            )}
+            Оценено <span className="tabular-nums text-[color:var(--ink-2)]">{catalog.analyzed.toLocaleString('ru-RU')}</span>{' '}
+            из <span className="tabular-nums text-[color:var(--ink-2)]">{catalog.eligible.toLocaleString('ru-RU')}</span>{' '}
+            публичных проектов каталога SourceCraft.{' '}
             <Link href="/methodology" className="underline">
               Как считается балл
             </Link>

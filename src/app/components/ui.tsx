@@ -412,11 +412,18 @@ export function CategoryMini({
   values,
   className,
   size = 'sm',
+  prioritize = false,
 }: {
   values: CategoryValues;
   className?: string;
   size?: 'sm' | 'md';
+  /**
+   * Рейтинг: категории с данными — первыми и крупнее, а «нет данных» и нули —
+   * в конец, мельче и приглушённо. Так видно, из чего балл реально сложился.
+   */
+  prioritize?: boolean;
 }) {
+  if (prioritize) return <CategoryMiniPrioritized values={values} size={size} className={className} />;
   return (
     <div
       className={cx(
@@ -443,6 +450,82 @@ export function CategoryMini({
           <Bar value={values[key]} height={3} accent className="mt-1" />
         </div>
       ))}
+    </div>
+  );
+}
+
+function CategoryMiniPrioritized({
+  values,
+  size,
+  className,
+}: {
+  values: CategoryValues;
+  size: 'sm' | 'md';
+  className?: string;
+}) {
+  // Порядок внутри групп — как в ТЗ, от весомых категорий к лёгким.
+  const known = CATEGORY_ORDER.filter((key) => (values[key] ?? 0) > 0);
+  const empty = CATEGORY_ORDER.filter((key) => (values[key] ?? 0) <= 0);
+  const md = size === 'md';
+
+  return (
+    <div className={cx(md ? 'w-full' : 'flex flex-wrap items-end gap-2 sm:gap-2.5', className)}>
+      {known.length > 0 && (
+        <div
+          className={cx(
+            md ? 'grid w-full grid-cols-2 gap-x-3 gap-y-3 @[16rem]:grid-cols-3' : 'flex items-end gap-2 sm:gap-2.5',
+          )}
+        >
+          {known.map((key) => (
+            <div
+              key={key}
+              className={cx(CATEGORY_ACCENT_CLASS[key], md ? 'min-w-0' : 'w-11 sm:w-12')}
+              title={`${CATEGORY_TITLES[key]}: ${values[key]}`}
+            >
+              <div className="flex items-baseline justify-between gap-1">
+                <span className="text-[10px] uppercase tracking-wide text-[color:var(--muted)]">
+                  {CATEGORY_SHORT[key]}
+                </span>
+                <span
+                  className={cx(
+                    'font-semibold tabular-nums text-[color:var(--ink)]',
+                    md ? 'text-sm' : 'text-[13px]',
+                  )}
+                >
+                  {values[key]}
+                </span>
+              </div>
+              <Bar value={values[key]} height={md ? 5 : 4} accent className="mt-1" />
+            </div>
+          ))}
+        </div>
+      )}
+      {empty.length > 0 && (
+        <div
+          className={cx(
+            'flex items-end gap-1.5 opacity-45',
+            md && known.length > 0 && 'mt-3',
+          )}
+        >
+          {empty.map((key) => (
+            <div
+              key={key}
+              className="w-7"
+              title={`${CATEGORY_TITLES[key]}: ${values[key] == null ? 'нет данных' : '0'}`}
+            >
+              <div className="flex items-baseline justify-between gap-0.5">
+                <span className="text-[8px] uppercase tracking-wide text-[color:var(--muted-2)]">
+                  {CATEGORY_SHORT[key]}
+                </span>
+                <span className="text-[9px] tabular-nums text-[color:var(--muted-2)]">
+                  {values[key] ?? '—'}
+                </span>
+              </div>
+              <Bar value={values[key]} height={2} muted className="mt-0.5" />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

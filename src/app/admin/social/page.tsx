@@ -43,7 +43,7 @@ export default async function AdminSocial() {
               key={row.id}
               className="rounded-2xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-4"
             >
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-[color:var(--muted)]">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 break-all text-xs text-[color:var(--muted)]">
                 {row.authorId ? (
                   <Link href={`/u/${row.authorId}`} className="font-medium text-[color:var(--ink)] hover:underline">
                     {row.authorName}
@@ -57,7 +57,7 @@ export default async function AdminSocial() {
                 <span>{formatDateTime(row.createdAt)}</span>
                 {row.isReply && <Chip tone="outline">ответ</Chip>}
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-[color:var(--ink-2)]">
+              <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[color:var(--ink-2)]">
                 {row.body}
               </p>
               <form action={adminDeleteCommentAction} className="mt-3">
@@ -82,7 +82,7 @@ export default async function AdminSocial() {
         <EmptyState className="mt-4" title="Оценок ещё нет" />
       ) : (
         <div className="mt-4 overflow-x-auto rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
-          <table className="w-full min-w-[40rem] text-sm">
+          <table className="admin-table w-full text-sm sm:min-w-[40rem]">
             <thead className="text-left text-[color:var(--muted)]">
               <tr>
                 <th className="px-5 py-3 font-normal">Кто</th>
@@ -104,17 +104,17 @@ export default async function AdminSocial() {
                       row.authorName
                     )}
                   </td>
-                  <td className="px-5 py-3">
-                    <Link href={`/a/${row.analysisId}`} className="hover:underline">
+                  <td className="px-5 py-3" data-label="Репозиторий">
+                    <Link href={`/a/${row.analysisId}`} className="break-all hover:underline">
                       {row.orgRepo}
                     </Link>
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3" data-label="Оценка">
                     <span className="inline-flex items-center gap-1 tabular-nums">
                       <StarIcon size={12} /> {row.value}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-[color:var(--muted)]">
+                  <td className="px-5 py-3 text-[color:var(--muted)]" data-label="Когда">
                     {formatDateTime(row.createdAt)}
                   </td>
                   <td className="px-5 py-3 text-right">

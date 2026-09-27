@@ -51,7 +51,7 @@ export default async function AdminAiPage() {
           <p className="mt-2 text-sm text-[color:var(--muted)]">Вызовов пока не было.</p>
         ) : (
           <div className="mt-4 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
-            <table className="w-full text-sm">
+            <table className="admin-table w-full text-sm">
               <thead className="text-left text-[color:var(--muted)]">
                 <tr>
                   <th className="px-5 py-3 font-normal">Провайдер</th>
@@ -66,10 +66,10 @@ export default async function AdminAiPage() {
                     key={`${row.provider}-${row.model}`}
                     className="border-t border-[color:var(--line)]"
                   >
-                    <td className="px-5 py-3">{row.provider}</td>
-                    <td className="px-5 py-3 font-mono text-xs">{row.model}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{row.callsN}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{fmtRub(row.costRub)}</td>
+                    <td className="px-5 py-3 font-medium">{row.provider}</td>
+                    <td className="break-all px-5 py-3 font-mono text-xs" data-label="Модель">{row.model}</td>
+                    <td className="px-5 py-3 text-right tabular-nums" data-label="Вызовов">{row.callsN}</td>
+                    <td className="px-5 py-3 text-right tabular-nums" data-label="Расход">{fmtRub(row.costRub)}</td>
                   </tr>
                 ))}
               </tbody>
