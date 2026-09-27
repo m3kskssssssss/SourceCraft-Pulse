@@ -5,6 +5,7 @@
 
 import Link from 'next/link';
 import type { HistoryItem } from '@/lib/history';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 export function AnalysisHistory({
   items,
@@ -141,6 +142,7 @@ function ScoreSparkline({ items }: { items: HistoryItem[] }) {
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('ru-RU', {
+    timeZone: APP_TIME_ZONE,
     year: 'numeric',
     month: 'short',
     day: 'numeric',

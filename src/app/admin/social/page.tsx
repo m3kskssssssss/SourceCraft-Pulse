@@ -13,6 +13,7 @@ import {
 import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
 import { Chip, EmptyState, StarIcon } from '@/app/components/ui';
 import { getCommentsList, getRatingsList } from '@/lib/admin-stats';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -139,6 +140,7 @@ export default async function AdminSocial() {
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('ru-RU', {
+    timeZone: APP_TIME_ZONE,
     day: 'numeric',
     month: 'short',
     hour: '2-digit',

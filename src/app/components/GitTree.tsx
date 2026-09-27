@@ -10,6 +10,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import type { GitGraph, GraphCommit } from '@/lib/git/graph';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 const ROW = 38;
 const LANE = 18;
@@ -332,11 +333,12 @@ function stubPath(geo: Geometry, lane: number, fromRow: number): string {
 // ---------- форматирование ----------
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
+  return new Date(iso).toLocaleDateString('ru-RU', { timeZone: APP_TIME_ZONE, day: '2-digit', month: 'short' });
 }
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('ru-RU', {
+    timeZone: APP_TIME_ZONE,
     day: '2-digit',
     month: 'long',
     year: 'numeric',

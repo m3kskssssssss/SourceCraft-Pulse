@@ -7,6 +7,7 @@ import {
 import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
 import { Chip, EmptyState } from '@/app/components/ui';
 import { getUsersList } from '@/lib/admin-stats';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +50,7 @@ export default async function AdminUsers() {
                     <div className="text-xs text-[color:var(--muted)]">{row.email}</div>
                   </td>
                   <td className="px-5 py-3 text-[color:var(--muted)]">
-                    {new Date(row.createdAt).toLocaleDateString('ru-RU')}
+                    {new Date(row.createdAt).toLocaleDateString('ru-RU', { timeZone: APP_TIME_ZONE })}
                   </td>
                   <td className="px-5 py-3 text-right tabular-nums">{row.analysesN}</td>
                   <td className="px-5 py-3 text-right tabular-nums">{row.ratingsN}</td>

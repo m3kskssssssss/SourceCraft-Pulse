@@ -9,6 +9,7 @@ import { metricLabel } from './metric-labels';
 import { describeMissingList } from './missing-labels';
 import { computeCoverage } from './scoring/coverage';
 import type { AppliedPenalty, CategoryKey, CategoryScore, MetricScore, Recommendation } from './scoring/types';
+import { APP_TIME_ZONE } from './time';
 
 export type ReportInput = {
   org: string;
@@ -55,7 +56,7 @@ export function buildReportMarkdown(input: ReportInput): string {
   const meta = [
     input.webUrl ? `Репозиторий: ${input.webUrl}` : null,
     input.language ? `Язык: ${input.language}` : null,
-    input.finishedAt ? `Дата анализа: ${input.finishedAt.toISOString().slice(0, 10)}` : null,
+    input.finishedAt ? `Дата анализа: ${input.finishedAt.toLocaleDateString('en-CA', { timeZone: APP_TIME_ZONE })}` : null,
     coverage !== null ? `Покрытие данных: ${Math.round(coverage * 100)}%` : null,
   ].filter(Boolean);
   for (const item of meta) lines.push(`- ${item}`);

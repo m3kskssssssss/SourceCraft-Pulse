@@ -28,6 +28,7 @@ import {
 import { getPublicUserAnalyses, getUserAnalyses, type HistoryItem } from '@/lib/history';
 import { getSocialByAnalysis, getUserActivityCounts, type AnalysisSocial } from '@/lib/social';
 import { getPublicUser, isUuid } from '@/lib/users';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -313,6 +314,7 @@ function StatCell({ label, value }: { label: string; value: string }) {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('ru-RU', {
+    timeZone: APP_TIME_ZONE,
     year: 'numeric',
     month: 'long',
     day: 'numeric',

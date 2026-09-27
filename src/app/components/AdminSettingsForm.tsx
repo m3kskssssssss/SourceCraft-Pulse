@@ -15,6 +15,7 @@ import {
 } from '@/app/actions/admin-settings';
 import type { AdminSettingsValues } from '@/lib/admin-settings';
 import { Button, Field, Input } from './ui';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 const INITIAL: AdminSettingsState = { status: 'idle' };
 
@@ -113,7 +114,7 @@ function SaveStatus({ state }: { state: AdminSettingsState }) {
   const suffix = state.changed.length > 0 ? `: ${state.changed.join(', ')}` : ' — менять было нечего';
   return (
     <span className="rise text-sm text-[color:var(--muted)]">
-      <Dot /> Сохранено{suffix} · {new Date(state.at).toLocaleTimeString('ru-RU')}
+      <Dot /> Сохранено{suffix} · {new Date(state.at).toLocaleTimeString('ru-RU', { timeZone: APP_TIME_ZONE })}
     </span>
   );
 }

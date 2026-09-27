@@ -8,6 +8,7 @@ import {
 import { Chip, EmptyState, cx } from '@/app/components/ui';
 import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
 import { getAllAnalyses } from '@/lib/admin-stats';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,7 +77,7 @@ export default async function AdminRepositories({
                       {row.orgRepo}
                     </Link>
                     <div className="mt-0.5 text-xs text-[color:var(--muted)]">
-                      {new Date(row.createdAt).toLocaleString('ru-RU')}
+                      {new Date(row.createdAt).toLocaleString('ru-RU', { timeZone: APP_TIME_ZONE })}
                     </div>
                   </td>
                   <td className="px-5 py-3">

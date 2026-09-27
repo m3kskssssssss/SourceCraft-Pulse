@@ -25,6 +25,7 @@ import {
 } from '@/lib/contacts';
 import { Avatar } from './Avatar';
 import { Button, CardDiv, ContactBadge, Field, Input } from './ui';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 const INITIAL: ProfileState = { ok: true };
 
@@ -167,7 +168,7 @@ function DetailsCard({ user, email }: { user: PublicUser; email: string }) {
           )}
           {!pending && state.savedAt && !state.error && (
             <span className="text-sm text-[color:var(--muted)]">
-              Сохранено · {new Date(state.savedAt).toLocaleTimeString('ru-RU')}
+              Сохранено · {new Date(state.savedAt).toLocaleTimeString('ru-RU', { timeZone: APP_TIME_ZONE })}
             </span>
           )}
         </div>

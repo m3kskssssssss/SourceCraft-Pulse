@@ -50,6 +50,7 @@ import { computeCoverage, LOW_COVERAGE } from '@/lib/scoring/coverage';
 import { appSecCategoryScore } from '@/lib/scoring/metrics/security';
 import { pickRatingExclusion, RATING_EXCLUSION_LABELS } from '@/lib/rating-eligibility';
 import { getRepoHistory } from '@/lib/history';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -398,7 +399,8 @@ export default async function AnalysisPage({ params }: PageProps) {
               <p className="mt-1 max-w-2xl text-sm text-[color:var(--muted)]">
                 Подтвердите владение — и получите бейдж для README, который обновляется каждый день, и
                 полную оценку с SourceCraft AppSec и прогонами CI. Её увидите только вы: эти данные
-                платформа отдаёт лишь участникам репозитория.
+                платформа отдаёт лишь участникам репозитория. А ещё поможем набрать больше баллов:
+                подготовим pull request с улучшениями и отправим его вам — останется только принять.
               </p>
             </div>
             {userId ? (
@@ -1303,7 +1305,7 @@ function verdict(score: number | null): string {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('ru-RU', { timeZone: APP_TIME_ZONE, year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /** Строка предложения для клиента: без содержимого файлов, только дифф. */

@@ -11,6 +11,7 @@ import { Bar, Chip, EmptyState, Stat } from '@/app/components/ui';
 import { db } from '@/db/client';
 import { getCatalogProgress, type CatalogRunRow } from '@/lib/catalog';
 import { stageLabel } from '@/lib/stages';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 /** «Обновить каталог» читает GET /repos после ответа — нужен весь лимит функции. */
@@ -104,7 +105,7 @@ export default async function AdminCatalog() {
             <Bar value={percent} className="mt-2" height={8} />
             {p.syncedAt && (
               <div className="mt-2 text-xs text-[color:var(--muted)]">
-                Каталог обновлён {new Date(p.syncedAt).toLocaleString('ru-RU')}
+                Каталог обновлён {new Date(p.syncedAt).toLocaleString('ru-RU', { timeZone: APP_TIME_ZONE })}
               </div>
             )}
           </div>
@@ -170,7 +171,7 @@ function RunList({ title, rows, empty }: { title: string; rows: CatalogRunRow[];
                     ? (stageLabel(r.stage) ?? 'начинается')
                     : r.status === 'failed' && r.error
                       ? r.error.slice(0, 120)
-                      : new Date(r.at).toLocaleString('ru-RU')}
+                      : new Date(r.at).toLocaleString('ru-RU', { timeZone: APP_TIME_ZONE })}
                 </div>
               </div>
               <span className="shrink-0 tabular-nums">

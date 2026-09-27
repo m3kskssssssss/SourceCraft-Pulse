@@ -13,6 +13,7 @@ import type { CommentNode } from '@/lib/social';
 import type { PublicUser } from '@/lib/user-display';
 import { Avatar } from './Avatar';
 import { Button, EmptyState } from './ui';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 const INITIAL: SocialState = { ok: true };
 
@@ -236,6 +237,7 @@ function Comment({
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString('ru-RU', {
+    timeZone: APP_TIME_ZONE,
     day: 'numeric',
     month: 'short',
     year: 'numeric',

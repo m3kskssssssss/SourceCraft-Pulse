@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import type { LeaderboardItem } from '@/lib/ranking';
 import { CategoryMini, CommentIcon, StarIcon } from './ui';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 export function Podium({ items }: { items: LeaderboardItem[] }) {
   return (
@@ -184,5 +185,5 @@ function ForkIcon() {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('ru-RU', { timeZone: APP_TIME_ZONE, year: 'numeric', month: 'short', day: 'numeric' });
 }

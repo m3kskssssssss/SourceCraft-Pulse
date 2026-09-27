@@ -5,6 +5,7 @@ import { ConfirmSubmit } from '@/app/components/ConfirmSubmit';
 import { CardDiv, Chip } from '@/app/components/ui';
 import { getAiSpend } from '@/lib/admin-stats';
 import { readAdminSettings } from '@/lib/admin-settings';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ export default async function AdminSettings() {
           </span>
           <span className="text-[color:var(--muted)]">
             {spend.resetAt
-              ? `Счётчик обнулён ${new Date(spend.resetAt).toLocaleString('ru-RU')}`
+              ? `Счётчик обнулён ${new Date(spend.resetAt).toLocaleString('ru-RU', { timeZone: APP_TIME_ZONE })}`
               : 'Счётчик ни разу не обнуляли'}
           </span>
         </div>

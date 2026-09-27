@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { UserListItem, UsersOverview } from '@/lib/users';
 import { Avatar } from './Avatar';
 import { cx } from './ui';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 /** Звания по очкам активности: от первого шага до завсегдатая. */
 const RANKS = [
@@ -159,5 +160,5 @@ function plural(count: number, one: string, few: string, many: string): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString('ru-RU', { timeZone: APP_TIME_ZONE, year: 'numeric', month: 'short', day: 'numeric' });
 }

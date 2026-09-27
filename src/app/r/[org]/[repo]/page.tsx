@@ -11,6 +11,7 @@ import { BadgeMarkdown } from '@/app/components/BadgeMarkdown';
 import { ReevaluateButton } from '@/app/components/ReevaluateButton';
 import { db } from '@/db/client';
 import { findOwnedRepoId } from '@/lib/ownership';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 type PageProps = { params: Promise<{ org: string; repo: string }> };
 
@@ -170,5 +171,5 @@ export default async function RepositoryPage({ params }: PageProps) {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('ru-RU', { timeZone: APP_TIME_ZONE, year: 'numeric', month: 'short', day: 'numeric' });
 }

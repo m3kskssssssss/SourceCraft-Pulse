@@ -12,6 +12,7 @@ import { Chip } from '@/app/components/ui';
 import { allSlugs, getArticle, listArticles } from '@/lib/learn';
 import { LEVEL_LABEL } from '@/lib/learn/types';
 import { CATEGORY_ACCENT_CLASS, CATEGORY_TITLES } from '@/lib/category-meta';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -40,6 +41,7 @@ export default async function ArticlePage({ params }: PageProps) {
     .slice(0, 3);
 
   const published = new Date(article.published).toLocaleDateString('ru-RU', {
+    timeZone: APP_TIME_ZONE,
     day: 'numeric',
     month: 'long',
     year: 'numeric',

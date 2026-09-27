@@ -7,6 +7,7 @@ import {
 } from '@/app/actions/admin';
 import { Chip, EmptyState } from '@/app/components/ui';
 import { getQueueRows } from '@/lib/admin-stats';
+import { APP_TIME_ZONE } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 /** Прогон считается прямо в этом запросе — нужен весь лимит Fluid compute. */
@@ -66,7 +67,7 @@ export default async function AdminQueue() {
                     <td className="px-5 py-3">
                       <div className="font-medium">{row.orgRepo ?? '—'}</div>
                       <div className="mt-0.5 text-xs text-[color:var(--muted)]">
-                        {new Date(row.createdAt).toLocaleString('ru-RU')}
+                        {new Date(row.createdAt).toLocaleString('ru-RU', { timeZone: APP_TIME_ZONE })}
                       </div>
                     </td>
                     <td className="px-5 py-3">
