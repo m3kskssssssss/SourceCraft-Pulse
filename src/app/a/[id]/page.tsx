@@ -344,6 +344,20 @@ export default async function AnalysisPage({ params }: PageProps) {
                 {!analysis.isPublic ? 'Приватно' : unranked ? 'Опубликован, без места в рейтинге' : 'В рейтинге'}
               </Chip>
               <a
+                href={`/a/${analysis.id}/export/report.pdf`}
+                download
+                className="rounded-full border border-[color:var(--line-2)] px-3 py-1 text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
+              >
+                Отчёт в PDF
+              </a>
+              <a
+                href={`/a/${analysis.id}/export/report.png`}
+                download
+                className="rounded-full border border-[color:var(--line-2)] px-3 py-1 text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
+              >
+                Плакат PNG
+              </a>
+              <a
                 href={`/a/${analysis.id}/report.md`}
                 className="rounded-full border border-[color:var(--line-2)] px-3 py-1 text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
               >
