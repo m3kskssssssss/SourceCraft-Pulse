@@ -1,4 +1,5 @@
-// Главная — hero с формой запуска, подборка статей, превью рейтинга и API.
+// Главная — hero с формой запуска, «Мои репозитории», случайные статьи,
+// превью рейтинга и API.
 // Полный рейтинг с фильтрами и сводкой живёт на /rating.
 
 import Link from 'next/link';
@@ -7,11 +8,11 @@ import { AnalyzeForm } from './components/AnalyzeForm';
 import { ApiShowcase } from './components/ApiShowcase';
 import { Planet } from './components/Planet';
 import { LeaderboardRows, Podium } from './components/Leaderboard';
-import { ArticleCard } from './components/learn/ArticleCard';
+import { ArticlesStrip } from './components/learn/ArticlesStrip';
+import { ReposPromo } from './components/ReposPromo';
 import { EmptyState } from './components/ui';
 import { getLeaderboard } from '@/lib/ranking';
 import { listArticles } from '@/lib/learn';
-import { LEVELS } from '@/lib/learn/types';
 import { CATEGORY_ACCENT_CLASS, CATEGORY_ORDER, CATEGORY_TITLES } from '@/lib/category-meta';
 
 export const revalidate = 60;
@@ -39,11 +40,7 @@ export default async function HomePage({
   const podium = items.length >= 3 ? items.slice(0, 3) : [];
   const rows = podium.length > 0 ? items.slice(3) : items;
 
-  // По статье каждого уровня: главная показывает, что читать есть кому угодно.
   const all = listArticles();
-  const articles = LEVELS.map((level) => all.find((a) => a.level === level)).filter(
-    (a): a is NonNullable<typeof a> => Boolean(a),
-  );
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 sm:px-6">
@@ -96,7 +93,14 @@ export default async function HomePage({
 
       <div className="hairline h-px" />
 
-      {/* Статьи: на телефоне лентой с прокруткой вбок, на экране — тремя колонками. */}
+      {/* «Мои репозитории»: что получит владелец — зовём туда до статей. */}
+      <section className="py-12 sm:py-16">
+        <ReposPromo />
+      </section>
+
+      <div className="hairline h-px" />
+
+      {/* Статьи: шесть случайных в одну линию, лента с прокруткой вбок. */}
       <section className="py-12 sm:py-16">
         <SectionTitle
           title="Статьи"
@@ -104,13 +108,7 @@ export default async function HomePage({
           href="/learn"
           more={`Все статьи · ${all.length}`}
         />
-        <div className="-mx-4 mt-6 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-3 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0">
-          {articles.map((a) => (
-            <div key={a.slug} className="w-[82%] shrink-0 snap-start sm:w-auto">
-              <ArticleCard article={a} />
-            </div>
-          ))}
-        </div>
+        <ArticlesStrip articles={all} />
       </section>
 
       <div className="hairline h-px" />

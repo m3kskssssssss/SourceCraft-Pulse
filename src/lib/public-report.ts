@@ -29,6 +29,8 @@ export type PublicReport = {
   analyzedAt: string | null;
   /** Почему нет места в рейтинге (форк, зеркало, шаблон, копия шаблона). */
   unranked: string | null;
+  /** «О проекте»: пересказ модели по README и структуре. На оценку не влияет. */
+  about: { summary: string | null; topics: string[] };
   categories: Array<{
     key: string;
     title: string;
@@ -87,6 +89,7 @@ export function buildPublicReport(
   );
   const unranked = pickRatingExclusion(analysis.metrics);
   const kind = analysis.kind ?? 'project';
+  const kindMeta = (analysis.metrics as { kind?: { summary?: unknown; topics?: unknown } } | null)?.kind;
 
   return {
     id: analysis.id,
@@ -102,6 +105,12 @@ export function buildPublicReport(
     coverage: roundTo(computeCoverage(analysis.categoryScores), 3),
     analyzedAt: analysis.finishedAt ? analysis.finishedAt.toISOString() : null,
     unranked: unranked ? RATING_EXCLUSION_LABELS[unranked] : null,
+    about: {
+      summary: typeof kindMeta?.summary === 'string' ? kindMeta.summary : null,
+      topics: Array.isArray(kindMeta?.topics)
+        ? kindMeta.topics.filter((t): t is string => typeof t === 'string').slice(0, 6)
+        : [],
+    },
     categories: [...categories]
       .sort((a, b) => categoryOrder(a.key) - categoryOrder(b.key))
       .map((c) => ({

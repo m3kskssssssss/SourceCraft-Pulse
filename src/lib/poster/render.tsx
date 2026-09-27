@@ -297,13 +297,13 @@ function CardPoster({ report, host }: ExportContext) {
             <Chips items={metaChips(report)} />
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: u(44), marginTop: u(48), width: inner }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: u(40), marginTop: u(44), width: inner }}>
           {material ? (
             <span style={{ fontSize: u(56), fontWeight: 700 }}>Полезный материал</span>
           ) : (
             <>
-              <Dial value={report.score} size={u(250)} />
-              <div style={{ display: 'flex', flexDirection: 'column', width: inner - u(250) - u(44) }}>
+              <Dial value={report.score} size={u(220)} />
+              <div style={{ display: 'flex', flexDirection: 'column', width: inner - u(220) - u(40) }}>
                 <span style={{ fontSize: u(20), color: C.muted, textTransform: 'uppercase', letterSpacing: u(2) }}>
                   Балл здоровья
                 </span>
@@ -314,11 +314,51 @@ function CardPoster({ report, host }: ExportContext) {
             </>
           )}
         </div>
+        {/* «О проекте»: у проекта — пара строк над категориями, у материала
+            места больше (категорий нет) — пересказ и темы целиком. */}
+        {report.about.summary && (
+          <div style={{ display: 'flex', marginTop: u(material ? 36 : 32), width: inner }}>
+            <About
+              summary={material ? clip(report.about.summary, 620) : clip(report.about.summary, 170)}
+              topics={material ? report.about.topics : []}
+              size={material ? 26 : 22}
+            />
+          </div>
+        )}
       </div>
       {!material && <CategoryTiles report={report} width={inner} />}
       <Footer host={host} id={report.id} />
     </Frame>
   );
+}
+
+/** «Что это · О проекте»: пересказ модели и темы списком. */
+function About({ summary, topics, size }: { summary: string; topics: string[]; size: number }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+      <span style={{ fontSize: u(18), color: C.muted, textTransform: 'uppercase', letterSpacing: u(2) }}>
+        Что это · О проекте
+      </span>
+      <span style={{ marginTop: u(10), fontSize: u(size), lineHeight: 1.45, color: C.ink2 }}>{summary}</span>
+      {topics.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: u(8), marginTop: u(16) }}>
+          {topics.map((t, i) => (
+            <div key={i} style={{ display: 'flex', gap: u(12), fontSize: u(size - 4), lineHeight: 1.4, color: C.ink2 }}>
+              <span style={{ color: C.muted2 }}>•</span>
+              <span style={{ flex: 1 }}>{t}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Обрезает по слову и ставит многоточие: на карточке место под текст фиксировано. */
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 20)).replace(/[\s,.;:—-]+$/, '')}…`;
 }
 
 function verdict(score: number | null): string {
@@ -389,7 +429,7 @@ function summaryBlocks(report: PublicReport): Block[] {
   if (!material && report.categories.length > 0) {
     blocks.push({ height: 420, node: <CategoryTiles report={report} width={u(TEXT_W)} /> });
   }
-  if (report.penalties.length > 0) {
+  if (!material && report.penalties.length > 0) {
     const rows = report.penalties.map((p) => ({ p, h: textHeight(p.reason, 20, TEXT_W - 120) + 16 }));
     blocks.push({
       height: 60 + rows.reduce((n, r) => n + r.h, 0),
@@ -602,9 +642,31 @@ function ReportPage({
   );
 }
 
+function aboutBlocks(report: PublicReport): Block[] {
+  const summary = report.about.summary;
+  if (!summary) return [];
+  const h =
+    40 +
+    textHeight(summary, 22, TEXT_W, 1.45) +
+    (report.about.topics.length > 0
+      ? 16 + report.about.topics.reduce((n, t) => n + textHeight(t, 18, TEXT_W - 30) + 8, 0)
+      : 0);
+  return [{ height: h, node: <About summary={summary} topics={report.about.topics} size={22} /> }];
+}
+
+/**
+ * Материал не оценивается: у него нет категорий, рекомендаций и пробелов в
+ * метриках — только что это и о чём.
+ */
 function reportBlocks(report: PublicReport): Block[] {
+  if (report.kind === 'material') return [...summaryBlocks(report), ...aboutBlocks(report)];
+  // «О проекте» — сразу под баллом, до плиток категорий и штрафов.
+  const [title, score, ...rest] = summaryBlocks(report);
   return [
-    ...summaryBlocks(report),
+    title!,
+    score!,
+    ...aboutBlocks(report),
+    ...rest,
     ...categoryBlocks(report),
     ...recommendationBlocks(report),
     ...missingBlocks(report),
