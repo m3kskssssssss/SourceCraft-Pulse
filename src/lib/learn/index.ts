@@ -21,6 +21,10 @@ import { todoDebt } from './articles/todo-debt';
 import { splittingBigFiles } from './articles/splitting-big-files';
 import { readingVulnerabilityReports } from './articles/reading-vulnerability-reports';
 import { issuesThatClose } from './articles/issues-that-close';
+import { firstPipeline } from './articles/first-pipeline';
+import { fastCi } from './articles/fast-ci';
+import { bugReports } from './articles/bug-reports';
+import { labelsAndPriorities } from './articles/labels-and-priorities';
 import { readingMinutes, timeBucket, type TimeBucket } from './reading-time';
 import { LEVELS, TOPICS, type Article, type Level, type Topic } from './types';
 
@@ -48,6 +52,10 @@ const ALL: Article[] = [
   splittingBigFiles,
   readingVulnerabilityReports,
   issuesThatClose,
+  firstPipeline,
+  fastCi,
+  bugReports,
+  labelsAndPriorities,
 ];
 
 function summarize(article: Article): ArticleSummary {

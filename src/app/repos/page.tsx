@@ -114,7 +114,9 @@ export default async function MyRepositoriesPage({ searchParams }: PageProps) {
             <h1 className="mt-3 text-4xl font-semibold tracking-tight">Мои репозитории</h1>
             <p className="mt-2 max-w-2xl text-sm text-[color:var(--muted)]">
               Подтверждённые репозитории Pulse пересчитывает каждый день в 00:00 ({refreshTimeZone()}),
-              и бейдж в README всегда показывает свежую оценку.
+              и бейдж в README всегда показывает свежую оценку. А на странице оценки своего
+              репозитория можно подготовить pull request с улучшениями — README, лицензию, правки
+              кода: Pulse покажет дифф, отправит PR от вашего имени, и останется только принять его.
             </p>
           </header>
         }

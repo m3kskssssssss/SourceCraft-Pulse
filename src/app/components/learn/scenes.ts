@@ -87,6 +87,13 @@ const GLYPHS: Record<string, readonly string[]> = {
   '1': ['.#.', '##.', '.#.', '.#.', '###'],
   '2': ['##.', '..#', '.#.', '#..', '###'],
   '3': ['##.', '..#', '.#.', '..#', '##.'],
+  B: ['##.', '#.#', '##.', '#.#', '##.'],
+  U: ['#.#', '#.#', '#.#', '#.#', '###'],
+  G: ['.##', '#..', '#.#', '#.#', '.##'],
+  O: ['.#.', '#.#', '#.#', '#.#', '.#.'],
+  K: ['#.#', '#.#', '##.', '#.#', '#.#'],
+  P: ['##.', '#.#', '##.', '#..', '#..'],
+  C: ['.##', '#..', '#..', '#..', '.##'],
 };
 
 function text(c: Ctx, s: string, x: number, y: number): void {
@@ -1848,7 +1855,270 @@ const hoopShot: Scene = {
   },
 };
 
+// ---------- конвейер CI: рамка проверяет коробки, брак разлетается ----------
+
+const CONV_Y = 44;
+const BOXES = [
+  { s: 0, bad: false },
+  { s: 22, bad: true },
+  { s: 44, bad: false },
+  { s: 66, bad: false },
+  { s: 88, bad: true },
+  { s: 110, bad: false },
+];
+const BOX_V = 1.4;
+const SCAN_X = 58;
+const TICK = ['....#', '...#.', '#.#..', '.#...'];
+
+const conveyorCheck: Scene = {
+  frames: 176,
+  still: 70,
+  draw(c, f) {
+    clear(c);
+    paper(c);
+    // лента и ролики: штрихи бегут вправо
+    px(c, 0, CONV_Y, SW, 1);
+    px(c, 0, CONV_Y + 5, SW, 1);
+    for (let x = -8; x < SW + 8; x += 8) {
+      const rx = x + ((f * BOX_V) % 8);
+      px(c, rx, CONV_Y + 2, 2, 2);
+    }
+    dither(c, 0, CONV_Y + 8, SW, SH - CONV_Y - 8);
+    // рамка сканера
+    px(c, SCAN_X - 7, 18, 1, CONV_Y - 18);
+    px(c, SCAN_X + 7, 18, 1, CONV_Y - 18);
+    px(c, SCAN_X - 7, 18, 15, 2);
+    // табло: сколько прошло проверку
+    let passed = 0;
+    for (const b of BOXES) {
+      const x = -10 + (f - b.s) * BOX_V;
+      if (x < -10 || f < b.s) continue;
+      const cx = x + 4;
+      const scanning = Math.abs(cx - SCAN_X) < 6;
+      if (!b.bad && cx > SCAN_X + 6) passed++;
+      if (b.bad && cx > SCAN_X + 8) {
+        // брак: вспышка и обломки
+        const age = (cx - SCAN_X - 8) / BOX_V;
+        if (age < 3 && Math.floor(age) % 2 === 0) { paper(c); px(c, x, CONV_Y - 8, 9, 8); }
+        burst(c, cx, CONV_Y - 4, age, 12, 1.4);
+        if (age < 16 && Math.floor(f / 2) % 2) { paper(c); text(c, '!', SCAN_X - 1, 8); }
+        continue;
+      }
+      if (x > SW) continue;
+      paper(c);
+      px(c, x, CONV_Y - 8, 9, 8);
+      ink(c);
+      px(c, x + 1, CONV_Y - 7, 7, 6);
+      paper(c);
+      px(c, x + 4, CONV_Y - 7, 1, 6);
+      if (b.bad) { px(c, x + 2, CONV_Y - 5, 1, 1); px(c, x + 6, CONV_Y - 3, 1, 1); }
+      if (scanning) {
+        // луч сканера бегает сверху вниз
+        const ly = 20 + ((f * 3) % (CONV_Y - 22));
+        px(c, SCAN_X - 6, ly, 13, 1);
+      }
+      if (!b.bad && cx > SCAN_X + 6 && cx < SCAN_X + 30) sprite(c, TICK, x + 2, CONV_Y - 14);
+    }
+    paper(c);
+    text(c, 'OK', 4, 4);
+    for (let i = 0; i < passed; i++) px(c, 14 + i * 4, 4, 2, 5);
+    curtain(c, prog(f, 160, 174));
+  },
+};
+
+// ---------- бег с барьерами: подобран кэш — дорога летит вдвое быстрее ----------
+
+const RUN_X = 26;
+const RUN_GROUND = 50;
+const HURDLES = [44, 100, 150, 196, 236];
+const BOOST_AT = 70;
+const FINISH = 276;
+
+function runWorld(f: number): number {
+  return f < BOOST_AT ? f : BOOST_AT + (f - BOOST_AT) * 2;
+}
+
+const hurdleRun: Scene = {
+  frames: 184,
+  still: 120,
+  draw(c, f) {
+    clear(c);
+    const w = Math.min(runWorld(f), FINISH);
+    const boosted = f >= BOOST_AT;
+    groundLine(c, RUN_GROUND);
+    paper(c);
+    // разметка дорожки едет навстречу
+    for (let x = -((w * 1) % 12); x < SW; x += 12) px(c, x, RUN_GROUND + 3, 5, 1);
+    // линии скорости после ускорения
+    if (boosted && w < FINISH) for (let i = 0; i < 5; i++) {
+      const y = 12 + i * 7;
+      const x = SW - ((f * 6 + i * 37) % (SW + 30));
+      px(c, x, y, 10 + (i % 3) * 4, 1);
+    }
+    // барьеры
+    for (const h of HURDLES) {
+      const x = RUN_X + (h - w);
+      if (x < -8 || x > SW + 8) continue;
+      px(c, x, RUN_GROUND - 7, 1, 7);
+      px(c, x + 6, RUN_GROUND - 7, 1, 7);
+      px(c, x - 1, RUN_GROUND - 8, 9, 2);
+    }
+    // кэш: коробка с молнией, висит над дорожкой до подбора
+    const cacheX = RUN_X + (BOOST_AT - w) + 2;
+    if (!boosted) {
+      const bob = Math.round(Math.sin(f * 0.3));
+      px(c, cacheX, 30 + bob, 7, 7);
+      ink(c);
+      sprite(c, ['..#..', '.#...', '#####', '...#.', '..#..'], cacheX + 1, 31 + bob);
+      paper(c);
+    } else {
+      burst(c, RUN_X + 3, 32, f - BOOST_AT, 10, 1.8);
+    }
+    // финиш: клетчатый флаг
+    const flagX = RUN_X + (FINISH - w) + 10;
+    if (flagX < SW + 4) {
+      px(c, flagX, RUN_GROUND - 22, 1, 22);
+      for (let j = 0; j < 3; j++) for (let i = 0; i < 4; i++) if ((i + j) % 2 === 0) px(c, flagX + 1 + i * 2, RUN_GROUND - 22 + j * 2, 2, 2);
+    }
+    // бегун: прыжок над каждым барьером
+    let lift = 0;
+    for (const h of HURDLES) {
+      const k = prog(w, h - 9, h + 7);
+      if (k > 0 && k < 1) lift = Math.max(lift, 11 * 4 * k * (1 - k));
+    }
+    const done = w >= FINISH;
+    walker(c, RUN_X, RUN_GROUND - 1 - lift, boosted ? f * 2 : f, !done && lift === 0);
+    if (boosted && !done && f % 4 < 2) px(c, RUN_X - 4, RUN_GROUND - 5 - lift, 2, 1);
+    if (done && Math.floor(f / 3) % 2) text(c, '!', RUN_X + 1, RUN_GROUND - 16);
+    curtain(c, prog(f, 168, 182));
+  },
+};
+
+// ---------- ловля жука сачком: пойманный баг — в банку с этикеткой ----------
+
+const NET_GROUND = 50;
+const BUG = [
+  ['#.#.#', '.###.', '#####', '.###.', '#...#'],
+  ['.#.#.', '.###.', '#####', '.###.', '.#.#.'],
+] as const;
+const CATCH = 112;
+const JAR_X = 98;
+
+function bugX(f: number): number {
+  return track([[0, 40], [20, 60], [40, 48], [60, 76], [80, 64], [100, 82], [CATCH, 80]], f);
+}
+
+function hunterX(f: number): number {
+  return track([[0, 4], [30, 26], [60, 44], [90, 58], [CATCH, 66], [140, 66], [160, 88], [176, 88]], f);
+}
+
+const bugNet: Scene = {
+  frames: 200,
+  still: 112,
+  draw(c, f) {
+    clear(c);
+    groundLine(c, NET_GROUND);
+    paper(c);
+    // банка: появляется справа, в конце в ней сидит жук
+    px(c, JAR_X, 30, 1, 20); px(c, JAR_X + 14, 30, 1, 20); px(c, JAR_X, 49, 15, 1);
+    px(c, JAR_X - 1, 28, 17, 2);
+    const jarred = f >= 168;
+    if (jarred) {
+      sprite(c, BUG[Math.floor(f / 4) % 2] ?? BUG[0], JAR_X + 5, 42);
+      px(c, JAR_X + 2, 34, 11, 7);
+      ink(c); text(c, 'BUG', JAR_X + 2, 35); paper(c);
+    }
+    // жук прыгает зигзагом, пока его не поймали
+    const hx = hunterX(f);
+    if (f < CATCH) {
+      const hop = Math.abs(Math.sin(f * 0.35)) * 6;
+      sprite(c, BUG[Math.floor(f / 3) % 2] ?? BUG[0], bugX(f), NET_GROUND - 5 - hop);
+    }
+    // охотник с сачком
+    const moving = Math.abs(hunterX(f + 1) - hx) > 0.1;
+    walker(c, hx, NET_GROUND - 1, f, moving);
+    // сачок: ручка из руки, обруч; на броске описывает дугу вниз
+    const swing = prog(f, CATCH - 8, CATCH);
+    const ang = -0.9 + swing * 1.6;
+    const hand = { x: hx + 4, y: NET_GROUND - 5 };
+    const tip = { x: hand.x + Math.cos(ang) * 12, y: hand.y + Math.sin(ang) * 12 };
+    line(c, hand.x, hand.y, tip.x, tip.y);
+    for (let a = 0; a < 12; a++) {
+      const t = (a / 12) * Math.PI * 2;
+      px(c, tip.x + 3 + Math.cos(t) * 3, tip.y + Math.sin(t) * 3);
+    }
+    if (f >= CATCH && f < 168) {
+      // жук в сачке дёргается
+      if (Math.floor(f / 2) % 2) px(c, tip.x + 2, tip.y - 1, 2, 2);
+      else px(c, tip.x + 3, tip.y, 2, 2);
+    }
+    burst(c, tip.x + 3, tip.y, f - CATCH, 10, 1.4);
+    if (f >= CATCH && f < CATCH + 14 && Math.floor(f / 2) % 2) text(c, '!', hx + 1, NET_GROUND - 16);
+    curtain(c, prog(f, 184, 198));
+  },
+};
+
+// ---------- сортировка: блоки падают и сами встают в корзину своего приоритета ----------
+
+const BIN_Y = 52;
+const BINS = [{ x: 8, label: 'P1' }, { x: 46, label: 'P2' }, { x: 84, label: 'P3' }];
+const DROPS: Array<{ s: number; bin: 0 | 1 | 2; from: number }> = [
+  { s: 0, bin: 1, from: 58 },
+  { s: 18, bin: 2, from: 40 },
+  { s: 36, bin: 0, from: 70 },
+  { s: 54, bin: 2, from: 60 },
+  { s: 72, bin: 1, from: 20 },
+  { s: 90, bin: 2, from: 50 },
+  { s: 108, bin: 0, from: 96 },
+  { s: 126, bin: 2, from: 30 },
+];
+const DROP_FRAMES = 26;
+const BLOCK_W = 12;
+const BLOCK_H = 5;
+
+const sortDrop: Scene = {
+  frames: 176,
+  still: 100,
+  draw(c, f) {
+    clear(c);
+    paper(c);
+    // корзины и подписи
+    for (const b of BINS) {
+      px(c, b.x, 26, 1, BIN_Y - 26);
+      px(c, b.x + 27, 26, 1, BIN_Y - 26);
+      px(c, b.x, BIN_Y, 28, 1);
+      text(c, b.label, b.x + 9, BIN_Y + 3);
+    }
+    const stacks = [0, 0, 0];
+    for (const d of DROPS) {
+      if (f < d.s) continue;
+      const bin = BINS[d.bin]!;
+      const targetX = bin.x + 8;
+      const level = stacks[d.bin]!;
+      const restY = BIN_Y - (level + 1) * (BLOCK_H + 1);
+      const k = prog(f, d.s, d.s + DROP_FRAMES);
+      const x = d.from + (targetX - d.from) * easeOut(prog(f, d.s + 4, d.s + DROP_FRAMES - 6));
+      const y = -6 + (restY + 6) * easeIn(k);
+      // блок: рамка и точки приоритета — чем важнее, тем больше точек
+      px(c, x, y, BLOCK_W, BLOCK_H);
+      ink(c);
+      px(c, x + 1, y + 1, BLOCK_W - 2, BLOCK_H - 2);
+      paper(c);
+      for (let i = 0; i < 3 - d.bin; i++) px(c, x + 3 + i * 3, y + 2, 1, 1);
+      // приземлился: пыль и «!» над срочным
+      burst(c, x + BLOCK_W / 2, restY + BLOCK_H, f - d.s - DROP_FRAMES, 6, 1.2);
+      if (d.bin === 0 && f >= d.s + DROP_FRAMES && f < d.s + DROP_FRAMES + 12 && Math.floor(f / 2) % 2) text(c, '!', x + 5, restY - 8);
+      stacks[d.bin] = level + 1;
+    }
+    curtain(c, prog(f, 160, 174));
+  },
+};
+
 export const SCENES: Record<SceneId, Scene> = {
+  'conveyor-check': conveyorCheck,
+  'hurdle-run': hurdleRun,
+  'bug-net': bugNet,
+  'sort-drop': sortDrop,
   'tank-wall': tankWall,
   signpost,
   'block-tower': blockTower,

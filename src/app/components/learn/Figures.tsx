@@ -1478,7 +1478,120 @@ function IssueBacklogAge() {
   );
 }
 
+// ---------- CI: первый пайплайн и скорость ----------
+
+function PipelineStages() {
+  const steps = ['установка', 'линтер', 'тесты', 'сборка'];
+  const secs = ['40 с', '10 с', '2 мин', '1 мин'];
+  return (
+    <Svg h={176} label="Пайплайн: коммит, установка, линтер, тесты, сборка; если линтер упал, дальше не идём">
+      <T x={4} y={22} size={11} fill={MUTED}>коммит</T>
+      <circle cx={20} cy={60} r={9} fill={INK} />
+      <Arrow x1={30} y1={60} x2={50} y2={60} />
+      {steps.map((st, i) => {
+        const x = 52 + i * 88;
+        return (
+          <g key={st}>
+            <rect x={x} y={42} width={76} height={36} rx={10} fill={i === 1 ? INK : PAPER} stroke={INK} strokeWidth={1.5} />
+            <T x={x + 38} y={65} anchor="middle" size={11} fill={i === 1 ? PAPER : INK}>{st}</T>
+            <T x={x + 38} y={94} anchor="middle" size={10} fill={MUTED}>{secs[i]}</T>
+            {i < 3 && <Arrow x1={x + 77} y1={60} x2={x + 87} y2={60} />}
+          </g>
+        );
+      })}
+      <path d="M178 112 v20 h-150" fill="none" stroke={INK} strokeWidth={1.5} strokeDasharray="4 3" />
+      <T x={30} y={152} size={11}>линтер упал → коммит красный за 50 с,</T>
+      <T x={30} y={168} size={11} fill={MUTED}>тесты и сборку уже не ждём</T>
+      <line x1={172} y1={106} x2={184} y2={118} stroke={INK} strokeWidth={2} />
+      <line x1={184} y1={106} x2={172} y2={118} stroke={INK} strokeWidth={2} />
+    </Svg>
+  );
+}
+
+function CiCacheTimeline() {
+  // Прямоугольник шага: x и ширина — в минутах на шкале 30 единиц за минуту.
+  const bar = (x: number, y: number, w: number, label: string, dark = false) => (
+    <g>
+      <rect x={x} y={y} width={w} height={20} rx={4} fill={dark ? INK : PANEL} stroke={INK} strokeWidth={1.2} />
+      {w >= 30 && <T x={x + w / 2} y={y + 14} anchor="middle" size={10} fill={dark ? PAPER : INK}>{label}</T>}
+    </g>
+  );
+  return (
+    <Svg h={200} label="До: установка, линтер, тесты и сборка по очереди, 12 минут. После: кэш и параллельные задачи, 4 минуты">
+      <T x={4} y={20} size={11} weight={600}>до</T>
+      {bar(4, 28, 100, 'установка', true)}
+      {bar(104, 28, 30, 'lint')}
+      {bar(134, 28, 130, 'тесты')}
+      {bar(264, 28, 60, 'сборка')}
+      <T x={396} y={42} anchor="end" size={11} weight={600}>12 мин</T>
+
+      <T x={4} y={84} size={11} weight={600}>после</T>
+      {bar(4, 92, 14, '', true)}
+      {bar(18, 92, 30, 'lint')}
+      {bar(18, 116, 110, 'тесты')}
+      {bar(18, 140, 60, 'сборка')}
+      <T x={396} y={106} anchor="end" size={11} weight={600}>4 мин</T>
+      <T x={140} y={130} size={10} fill={MUTED}>← задачи идут одновременно</T>
+
+      <T x={4} y={188} size={10} fill={MUTED}>чёрное — установка зависимостей: с кэшем — секунды</T>
+    </Svg>
+  );
+}
+
+// ---------- задачи: баг-репорт и приоритеты ----------
+
+function BugReportAnatomy() {
+  const fields: Array<[string, string]> = [
+    ['Заголовок', 'Экспорт в CSV падает на файлах > 10 МБ'],
+    ['Шаги', '1. Открыть отчёт  2. Экспорт → CSV  3. …'],
+    ['Ожидалось', 'скачался файл'],
+    ['Получилось', 'ошибка 500 через 30 с'],
+    ['Окружение', 'v2.4.1 · Windows 11 · Chrome 128'],
+  ];
+  return (
+    <Svg h={220} label="Карточка баг-репорта из пяти полей: заголовок, шаги, ожидалось, получилось, окружение">
+      <rect x={4} y={6} width={392} height={206} rx={14} fill={PAPER} stroke={INK} strokeWidth={1.5} />
+      {fields.map(([k, v], i) => {
+        const y = 22 + i * 38;
+        return (
+          <g key={k}>
+            <T x={20} y={y + 14} size={10} fill={MUTED}>{k}</T>
+            <rect x={110} y={y} width={272} height={24} rx={6} fill={i === 1 ? INK : PANEL} />
+            <T x={120} y={y + 16} size={10.5} fill={i === 1 ? PAPER : INK} mono={i === 1}>{v}</T>
+          </g>
+        );
+      })}
+    </Svg>
+  );
+}
+
+function PriorityMatrix() {
+  const cell = (x: number, y: number, label: string, hint: string, dark: boolean) => (
+    <g>
+      <rect x={x} y={y} width={150} height={66} rx={10} fill={dark ? INK : PANEL} stroke={INK} strokeWidth={1.2} />
+      <T x={x + 75} y={y + 30} anchor="middle" size={16} weight={700} fill={dark ? PAPER : INK}>{label}</T>
+      <T x={x + 75} y={y + 50} anchor="middle" size={10} fill={dark ? PAPER : MUTED}>{hint}</T>
+    </g>
+  );
+  return (
+    <Svg h={200} label="Приоритет по вреду и охвату: много пользователей и сломано главное — P1, мелочь у немногих — P3">
+      <line x1={60} y1={176} x2={390} y2={176} stroke={INK} strokeWidth={1.5} />
+      <line x1={60} y1={176} x2={60} y2={10} stroke={INK} strokeWidth={1.5} />
+      <T x={225} y={194} anchor="middle" size={10} fill={MUTED}>сколько пользователей задето →</T>
+      <T x={8} y={20} size={10} fill={MUTED}>вред ↑</T>
+      {cell(72, 22, 'P2', 'сломано, но у немногих', false)}
+      {cell(232, 22, 'P1', 'сломано главное у многих', true)}
+      {cell(72, 100, 'P3', 'мелочь у немногих', false)}
+      {cell(232, 100, 'P2', 'неудобно, но у всех', false)}
+    </Svg>
+  );
+}
+
 const FIGURES: Record<FigureId, () => ReactNode> = {
+  'pipeline-stages': PipelineStages,
+  'ci-cache-timeline': CiCacheTimeline,
+  'bug-report-anatomy': BugReportAnatomy,
+  'priority-matrix': PriorityMatrix,
   'secret-history': SecretHistory,
   'secret-flow': SecretFlow,
   'secret-response': SecretResponse,
