@@ -1,9 +1,10 @@
-// Главная — hero с формой запуска, подборка статей и превью рейтинга.
+// Главная — hero с формой запуска, подборка статей, превью рейтинга и API.
 // Полный рейтинг с фильтрами и сводкой живёт на /rating.
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { AnalyzeForm } from './components/AnalyzeForm';
+import { ApiShowcase } from './components/ApiShowcase';
 import { Planet } from './components/Planet';
 import { LeaderboardRows, Podium } from './components/Leaderboard';
 import { ArticleCard } from './components/learn/ArticleCard';
@@ -153,6 +154,13 @@ export default async function HomePage({
             )}
           </>
         )}
+      </section>
+
+      <div className="hairline h-px" />
+
+      {/* Как говорить с сервисом без браузера: четыре запроса анимацией. */}
+      <section className="py-12 sm:py-16">
+        <ApiShowcase />
       </section>
     </main>
   );

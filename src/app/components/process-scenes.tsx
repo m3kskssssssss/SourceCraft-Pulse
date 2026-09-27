@@ -15,12 +15,12 @@ export const VIEW_H = 120;
 const INK = 'var(--ink)';
 const PAPER = 'var(--paper-2)';
 
-const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
-const prog = (t: number, a: number, b: number): number => clamp01((t - a) / (b - a));
-const easeOut = (x: number): number => 1 - (1 - x) * (1 - x);
+export const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
+export const prog = (t: number, a: number, b: number): number => clamp01((t - a) / (b - a));
+export const easeOut = (x: number): number => 1 - (1 - x) * (1 - x);
 
 /** Тонкая линия: штрих в один пиксель при любом масштабе. */
-const thin = (opacity = 0.55, dash?: string) => ({
+export const thin = (opacity = 0.55, dash?: string) => ({
   fill: 'none',
   stroke: INK,
   strokeWidth: 1,
@@ -33,7 +33,7 @@ const thin = (opacity = 0.55, dash?: string) => ({
  * Проволочный глобус, как логотип: параллели стоят, меридианы сжимаются по
  * косинусу со сдвигом фаз — шар вращается вокруг вертикальной оси.
  */
-function Globe({
+export function Globe({
   cx,
   cy,
   r,
@@ -71,7 +71,7 @@ function Globe({
 }
 
 /** Точка на квадратичной кривой Безье. */
-function bezier(k: number, a: [number, number], c: [number, number], b: [number, number]): [number, number] {
+export function bezier(k: number, a: [number, number], c: [number, number], b: [number, number]): [number, number] {
   const u = 1 - k;
   return [u * u * a[0] + 2 * u * k * c[0] + k * k * b[0], u * u * a[1] + 2 * u * k * c[1] + k * k * b[1]];
 }

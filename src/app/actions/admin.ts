@@ -8,7 +8,7 @@ import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { redirect } from 'next/navigation';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { and, eq, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import argon2 from 'argon2';
 import { z } from 'zod';
 import { db } from '@/db/client';
@@ -278,6 +278,83 @@ export async function adminDeleteRepository(
   return { ok: true, deletedAnalyses: doomed.length };
 }
 
+/**
+ * Массовая уборка репозиториев. Удаление каскадом уносит оценки, задачи
+ * очереди, заявки «мой репозиторий» и подготовленные PR; каталог SourceCraft
+ * не трогается — прогон каталога возьмёт такие репозитории заново.
+ *
+ *  - 'all'      — все репозитории;
+ *  - 'no_ai'    — посчитанные без ИИ: ни у одного готового прогона нет ответа
+ *                 модели. Приватные не берём — ИИ им не положен в принципе;
+ *  - 'unranked' — есть готовая оценка, но без места в рейтинге (форк,
+ *                 зеркало, шаблон, копия шаблона).
+ */
+export type BulkRepositoryScope = 'all' | 'no_ai' | 'unranked';
+
+const bulkScopeSchema = z.enum(['all', 'no_ai', 'unranked']);
+
+export async function adminDeleteRepositoriesBulk(
+  scope: BulkRepositoryScope,
+): Promise<{ ok: boolean; deleted?: number; error?: string }> {
+  await requireAdmin();
+  const parsed = bulkScopeSchema.safeParse(scope);
+  if (!parsed.success) return { ok: false, error: 'Неизвестный набор' };
+
+  const doneWithAi = sql`exists (
+    select 1 from ${analyses}
+    where ${analyses.repositoryId} = ${repositories.id}
+      and ${analyses.status} = 'done'
+      and coalesce(${analyses.metrics} -> 'ai' ->> 'unavailable', 'false') <> 'true'
+      and ${analyses.metrics} -> 'ai' is not null
+  )`;
+  const doneAny = sql`exists (
+    select 1 from ${analyses}
+    where ${analyses.repositoryId} = ${repositories.id} and ${analyses.status} = 'done'
+  )`;
+  const doneUnranked = sql`exists (
+    select 1 from ${analyses}
+    where ${analyses.repositoryId} = ${repositories.id}
+      and ${analyses.status} = 'done'
+      and (${analyses.metrics} -> 'rating' ->> 'excluded') is not null
+  )`;
+
+  const where =
+    parsed.data === 'all'
+      ? undefined
+      : parsed.data === 'no_ai'
+        ? and(eq(repositories.isPrivate, false), doneAny, sql`not ${doneWithAi}`)
+        : doneUnranked;
+
+  const deleted = await db.delete(repositories).where(where).returning({ id: repositories.id });
+  await recordEvent('admin.repositories.bulk_deleted', { scope: parsed.data, deleted: deleted.length });
+  return { ok: true, deleted: deleted.length };
+}
+
+/** Сколько репозиториев заденет каждая массовая уборка — для подписей кнопок. */
+export async function adminBulkRepositoryCounts(): Promise<Record<BulkRepositoryScope, number>> {
+  await requireAdmin();
+  const [row] = await db.execute<{ all: number; no_ai: number; unranked: number }>(sql`
+    select
+      (select count(*)::int from ${repositories}) as "all",
+      (select count(*)::int from ${repositories} r
+        where r.is_private = false
+          and exists (select 1 from ${analyses} a where a.repository_id = r.id and a.status = 'done')
+          and not exists (
+            select 1 from ${analyses} a
+            where a.repository_id = r.id and a.status = 'done'
+              and a.metrics -> 'ai' is not null
+              and coalesce(a.metrics -> 'ai' ->> 'unavailable', 'false') <> 'true'
+          )) as "no_ai",
+      (select count(*)::int from ${repositories} r
+        where exists (
+          select 1 from ${analyses} a
+          where a.repository_id = r.id and a.status = 'done'
+            and (a.metrics -> 'rating' ->> 'excluded') is not null
+        )) as "unranked"
+  `).then((res) => res.rows);
+  return { all: row?.all ?? 0, no_ai: row?.no_ai ?? 0, unranked: row?.unranked ?? 0 };
+}
+
 export async function adminToggleBlock(
   userId: string,
   block: boolean,
@@ -407,6 +484,17 @@ export async function adminDeleteRepositoryAction(formData: FormData): Promise<v
   revalidatePath('/admin/repositories');
   revalidatePath('/admin/queue');
   revalidatePath('/admin');
+  revalidatePath('/');
+}
+
+export async function adminDeleteRepositoriesBulkAction(formData: FormData): Promise<void> {
+  const scope = String(formData.get('scope') ?? '') as BulkRepositoryScope;
+  await adminDeleteRepositoriesBulk(scope);
+  revalidatePath('/admin/repositories');
+  revalidatePath('/admin/queue');
+  revalidatePath('/admin/catalog');
+  revalidatePath('/admin');
+  revalidatePath('/rating');
   revalidatePath('/');
 }
 

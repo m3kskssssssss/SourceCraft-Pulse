@@ -495,6 +495,100 @@ body {
   animation: rise 260ms ease-out both;
 }
 
+/* Терминал «Pulse по API»: строки ответа проявляются, курсор мигает. */
+@keyframes api-line-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.api-line {
+  animation: api-line-in 220ms ease-out both;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.caret {
+  animation: caret-blink 1s steps(1) infinite;
+}
+
+/* Модальное окно подтверждения в админке. */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.modal-in {
+  animation: modal-in 180ms ease-out both;
+}
+
+/* Таблицы админки на телефоне: строка становится карточкой, колонки —
+   парами «подпись — значение» (подпись из data-label). Иначе на 393 px
+   таблица уезжает вбок, а кнопки в последней колонке не достать. */
+@media (max-width: 639px) {
+  .admin-table {
+    min-width: 0;
+  }
+  .admin-table thead {
+    display: none;
+  }
+  .admin-table,
+  .admin-table tbody,
+  .admin-table tr,
+  .admin-table td {
+    display: block;
+    width: 100%;
+  }
+  .admin-table tr {
+    padding: 12px 16px;
+  }
+  .admin-table tbody tr:first-child {
+    border-top: 0;
+  }
+  .admin-table td {
+    max-width: none;
+    padding: 3px 0;
+    text-align: left;
+  }
+  .admin-table td[data-label] {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+  .admin-table td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: left;
+  }
+  .admin-table td:last-child {
+    padding-top: 10px;
+  }
+  .admin-table td .justify-end {
+    justify-content: flex-start;
+  }
+}
+
 /* Уважение к системной настройке: никакого движения, если его не просили. */
 @media (prefers-reduced-motion: reduce) {
   *,

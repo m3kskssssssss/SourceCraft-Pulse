@@ -28,7 +28,7 @@ export default async function AdminUsers() {
         <EmptyState className="mt-8" title="Пользователей ещё нет" />
       ) : (
         <div className="mt-8 overflow-x-auto rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)]">
-          <table className="w-full min-w-[46rem] text-sm">
+          <table className="admin-table w-full text-sm sm:min-w-[46rem]">
             <thead className="text-left text-[color:var(--muted)]">
               <tr>
                 <th className="px-5 py-3 font-normal">Пользователь</th>
@@ -47,21 +47,21 @@ export default async function AdminUsers() {
                     <Link href={`/u/${row.id}`} className="font-medium hover:underline">
                       {row.displayName}
                     </Link>
-                    <div className="text-xs text-[color:var(--muted)]">{row.email}</div>
+                    <div className="break-all text-xs text-[color:var(--muted)]">{row.email}</div>
                   </td>
-                  <td className="px-5 py-3 text-[color:var(--muted)]">
+                  <td className="px-5 py-3 text-[color:var(--muted)]" data-label="Зарегистрирован">
                     {new Date(row.createdAt).toLocaleDateString('ru-RU', { timeZone: APP_TIME_ZONE })}
                   </td>
-                  <td className="px-5 py-3 text-right tabular-nums">{row.analysesN}</td>
-                  <td className="px-5 py-3 text-right tabular-nums">{row.ratingsN}</td>
-                  <td className="px-5 py-3 text-right tabular-nums">{row.commentsN}</td>
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 text-right tabular-nums" data-label="Анализов">{row.analysesN}</td>
+                  <td className="px-5 py-3 text-right tabular-nums" data-label="Оценок">{row.ratingsN}</td>
+                  <td className="px-5 py-3 text-right tabular-nums" data-label="Комментариев">{row.commentsN}</td>
+                  <td className="px-5 py-3" data-label="Статус">
                     <Chip tone={row.blockedAt ? 'ink' : 'default'}>
                       {row.blockedAt ? 'заблокирован' : 'активен'}
                     </Chip>
                   </td>
                   <td className="px-5 py-3">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <form action={adminToggleBlockAction}>
                         <input type="hidden" name="userId" value={row.id} />
                         <input type="hidden" name="next" value={row.blockedAt ? '0' : '1'} />
