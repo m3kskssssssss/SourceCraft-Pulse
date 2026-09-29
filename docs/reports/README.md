@@ -1,28 +1,484 @@
 # Примеры отчётов
 
-Каталог содержит выгрузки отчётов по демонстрационной выборке открытых репозиториев
-SourceCraft: для каждого репозитория — Markdown и PDF.
+Выгрузка отчётов Pulse по всем репозиториям публичного рейтинга стенда <https://source-craft-pulse.vercel.app/rating> — 451 шт.: 380 проектов с баллом и 71 репозиториев-материалов (курсы, конспекты), которые показываются без места в рейтинге.
 
-## Выборка
+- **Markdown** — для каждого репозитория (п. 12.1 ТЗ: выгружаемый отчёт по каждому проанализированному репозиторию).
+- **PDF** — для первых 30 мест рейтинга; PDF по всем репозиториям одним архивом выгружается в админке: «Сводка» → «Выгрузка отчётов».
+- **Веб-отчёт** — ссылка в первой колонке.
 
-| Репозиторий | Язык | Repo Health Score | Покрытие | Веб-отчёт | Markdown | PDF |
-|---|---|---:|---:|---|---|---|
+Файлы фиксируют результат на 29.09.2026. При новых коммитах оценка на стенде пересчитывается, а свежий отчёт всегда можно скачать со страницы анализа.
 
-## Именование файлов
-
-`<org>__<repo>.md` и `<org>__<repo>.pdf`: например, `gravity-ui__uikit.md`.
-
-## Как получить отчёт
+## Как получить отчёт самому
 
 1. Откройте анализ репозитория на стенде: `/r/<org>/<repo>` → «Подробности анализа».
-2. Скачайте Markdown: `/a/<id>/report.md`.
-3. Скачайте PDF: `/a/<id>/export/report.pdf`.
-
-Тот же отчёт без браузера:
+2. Markdown: `/a/<id>/report.md`, PDF: `/a/<id>/export/report.pdf`.
+3. Без браузера:
 
 ```bash
 curl -o <org>__<repo>.md "https://source-craft-pulse.vercel.app/api/public/repos/<org>/<repo>/report?format=md"
 ```
 
-Дата анализа указана в каждом отчёте. При повторной оценке репозитория отчёт на стенде
-обновляется, а файл в этом каталоге фиксирует результат на дату выгрузки.
+Именование файлов: `<org>__<repo>.md` и `<org>__<repo>.pdf`.
+
+## Рейтинг
+
+Покрытие — сколько из шести категорий удалось измерить; «нет данных» не штрафует балл.
+
+| # | Репозиторий | Язык | Балл | Покрытие | Отчёт |
+|---:|---|---|---:|---:|---|
+| 1 | [annetutil/gnetcli](https://source-craft-pulse.vercel.app/a/05ee66cf-8f35-4e94-8f80-c5150e35d539) | Go | 83 | 4/6 | [md](annetutil__gnetcli.md) [pdf](annetutil__gnetcli.pdf) |
+| 2 | [notacompany/gromozeka](https://source-craft-pulse.vercel.app/a/faf80f92-cf2b-4ef0-854e-f3f6e87f8a41) | Python | 78 | 4/6 | [md](notacompany__gromozeka.md) [pdf](notacompany__gromozeka.pdf) |
+| 3 | [ilugly/ecommerce-sales-analytics](https://source-craft-pulse.vercel.app/a/1f574028-5052-4c05-9011-1f244329a112) | HTML | 77 | 4/6 | [md](ilugly__ecommerce-sales-analytics.md) [pdf](ilugly__ecommerce-sales-analytics.pdf) |
+| 4 | [ilugly/gamejam-vk-uchiru](https://source-craft-pulse.vercel.app/a/8b0a4a73-1da9-4c9b-a956-15c15c5468fe) | TSX | 76 | 4/6 | [md](ilugly__gamejam-vk-uchiru.md) [pdf](ilugly__gamejam-vk-uchiru.pdf) |
+| 5 | [axidex/nodegoat](https://source-craft-pulse.vercel.app/a/d7bb0663-dba8-4efd-9c50-24e5ccc5910b) | HTML | 73 | 4/6 | [md](axidex__nodegoat.md) [pdf](axidex__nodegoat.pdf) |
+| 6 | [annetutil/annet](https://source-craft-pulse.vercel.app/a/78211f90-7d28-4c1a-84dd-13bb972fe766) | Python | 72 | 4/6 | [md](annetutil__annet.md) [pdf](annetutil__annet.pdf) |
+| 7 | [axidex/juice-shop](https://source-craft-pulse.vercel.app/a/f537bccc-b289-4efb-9813-5172db2e70f7) | TypeScript | 71 | 4/6 | [md](axidex__juice-shop.md) [pdf](axidex__juice-shop.pdf) |
+| 8 | [testplane/testplane](https://source-craft-pulse.vercel.app/a/c65bef0e-72c4-4472-a8c6-98ee61a12751) | TypeScript | 71 | 5/6 | [md](testplane__testplane.md) [pdf](testplane__testplane.pdf) |
+| 9 | [userver/userver](https://source-craft-pulse.vercel.app/a/87c17cd6-4d9b-4561-8812-0db721f5c492) | C++ | 69 | 4/6 | [md](userver__userver.md) [pdf](userver__userver.pdf) |
+| 10 | [mikhail-bondarevsky/juice-shop123123](https://source-craft-pulse.vercel.app/a/7edc6747-b207-41f2-a6e7-9dd9cf14cdc1) | TypeScript | 69 | 4/6 | [md](mikhail-bondarevsky__juice-shop123123.md) [pdf](mikhail-bondarevsky__juice-shop123123.pdf) |
+| 11 | [fedor/node-postgres](https://source-craft-pulse.vercel.app/a/07b68c7d-bca3-4f3d-8a50-65021616283d) | JavaScript | 69 | 4/6 | [md](fedor__node-postgres.md) [pdf](fedor__node-postgres.pdf) |
+| 12 | [vadim-ridosh/repo11](https://source-craft-pulse.vercel.app/a/a9997e28-cda2-45bc-8275-6f4113cf1500) | Kotlin | 67 | 4/6 | [md](vadim-ridosh__repo11.md) [pdf](vadim-ridosh__repo11.pdf) |
+| 13 | [roxblnfk/dload](https://source-craft-pulse.vercel.app/a/8979b6e4-cc78-42b6-b73e-4df344b519b4) | PHP | 67 | 4/6 | [md](roxblnfk__dload.md) [pdf](roxblnfk__dload.pdf) |
+| 14 | [alekseichebenyuk/vscode-go](https://source-craft-pulse.vercel.app/a/273c1e36-d19f-484c-8404-81aed508854b) | TypeScript | 66 | 4/6 | [md](alekseichebenyuk__vscode-go.md) [pdf](alekseichebenyuk__vscode-go.pdf) |
+| 15 | [lovesolaristics/ya-tracker-client](https://source-craft-pulse.vercel.app/a/8717024f-c925-44f6-8f4f-169c5038cd59) | Python | 65 | 4/6 | [md](lovesolaristics__ya-tracker-client.md) [pdf](lovesolaristics__ya-tracker-client.pdf) |
+| 16 | [meowrch/mewline](https://source-craft-pulse.vercel.app/a/2f891d4d-2711-4326-8930-873dc872fa6b) | Python | 64 | 4/6 | [md](meowrch__mewline.md) [pdf](meowrch__mewline.pdf) |
+| 17 | [lct-hackaton-2026/case-18-repo-health-score-team-59](https://source-craft-pulse.vercel.app/a/b2f7f0b2-6b15-493c-97fc-c3095cab601d) | TypeScript | 63 | 4/6 | [md](lct-hackaton-2026__case-18-repo-health-score-team-59.md) [pdf](lct-hackaton-2026__case-18-repo-health-score-team-59.pdf) |
+| 18 | [flexberry/ember-flexberry-data](https://source-craft-pulse.vercel.app/a/134407fc-4e2b-4746-a560-c1ae49000769) | JavaScript | 63 | 4/6 | [md](flexberry__ember-flexberry-data.md) [pdf](flexberry__ember-flexberry-data.pdf) |
+| 19 | [flexberry/ember-flexberry](https://source-craft-pulse.vercel.app/a/c649f7e5-2ac5-485c-9ef4-005325d3e99a) | JavaScript | 63 | 4/6 | [md](flexberry__ember-flexberry.md) [pdf](flexberry__ember-flexberry.pdf) |
+| 20 | [mvkvol/chess](https://source-craft-pulse.vercel.app/a/4ac68e47-a44c-4f85-82fc-c6b2dfe2d47d) | TypeScript | 63 | 5/6 | [md](mvkvol__chess.md) [pdf](mvkvol__chess.pdf) |
+| 21 | [oleg-shulyakov/llama-ui](https://source-craft-pulse.vercel.app/a/bdf361af-dfa2-4490-92f2-4733bc1309ad) | TSX | 63 | 4/6 | [md](oleg-shulyakov__llama-ui.md) [pdf](oleg-shulyakov__llama-ui.pdf) |
+| 22 | [datalens/datalens](https://source-craft-pulse.vercel.app/a/9907c473-83d8-4305-a8a1-50f91b127a6d) | Shell | 63 | 4/6 | [md](datalens__datalens.md) [pdf](datalens__datalens.pdf) |
+| 23 | [aleksey-troynikov/nodegoat](https://source-craft-pulse.vercel.app/a/342f81e7-8083-4c85-85c0-3dded30622a4) | HTML | 61 | 4/6 | [md](aleksey-troynikov__nodegoat.md) [pdf](aleksey-troynikov__nodegoat.pdf) |
+| 24 | [datalens/datalens-backend](https://source-craft-pulse.vercel.app/a/60e09319-6294-4b70-abce-9d21160641ba) | Python | 61 | 4/6 | [md](datalens__datalens-backend.md) [pdf](datalens__datalens-backend.pdf) |
+| 25 | [gradosphera/mono](https://source-craft-pulse.vercel.app/a/8155b4c0-72dd-4a11-9540-b60bb1beab5f) | HTML | 60 | 4/6 | [md](gradosphera__mono.md) [pdf](gradosphera__mono.pdf) |
+| 26 | [datalens/datalens-us](https://source-craft-pulse.vercel.app/a/c9372ef1-9311-4dd7-9101-9ce238f1330e) | TypeScript | 60 | 4/6 | [md](datalens__datalens-us.md) [pdf](datalens__datalens-us.pdf) |
+| 27 | [orange-cpp/omath](https://source-craft-pulse.vercel.app/a/0679872d-62dc-45c9-95ea-9ee09e150db4) | C++ | 59 | 4/6 | [md](orange-cpp__omath.md) [pdf](orange-cpp__omath.pdf) |
+| 28 | [userver/uservice-dynconf](https://source-craft-pulse.vercel.app/a/74f91cf3-ff1b-4d94-abb7-e3d564c5625b) | Python | 59 | 5/6 | [md](userver__uservice-dynconf.md) [pdf](userver__uservice-dynconf.pdf) |
+| 29 | [testplane/html-reporter](https://source-craft-pulse.vercel.app/a/ee2d9d3f-e6ef-45d9-a7bc-0b331eb87c50) | JavaScript | 59 | 5/6 | [md](testplane__html-reporter.md) [pdf](testplane__html-reporter.pdf) |
+| 30 | [anatoly-shipov/flatbuffers](https://source-craft-pulse.vercel.app/a/9a93e34a-27bd-407b-8374-3528a53f2e70) | C++ | 58 | 5/6 | [md](anatoly-shipov__flatbuffers.md) [pdf](anatoly-shipov__flatbuffers.pdf) |
+| 31 | [datalens/datalens-auth](https://source-craft-pulse.vercel.app/a/1b4467a9-7a5a-4393-9e16-ea02617ceafc) | TypeScript | 58 | 4/6 | [md](datalens__datalens-auth.md)  |
+| 32 | [bettermind/react-media-hook](https://source-craft-pulse.vercel.app/a/dfc25d98-4097-4030-9df1-523cafb79b1b) | JavaScript | 58 | 4/6 | [md](bettermind__react-media-hook.md)  |
+| 33 | [libberesta/libberesta](https://source-craft-pulse.vercel.app/a/520d308a-c684-4118-ba74-280aa455248e) | C | 58 | 5/6 | [md](libberesta__libberesta.md)  |
+| 34 | [timeline/timeline-studio](https://source-craft-pulse.vercel.app/a/34bbbe89-182e-4508-821a-4f5c630e1afc) | TypeScript | 57 | 4/6 | [md](timeline__timeline-studio.md)  |
+| 35 | [dmitry-korotych/gradle-maven-exec-plugin](https://source-craft-pulse.vercel.app/a/ac195ce1-86d3-41a7-9a78-5ff502df3d4f) | Java | 57 | 4/6 | [md](dmitry-korotych__gradle-maven-exec-plugin.md)  |
+| 36 | [flexberry/newplatform-flexberry-orm-odataservice](https://source-craft-pulse.vercel.app/a/c88c64fe-2540-4b52-9424-94f0a8317052) | C# | 57 | 4/6 | [md](flexberry__newplatform-flexberry-orm-odataservice.md)  |
+| 37 | [eugene-hlyzov/branchline-public](https://source-craft-pulse.vercel.app/a/d247b3cc-39fa-458c-af2a-53d781761f0c) | Kotlin | 57 | 4/6 | [md](eugene-hlyzov__branchline-public.md)  |
+| 38 | [gradosphera/bicycle](https://source-craft-pulse.vercel.app/a/7eacf8e2-45d7-4e6a-93b8-f9853ab6cc1e) | Go | 57 | 4/6 | [md](gradosphera__bicycle.md)  |
+| 39 | [notacompany/nasa-s3e](https://source-craft-pulse.vercel.app/a/7faabb49-e57b-4b8f-af49-03e578e0be8c) | Go | 57 | 4/6 | [md](notacompany__nasa-s3e.md)  |
+| 40 | [egr-1/solv](https://source-craft-pulse.vercel.app/a/e030a218-c132-45d1-b1be-90251c1660b1) | Rust | 56 | 4/6 | [md](egr-1__solv.md)  |
+| 41 | [flexberry/newplatform-flexberry-orm](https://source-craft-pulse.vercel.app/a/fb195ea4-0842-4a46-8e48-1d8152027c29) | C# | 56 | 4/6 | [md](flexberry__newplatform-flexberry-orm.md)  |
+| 42 | [vladleonff/mengers](https://source-craft-pulse.vercel.app/a/7101f0a5-7912-43f7-b067-a4cb958752bc) | JavaScript | 56 | 4/6 | [md](vladleonff__mengers.md)  |
+| 43 | [veged/dotfiles](https://source-craft-pulse.vercel.app/a/d437cafc-26c5-4113-8b82-ce6b78c44324) | Shell | 56 | 4/6 | [md](veged__dotfiles.md)  |
+| 44 | [meowrch/fat32-raw](https://source-craft-pulse.vercel.app/a/83c797ea-9d54-455d-bd7d-993b6705fda0) | Rust | 56 | 4/6 | [md](meowrch__fat32-raw.md)  |
+| 45 | [datalens/datalens-ui](https://source-craft-pulse.vercel.app/a/a306508b-9956-4389-a300-bf2d0209d28a) | TypeScript | 56 | 4/6 | [md](datalens__datalens-ui.md)  |
+| 46 | [dmitry-korotych/phone-formatter](https://source-craft-pulse.vercel.app/a/d7b931a4-eaaa-4a43-8446-012d872de0bf) | Java | 55 | 4/6 | [md](dmitry-korotych__phone-formatter.md)  |
+| 47 | [userver/realmedium-sample](https://source-craft-pulse.vercel.app/a/cdf9fd33-dca3-4ca6-ba4a-7361a1227209) | C++ | 55 | 4/6 | [md](userver__realmedium-sample.md)  |
+| 48 | [gradosphera/wallet-app](https://source-craft-pulse.vercel.app/a/88cf368c-c113-4942-959c-76af033fbf6f) | Swift | 55 | 4/6 | [md](gradosphera__wallet-app.md)  |
+| 49 | [dimflix-official/omniview](https://source-craft-pulse.vercel.app/a/f63a3df2-c152-4127-8e20-8134a7dc397c) | Python | 54 | 4/6 | [md](dimflix-official__omniview.md)  |
+| 50 | [p2p-decentralized-emulation/aoe-dota](https://source-craft-pulse.vercel.app/a/bd7a5b6b-7450-418b-b3da-9dcbd2562d25) | HTML | 53 | 5/6 | [md](p2p-decentralized-emulation__aoe-dota.md)  |
+| 51 | [mycelio/hypha](https://source-craft-pulse.vercel.app/a/0fa9793f-5b44-4190-8f16-5256d29d2db8) | Go | 52 | 4/6 | [md](mycelio__hypha.md)  |
+| 52 | [gradosphera/wallet](https://source-craft-pulse.vercel.app/a/f0835a70-4233-43ba-bbc7-852ea4168c94) | TypeScript | 52 | 4/6 | [md](gradosphera__wallet.md)  |
+| 53 | [foss/cutter](https://source-craft-pulse.vercel.app/a/44d7c0fc-4640-43b4-a8d3-e72a9d0cf896) | C++ | 52 | 4/6 | [md](foss__cutter.md)  |
+| 54 | [deniskorbakov/misha-ssh](https://source-craft-pulse.vercel.app/a/3399d853-be14-4bdd-a95d-2f04441aa0b9) | Go | 52 | 4/6 | [md](deniskorbakov__misha-ssh.md)  |
+| 55 | [gradosphera/ton-indexer](https://source-craft-pulse.vercel.app/a/a3ba2eb2-4cd8-48d0-9d8e-66727fbaa85f) | C++ | 52 | 4/6 | [md](gradosphera__ton-indexer.md)  |
+| 56 | [alei1180/curlone](https://source-craft-pulse.vercel.app/a/a132920e-4ead-4248-96f4-b2873106430c) | 1C Enterprise | 51 | 4/6 | [md](alei1180__curlone.md)  |
+| 57 | [d-zaycev-s/filettl](https://source-craft-pulse.vercel.app/a/fff27f61-4788-4add-88e5-ceda86f5a820) | Go | 51 | 4/6 | [md](d-zaycev-s__filettl.md)  |
+| 58 | [truedranik/minichess](https://source-craft-pulse.vercel.app/a/c9decda8-4abc-4a16-be82-0cf374329c13) | Java | 51 | 4/6 | [md](truedranik__minichess.md)  |
+| 59 | [hex21h/datahint](https://source-craft-pulse.vercel.app/a/25aaf4c1-af3a-4375-bc3f-1d35ea20da1b) | Go | 51 | 5/6 | [md](hex21h__datahint.md)  |
+| 60 | [phoenix-sin/flippo](https://source-craft-pulse.vercel.app/a/05279601-c173-43df-9967-6dc6a21eae66) | TSX | 50 | 4/6 | [md](phoenix-sin__flippo.md)  |
+| 61 | [meowrch/pawlette](https://source-craft-pulse.vercel.app/a/bfd4ec5e-08a8-4772-8e86-d8f994b60bab) | Python | 50 | 4/6 | [md](meowrch__pawlette.md)  |
+| 62 | [truedranik/trueruslan-landing](https://source-craft-pulse.vercel.app/a/72964a7f-37fb-4ab8-be43-e28977a0de85) | JavaScript | 49 | 4/6 | [md](truedranik__trueruslan-landing.md)  |
+| 63 | [datalens/datalens-meta-manager](https://source-craft-pulse.vercel.app/a/4cca9403-79f0-4cd4-b778-2b583569300a) | TypeScript | 49 | 4/6 | [md](datalens__datalens-meta-manager.md)  |
+| 64 | [alltimelowskill/just-system-core](https://source-craft-pulse.vercel.app/a/649aadee-223d-4b99-8b6b-816bdb7165b9) | Go | 48 | 4/6 | [md](alltimelowskill__just-system-core.md)  |
+| 65 | [gvin-i/dm](https://source-craft-pulse.vercel.app/a/49e650bd-57c3-4881-8f40-b87317cade80) | Python | 48 | 4/6 | [md](gvin-i__dm.md)  |
+| 66 | [sourcecraft/appsec](https://source-craft-pulse.vercel.app/a/98d79dca-835a-4127-af45-402413badaf9) | Kotlin | 48 | 5/6 | [md](sourcecraft__appsec.md)  |
+| 67 | [nutchfel/makmagon-referee](https://source-craft-pulse.vercel.app/a/25c9197d-24fd-4ed1-bb22-caf27147e00a) | TypeScript | 47 | 4/6 | [md](nutchfel__makmagon-referee.md)  |
+| 68 | [datalens/ui-sandbox-modules](https://source-craft-pulse.vercel.app/a/cebf5278-3b0c-4410-906c-ea7ce0c524bd) | JavaScript | 47 | 4/6 | [md](datalens__ui-sandbox-modules.md)  |
+| 69 | [kesio72/one-time-link](https://source-craft-pulse.vercel.app/a/2af62528-d928-4e16-ae02-5bb1cc3dcdcb) | Go | 47 | 5/6 | [md](kesio72__one-time-link.md)  |
+| 70 | [notrycatch/lct2025](https://source-craft-pulse.vercel.app/a/d4f1d032-c833-4028-8ced-81e4320f7aeb) | C# | 46 | 5/6 | [md](notrycatch__lct2025.md)  |
+| 71 | [mikhail-bondarevsky/docker-cube-template](https://source-craft-pulse.vercel.app/a/b3f1b017-6d36-43e5-88b4-9e671f375c80) | Python | 46 | 4/6 | [md](mikhail-bondarevsky__docker-cube-template.md)  |
+| 72 | [coffenyam/coffeenyam](https://source-craft-pulse.vercel.app/a/b2ef19ff-0eb4-4665-a066-6cafb20fb97e) | Swift | 46 | 5/6 | [md](coffenyam__coffeenyam.md)  |
+| 73 | [roxblnfk/happy-wife-happy-life](https://source-craft-pulse.vercel.app/a/7f88fb01-fc7a-4c02-ac62-4902eaf0b79e) | PHP | 46 | 4/6 | [md](roxblnfk__happy-wife-happy-life.md)  |
+| 74 | [nakilon/dhash-vips](https://source-craft-pulse.vercel.app/a/1aa371b6-4dff-432c-ab9a-7c821ae1fc4f) | Ruby | 46 | 4/6 | [md](nakilon__dhash-vips.md)  |
+| 75 | [yandex-cloud-examples/serverless-gitlab-runner](https://source-craft-pulse.vercel.app/a/e1b30df8-ec97-4f48-bcaf-666006ffbcb6) | Go | 46 | 5/6 | [md](yandex-cloud-examples__serverless-gitlab-runner.md)  |
+| 76 | [gradosphera/blago-vote](https://source-craft-pulse.vercel.app/a/06dc3226-642b-4f99-bda8-7ca66939a90a) | TypeScript | 45 | 4/6 | [md](gradosphera__blago-vote.md)  |
+| 77 | [smallslowtank-sourcecraft/ci-cd-crud-api-serverless](https://source-craft-pulse.vercel.app/a/824f6388-f154-40ee-8dfb-b8271096a473) | Python | 45 | 4/6 | [md](smallslowtank-sourcecraft__ci-cd-crud-api-serverless.md)  |
+| 78 | [ashamil435/open-webui](https://source-craft-pulse.vercel.app/a/1ea34c6d-71f6-4025-a9e1-82bcff8db217) | Python | 45 | 4/6 | [md](ashamil435__open-webui.md)  |
+| 79 | [suzev/advent-test](https://source-craft-pulse.vercel.app/a/0bedb286-2e2f-4010-a569-3dedf6af66e1) | C++ | 45 | 4/6 | [md](suzev__advent-test.md)  |
+| 80 | [tempoden/lisp-machine](https://source-craft-pulse.vercel.app/a/d7817d5a-46c0-4019-a569-d30e87c6e09c) | Java | 45 | 4/6 | [md](tempoden__lisp-machine.md)  |
+| 81 | [trukanduk/llm-checklist-generator](https://source-craft-pulse.vercel.app/a/9c602b0b-b02b-44b2-b84e-802b5c57ee16) | Python | 45 | 4/6 | [md](trukanduk__llm-checklist-generator.md)  |
+| 82 | [covvex/shareform](https://source-craft-pulse.vercel.app/a/3d78b044-6709-4ca4-b1b6-a53e318b805f) | JavaScript | 44 | 5/6 | [md](covvex__shareform.md)  |
+| 83 | [gradosphera/ton-http-api](https://source-craft-pulse.vercel.app/a/2d86eb78-7ee2-453b-927e-3c966377f989) | Python | 44 | 4/6 | [md](gradosphera__ton-http-api.md)  |
+| 84 | [iamoniel/university-app](https://source-craft-pulse.vercel.app/a/66f08336-253f-4552-89a3-7d6e102aea5b) | Dart | 44 | 4/6 | [md](iamoniel__university-app.md)  |
+| 85 | [isdl/pygats](https://source-craft-pulse.vercel.app/a/eb3cbe8a-17b9-4c15-8eb4-8c2acfa68341) | Python | 44 | 5/6 | [md](isdl__pygats.md)  |
+| 86 | [adokky/equals-tester](https://source-craft-pulse.vercel.app/a/2b85e005-37e6-438d-b0d4-ea1902b42429) | Kotlin | 43 | 4/6 | [md](adokky__equals-tester.md)  |
+| 87 | [0x4b4c494d/koolbox](https://source-craft-pulse.vercel.app/a/8e05e4d2-84da-4c0a-932c-6dcad6269340) | Go | 43 | 4/6 | [md](0x4b4c494d__koolbox.md)  |
+| 88 | [kyolerdmitry/ai-input-diagnostic](https://source-craft-pulse.vercel.app/a/9234764b-3999-4c92-89df-42aea5cec9ec) | Python | 43 | 4/6 | [md](kyolerdmitry__ai-input-diagnostic.md)  |
+| 89 | [pywinauto/injectlib](https://source-craft-pulse.vercel.app/a/3873d873-dad4-434c-9f3d-1f5a4b7fda5d) | C++ | 43 | 4/6 | [md](pywinauto__injectlib.md)  |
+| 90 | [nota/nota](https://source-craft-pulse.vercel.app/a/05c70df5-bf24-4fe6-a653-bdbb1a239059) | TypeScript | 43 | 5/6 | [md](nota__nota.md)  |
+| 91 | [jethome/armbian-build](https://source-craft-pulse.vercel.app/a/47417770-5b9f-4068-8271-295dce476dad) | Shell | 42 | 4/6 | [md](jethome__armbian-build.md)  |
+| 92 | [nickoyurin/ml-project](https://source-craft-pulse.vercel.app/a/b61b4617-f623-42bd-a1f8-7312ac35bbf8) | Python | 42 | 4/6 | [md](nickoyurin__ml-project.md)  |
+| 93 | [openuds-ru/release](https://source-craft-pulse.vercel.app/a/2e7703cf-4a0c-4e8c-aaf9-1030213c284f) | Python | 42 | 5/6 | [md](openuds-ru__release.md)  |
+| 94 | [stapler/stplr](https://source-craft-pulse.vercel.app/a/d8bf77ff-534e-4617-9c2a-ffb92df5e880) | Go | 42 | 4/6 | [md](stapler__stplr.md)  |
+| 95 | [compiler-potion-faculty/ecl](https://source-craft-pulse.vercel.app/a/42fadd34-55f6-4183-8488-6581c4aeb9c0) | C | 41 | 4/6 | [md](compiler-potion-faculty__ecl.md)  |
+| 96 | [kovinskydanil8-gmail-com/pc-optimizer](https://source-craft-pulse.vercel.app/a/0f199aa0-9385-45ed-aea9-cea38a1a7c4f) | Python | 41 | 4/6 | [md](kovinskydanil8-gmail-com__pc-optimizer.md)  |
+| 97 | [sshambir-public/pskaleidoscope](https://source-craft-pulse.vercel.app/a/ab15f8ea-624c-48af-85eb-cb54d82443ef) | C# | 41 | 4/6 | [md](sshambir-public__pskaleidoscope.md)  |
+| 98 | [aatkin/gera-ui](https://source-craft-pulse.vercel.app/a/b051a3fb-9778-460e-b0c7-26a25a21f7e8) | TSX | 41 | 4/6 | [md](aatkin__gera-ui.md)  |
+| 99 | [pavel-belikov/fpp](https://source-craft-pulse.vercel.app/a/061c2272-dfd6-4ca6-b81e-7877b68def20) | C++ | 41 | 4/6 | [md](pavel-belikov__fpp.md)  |
+| 100 | [leonid-abolyanin/daily-message-bot](https://source-craft-pulse.vercel.app/a/5b9b59e6-a7cc-4dbc-aae1-03586f08b72e) | JavaScript | 40 | 4/6 | [md](leonid-abolyanin__daily-message-bot.md)  |
+| 101 | [standard-solutions/resxel](https://source-craft-pulse.vercel.app/a/3abd1022-ab41-4a38-acfb-4ea2e1385385) | Java | 40 | 4/6 | [md](standard-solutions__resxel.md)  |
+| 102 | [yndx-a-koptsov/palindrome](https://source-craft-pulse.vercel.app/a/540adbbc-79bd-427b-83f9-5fa3dee728d6) | JavaScript | 40 | 5/6 | [md](yndx-a-koptsov__palindrome.md)  |
+| 103 | [yallie/coreremoting](https://source-craft-pulse.vercel.app/a/4fe6e237-439c-4efb-a00b-c96ce6e7a6d8) | C# | 40 | 4/6 | [md](yallie__coreremoting.md)  |
+| 104 | [mayx/mayx](https://source-craft-pulse.vercel.app/a/3fd04d0e-3a29-4521-855b-35c09c391bba) | JavaScript | 40 | 4/6 | [md](mayx__mayx.md)  |
+| 105 | [gemorroj/wapinet](https://source-craft-pulse.vercel.app/a/923f8fa9-adfd-4924-8a00-115b804d48b5) | PHP | 40 | 4/6 | [md](gemorroj__wapinet.md)  |
+| 106 | [cppshizoid/cmake-boilerplate](https://source-craft-pulse.vercel.app/a/c9cec45e-9ed3-4137-a6ad-3e670825d9d7) | CMake | 40 | 5/6 | [md](cppshizoid__cmake-boilerplate.md)  |
+| 107 | [lenya-abolyanin/telegram-menu-bot](https://source-craft-pulse.vercel.app/a/67ed955f-e54a-47a0-873a-b3fa284139d5) | JavaScript | 39 | 4/6 | [md](lenya-abolyanin__telegram-menu-bot.md)  |
+| 108 | [hakimjonov-jahongir/kasofatcinema](https://source-craft-pulse.vercel.app/a/be9737b2-36cf-4b8d-9334-663f2db5e2a0) | Python | 39 | 4/6 | [md](hakimjonov-jahongir__kasofatcinema.md)  |
+| 109 | [gradosphera/tma-dns](https://source-craft-pulse.vercel.app/a/6d659705-ab83-4afc-b783-1f9d5fca03d4) | TSX | 39 | 4/6 | [md](gradosphera__tma-dns.md)  |
+| 110 | [dtsyplyackov/abobadoski-coach-frontend](https://source-craft-pulse.vercel.app/a/df11d03f-a384-434c-ba25-8571cf837938) | TSX | 39 | 4/6 | [md](dtsyplyackov__abobadoski-coach-frontend.md)  |
+| 111 | [xpamych/alr](https://source-craft-pulse.vercel.app/a/64ecd692-891f-476f-b251-a7279ccc972e) | Go | 39 | 4/6 | [md](xpamych__alr.md)  |
+| 112 | [grigorymatsnev/lct-hack-2025](https://source-craft-pulse.vercel.app/a/4c464e4e-339a-474a-8187-5cd33a4e9687) | Python | 38 | 4/6 | [md](grigorymatsnev__lct-hack-2025.md)  |
+| 113 | [msveta18-11/kuraya-flower-bot](https://source-craft-pulse.vercel.app/a/beb68b16-ed95-4d84-a7c1-50f6da4ec5c7) | JavaScript | 38 | 4/6 | [md](msveta18-11__kuraya-flower-bot.md)  |
+| 114 | [shef-er/staticserver](https://source-craft-pulse.vercel.app/a/b5643f22-5021-4bdc-aaba-d2930582ac8e) | Go | 38 | 4/6 | [md](shef-er__staticserver.md)  |
+| 115 | [deniskorbakov/laravel-12-frankenphp-docker](https://source-craft-pulse.vercel.app/a/a1279f0b-b85e-4746-bccb-37ff4eff82d5) | PHP | 38 | 4/6 | [md](deniskorbakov__laravel-12-frankenphp-docker.md)  |
+| 116 | [videmanalex/launcher](https://source-craft-pulse.vercel.app/a/cf98b384-c5f6-4422-a78a-358328b69b09) | Java | 38 | 4/6 | [md](videmanalex__launcher.md)  |
+| 117 | [yndx-abolyaninleo-f2f8m2/test](https://source-craft-pulse.vercel.app/a/86638eb8-ef23-4e3f-8799-f5d7d47247f2) | Java | 37 | 4/6 | [md](yndx-abolyaninleo-f2f8m2__test.md)  |
+| 118 | [a-v-belyakov82/thehivehook-go-package](https://source-craft-pulse.vercel.app/a/d88bbf0d-3454-4d36-bc96-2eca0538a1eb) | Go | 37 | 4/6 | [md](a-v-belyakov82__thehivehook-go-package.md)  |
+| 119 | [cherrypickme/ai-micro-project-generator-2](https://source-craft-pulse.vercel.app/a/6a396d96-7573-4340-bd4b-8dde55158bc2) | Python | 37 | 4/6 | [md](cherrypickme__ai-micro-project-generator-2.md)  |
+| 120 | [meowrch/meowrch](https://source-craft-pulse.vercel.app/a/c6b075c1-b965-4c5d-91b5-6b8fa43781e1) | Python | 37 | 4/6 | [md](meowrch__meowrch.md)  |
+| 121 | [morphinoff-gmail-com/simple-proxy](https://source-craft-pulse.vercel.app/a/27303d34-05b0-48e8-bfd0-5e2c9f8eed82) | Rust | 37 | 4/6 | [md](morphinoff-gmail-com__simple-proxy.md)  |
+| 122 | [bit0rez/gentoo-overlay](https://source-craft-pulse.vercel.app/a/1cf8d995-55bd-4aae-ac94-a98b84d9c5a6) | Roff | 36 | 4/6 | [md](bit0rez__gentoo-overlay.md)  |
+| 123 | [compiler-potion-faculty/trivil](https://source-craft-pulse.vercel.app/a/59daa4a2-f863-4cf9-a9e4-ed4bf22ad775) | Go | 36 | 4/6 | [md](compiler-potion-faculty__trivil.md)  |
+| 124 | [evsedov/raspberries-website](https://source-craft-pulse.vercel.app/a/596dd191-a344-4c21-830b-ca397e1756a8) | Vue | 36 | 4/6 | [md](evsedov__raspberries-website.md)  |
+| 125 | [a-v-belyakov82/placeholder-doc-base-db](https://source-craft-pulse.vercel.app/a/a0a0ab30-6b68-41cd-ab70-a55e54641e19) | Go | 36 | 4/6 | [md](a-v-belyakov82__placeholder-doc-base-db.md)  |
+| 126 | [alex-arkhipov/guess-image](https://source-craft-pulse.vercel.app/a/cfbf5aa0-2cb2-4d65-acca-9adcdeaf19cb) | Python | 36 | 4/6 | [md](alex-arkhipov__guess-image.md)  |
+| 127 | [a-v-belyakov82/placeholder-misp](https://source-craft-pulse.vercel.app/a/707892cb-c079-4a16-9a3a-1525cb681c03) | Go | 36 | 4/6 | [md](a-v-belyakov82__placeholder-misp.md)  |
+| 128 | [ant1pozitive/zabava-moscow-hack](https://source-craft-pulse.vercel.app/a/207ca52b-b04b-4803-af60-6f9643ca198d) | JavaScript | 36 | 5/6 | [md](ant1pozitive__zabava-moscow-hack.md)  |
+| 129 | [itqdev/fridgeflow](https://source-craft-pulse.vercel.app/a/36a5a75c-364c-4f10-9d42-e036984102b5) | TSX | 36 | 4/6 | [md](itqdev__fridgeflow.md)  |
+| 130 | [denis-fomichev-ent/abobadoski-dialogservice](https://source-craft-pulse.vercel.app/a/4abb2124-24d9-460e-a1d8-f755b83f190f) | Python | 36 | 4/6 | [md](denis-fomichev-ent__abobadoski-dialogservice.md)  |
+| 131 | [rus-yaz/korsakov](https://source-craft-pulse.vercel.app/a/391f2ec5-ed88-48a6-99ad-84752692fb37) | Assembly | 36 | 4/6 | [md](rus-yaz__korsakov.md)  |
+| 132 | [lessucettes/adresu-plugin](https://source-craft-pulse.vercel.app/a/41491a83-5b19-4709-aede-6a766ec14fec) | Go | 35 | 4/6 | [md](lessucettes__adresu-plugin.md)  |
+| 133 | [beatle95-public/reclip-server](https://source-craft-pulse.vercel.app/a/ea5e5e49-608a-4b58-8cc3-6504b7d0bfd7) | Go | 35 | 4/6 | [md](beatle95-public__reclip-server.md)  |
+| 134 | [mikhail-bondarevsky/docker-repo1](https://source-craft-pulse.vercel.app/a/1e668589-34e5-47dc-afb9-e1ff6af99981) | HTML | 35 | 4/6 | [md](mikhail-bondarevsky__docker-repo1.md)  |
+| 135 | [misis-hse/hackathon](https://source-craft-pulse.vercel.app/a/ee5817e7-89e7-4aed-b738-464d2d5f5e49) | TSX | 35 | 4/6 | [md](misis-hse__hackathon.md)  |
+| 136 | [block-element-modifier/bem-info](https://source-craft-pulse.vercel.app/a/72d7b331-c678-4620-8bfe-8fe41aa2bae7) | JavaScript | 35 | 5/6 | [md](block-element-modifier__bem-info.md)  |
+| 137 | [veged/coa](https://source-craft-pulse.vercel.app/a/a47b4130-03fd-46cf-96b3-3692a2c636d0) | JavaScript | 35 | 5/6 | [md](veged__coa.md)  |
+| 138 | [leonid-abolyanin/landing-page](https://source-craft-pulse.vercel.app/a/9e349398-0bbc-4425-b865-28024d7daceb) | TSX | 34 | 4/6 | [md](leonid-abolyanin__landing-page.md)  |
+| 139 | [lessucettes/strchat-tui](https://source-craft-pulse.vercel.app/a/51c6cf6c-cc8e-421d-9e3b-268834f1e72b) | Go | 34 | 4/6 | [md](lessucettes__strchat-tui.md)  |
+| 140 | [urealosinec-elama-ru/zayavlenie](https://source-craft-pulse.vercel.app/a/3134e3a2-0bbc-4b43-a1e3-7f3053079148) | HTML | 34 | 4/6 | [md](urealosinec-elama-ru__zayavlenie.md)  |
+| 141 | [conferences/backend](https://source-craft-pulse.vercel.app/a/02ce9f98-b767-4380-835d-7f88e6954f14) | Kotlin | 34 | 5/6 | [md](conferences__backend.md)  |
+| 142 | [organization-yab1ochkin/bdui-mobile](https://source-craft-pulse.vercel.app/a/ed212d9a-c139-43f3-bb87-a9f443da4ba5) | Kotlin | 33 | 5/6 | [md](organization-yab1ochkin__bdui-mobile.md)  |
+| 143 | [black-pearl/backend-hackathon](https://source-craft-pulse.vercel.app/a/c804a778-f258-43fe-ac96-88c8c8cb6472) | Go | 33 | 4/6 | [md](black-pearl__backend-hackathon.md)  |
+| 144 | [abatal-ya/prj2hash](https://source-craft-pulse.vercel.app/a/2cb35b50-64d4-449a-9384-cb465d8c969c) | Go | 33 | 5/6 | [md](abatal-ya__prj2hash.md)  |
+| 145 | [creasidence/graphics-library](https://source-craft-pulse.vercel.app/a/6e95bf19-0307-4012-b412-77e1180b1e8a) | HTML | 33 | 4/6 | [md](creasidence__graphics-library.md)  |
+| 146 | [lenya-abolyanin/counter-app](https://source-craft-pulse.vercel.app/a/39ba3dc5-fd5a-4634-a1b3-31a9e1c89178) | Python | 33 | 5/6 | [md](lenya-abolyanin__counter-app.md)  |
+| 147 | [flexberry/leaflet-wfst](https://source-craft-pulse.vercel.app/a/1d8c5492-5cb8-43ef-961a-f155e9126fc0) | JavaScript | 33 | 4/6 | [md](flexberry__leaflet-wfst.md)  |
+| 148 | [gradosphera/highload-wallet-contract-v3](https://source-craft-pulse.vercel.app/a/7c7ee4fa-94c6-4856-b0fa-834837382b1d) | TypeScript | 33 | 4/6 | [md](gradosphera__highload-wallet-contract-v3.md)  |
+| 149 | [metalhead/sharptown](https://source-craft-pulse.vercel.app/a/8997ac14-8ca9-4501-9ea1-0ddcb4256ad0) | JavaScript | 33 | 4/6 | [md](metalhead__sharptown.md)  |
+| 150 | [organization-yab1ochkin/bdui-backend](https://source-craft-pulse.vercel.app/a/53f5f42b-73fb-489f-8db8-7e4edae47c13) | Kotlin | 32 | 4/6 | [md](organization-yab1ochkin__bdui-backend.md)  |
+| 151 | [dmitry-korotych/spring-boot-admin-template](https://source-craft-pulse.vercel.app/a/369a1667-abc4-47e1-acbf-c4a43648ec7a) | Java | 32 | 4/6 | [md](dmitry-korotych__spring-boot-admin-template.md)  |
+| 152 | [covvex/json2yaml-ru](https://source-craft-pulse.vercel.app/a/66c29edc-372a-4266-9078-bc5073a9be92) | Python | 32 | 5/6 | [md](covvex__json2yaml-ru.md)  |
+| 153 | [awesome-ai/razuma-pro](https://source-craft-pulse.vercel.app/a/dda150b0-af6a-43e3-bdfb-b8365344e797) | Objective-C | 32 | 5/6 | [md](awesome-ai__razuma-pro.md)  |
+| 154 | [gradosphera/vesting-contract](https://source-craft-pulse.vercel.app/a/c382c2ca-cc07-4018-bf77-e1bff04be298) | TypeScript | 32 | 4/6 | [md](gradosphera__vesting-contract.md)  |
+| 155 | [json-police/itmo-hackathon-2025](https://source-craft-pulse.vercel.app/a/89b3bba7-8799-4863-853f-8b1018caef4f) | Python | 32 | 5/6 | [md](json-police__itmo-hackathon-2025.md)  |
+| 156 | [ceniteli-inferensa/hr-ai-feedback-bot](https://source-craft-pulse.vercel.app/a/dded417b-c389-4baf-bfe1-247f7b349fa6) | Python | 32 | 5/6 | [md](ceniteli-inferensa__hr-ai-feedback-bot.md)  |
+| 157 | [streetcode/jane-ai-assistant](https://source-craft-pulse.vercel.app/a/f4a77137-93e6-41aa-920f-a46297916e11) | Python | 32 | 5/6 | [md](streetcode__jane-ai-assistant.md)  |
+| 158 | [raph/static-site](https://source-craft-pulse.vercel.app/a/f03caef3-2e5d-43b5-b002-3d558f3b557b) | JavaScript | 32 | 5/6 | [md](raph__static-site.md)  |
+| 159 | [ponikz/qwertyu](https://source-craft-pulse.vercel.app/a/d49aa2cd-d151-4ab5-ae96-2bc6bf3a6e6e) | TSX | 31 | 4/6 | [md](ponikz__qwertyu.md)  |
+| 160 | [qipparu/rwrwr](https://source-craft-pulse.vercel.app/a/95e8bba0-8f56-4ff3-8348-84362c759541) | Java | 31 | 4/6 | [md](qipparu__rwrwr.md)  |
+| 161 | [itqdev/datarush](https://source-craft-pulse.vercel.app/a/1644f9bc-3457-4b1a-90db-7d6324b7f93b) | Python | 31 | 4/6 | [md](itqdev__datarush.md)  |
+| 162 | [urokery/lct-gazprom-urokery](https://source-craft-pulse.vercel.app/a/46a87105-cd19-4845-b1a6-da7cdac51cf3) | Jupyter Notebook | 31 | 5/6 | [md](urokery__lct-gazprom-urokery.md)  |
+| 163 | [lagrang13/bztree-rs](https://source-craft-pulse.vercel.app/a/46e7786c-42d6-43e7-8adc-0aab334b7e9e) | Rust | 31 | 4/6 | [md](lagrang13__bztree-rs.md)  |
+| 164 | [axidex/dvja-vuln-app-java](https://source-craft-pulse.vercel.app/a/2c2be5b1-29a3-4a04-a6a9-42af4845494d) | SCSS | 31 | 4/6 | [md](axidex__dvja-vuln-app-java.md)  |
+| 165 | [yandex-cloud-examples/serverless-functions](https://source-craft-pulse.vercel.app/a/5def66cb-317c-42de-8379-f9fb2d466f24) | JavaScript | 31 | 5/6 | [md](yandex-cloud-examples__serverless-functions.md)  |
+| 166 | [andryx81/contools](https://source-craft-pulse.vercel.app/a/888911a7-0cfc-49d9-b9a7-fedbc20788a3) | Batchfile | 30 | 4/6 | [md](andryx81__contools.md)  |
+| 167 | [homyakin/jlint](https://source-craft-pulse.vercel.app/a/93407419-77e2-430c-89d0-e483f1dbb613) | Java | 30 | 4/6 | [md](homyakin__jlint.md)  |
+| 168 | [s-evg13/spam-service](https://source-craft-pulse.vercel.app/a/deb1e7cc-60ce-4c4b-a0af-f4909ff8f621) | Python | 30 | 4/6 | [md](s-evg13__spam-service.md)  |
+| 169 | [opposite/dream](https://source-craft-pulse.vercel.app/a/5789117f-b4de-4ba2-b882-b679f4dc5191) | Shell | 30 | 4/6 | [md](opposite__dream.md)  |
+| 170 | [p2p-decentralized-emulation/opensim](https://source-craft-pulse.vercel.app/a/2acf92ec-bd75-400f-9d48-250baa08982b) | C# | 30 | 5/6 | [md](p2p-decentralized-emulation__opensim.md)  |
+| 171 | [summer-spring/dotnet-test](https://source-craft-pulse.vercel.app/a/1d57d719-5f33-49fd-8d46-903f6d9f0eae) | C# | 30 | 4/6 | [md](summer-spring__dotnet-test.md)  |
+| 172 | [forantar/nota](https://source-craft-pulse.vercel.app/a/c3908669-7a3a-44ad-80a8-faaba618c056) | Java | 30 | 5/6 | [md](forantar__nota.md)  |
+| 173 | [gradosphera/multisig](https://source-craft-pulse.vercel.app/a/c3a2cfca-bb33-4ca9-a37e-16ce6856695d) | TypeScript | 30 | 4/6 | [md](gradosphera__multisig.md)  |
+| 174 | [gradosphera/ton-api-v4](https://source-craft-pulse.vercel.app/a/de74055f-7f27-431f-894d-b4f2e01bfd91) | JavaScript | 30 | 4/6 | [md](gradosphera__ton-api-v4.md)  |
+| 175 | [standard-solutions/delta-m](https://source-craft-pulse.vercel.app/a/06c6cea5-35d4-4e70-94ae-4bd26bf0dd93) | Java | 30 | 4/6 | [md](standard-solutions__delta-m.md)  |
+| 176 | [dvragulin/aribeth](https://source-craft-pulse.vercel.app/a/cc0731b2-b9d4-4c2d-b0da-17f93a4771db) | JavaScript | 30 | 4/6 | [md](dvragulin__aribeth.md)  |
+| 177 | [jamal-ibrashov/mind-escape2-0](https://source-craft-pulse.vercel.app/a/b1612169-2d98-4bf5-a857-8cfb17b8da02) | Python | 30 | 4/6 | [md](jamal-ibrashov__mind-escape2-0.md)  |
+| 178 | [four-gyri/archive-core](https://source-craft-pulse.vercel.app/a/a26a8a20-74f5-48e6-a832-6b719498a7e9) | Java | 29 | 4/6 | [md](four-gyri__archive-core.md)  |
+| 179 | [korifey-ad/excid-cicd-demo-project](https://source-craft-pulse.vercel.app/a/a4c84fb3-9e82-4721-80d7-3cebf58cc041) | Python | 29 | 4/6 | [md](korifey-ad__excid-cicd-demo-project.md)  |
+| 180 | [angrytaigafox/http-middleware](https://source-craft-pulse.vercel.app/a/830c005e-662f-4358-b453-eee4230791dd) | Dart | 29 | 4/6 | [md](angrytaigafox__http-middleware.md)  |
+| 181 | [d-zaycev-s/huggy](https://source-craft-pulse.vercel.app/a/fc62e12f-9125-41d7-ab32-ae5bc94d910f) | Go | 29 | 4/6 | [md](d-zaycev-s__huggy.md)  |
+| 182 | [vladleonff/quantgrover](https://source-craft-pulse.vercel.app/a/97bd1814-7932-438b-9759-73ac80ff4c10) | JavaScript | 29 | 4/6 | [md](vladleonff__quantgrover.md)  |
+| 183 | [tzota/playing-with-llm](https://source-craft-pulse.vercel.app/a/f20d9f0b-c02d-4668-ad62-3fc296c49298) | TypeScript | 29 | 5/6 | [md](tzota__playing-with-llm.md)  |
+| 184 | [ss-zlobin/taskmanager](https://source-craft-pulse.vercel.app/a/7dda6342-189a-4051-a8f7-f3cb60ce4964) | Python | 28 | 5/6 | [md](ss-zlobin__taskmanager.md)  |
+| 185 | [boumrz/aleph-null](https://source-craft-pulse.vercel.app/a/d089c146-1b0b-4e7f-bc2d-b02b0f05166e) | Python | 28 | 4/6 | [md](boumrz__aleph-null.md)  |
+| 186 | [mpomykin2016/tg-bot](https://source-craft-pulse.vercel.app/a/e5c6c473-8ea9-4332-87f8-c90c21981188) | Go | 28 | 4/6 | [md](mpomykin2016__tg-bot.md)  |
+| 187 | [compiler-potion-faculty/ficus](https://source-craft-pulse.vercel.app/a/d60c2746-2ae2-4176-9022-4e5266cdca1a) | C | 28 | 5/6 | [md](compiler-potion-faculty__ficus.md)  |
+| 188 | [organization-trickmanoff/ai-product-hack-micro-edu-projects](https://source-craft-pulse.vercel.app/a/34ecf7bd-f9da-416a-999b-cf7c7413d8ee) | Python | 28 | 4/6 | [md](organization-trickmanoff__ai-product-hack-micro-edu-projects.md)  |
+| 189 | [alltimelowskill/just-system-server](https://source-craft-pulse.vercel.app/a/5aa72c9c-b7c6-4a42-8806-a2c31ea9fcb6) | Go | 27 | 4/6 | [md](alltimelowskill__just-system-server.md)  |
+| 190 | [evgen-hi/test-repo](https://source-craft-pulse.vercel.app/a/26ded441-fdb1-4998-8d25-429e86bdc415) | — | 27 | 4/6 | [md](evgen-hi__test-repo.md)  |
+| 191 | [usersourcecraft/my-sites](https://source-craft-pulse.vercel.app/a/0be71a9f-4dd3-41d0-8ed8-2c3866d95000) | HTML | 27 | 5/6 | [md](usersourcecraft__my-sites.md)  |
+| 192 | [arlekino/test-repository](https://source-craft-pulse.vercel.app/a/3c615b82-c6af-4a4d-b667-19a490bceedb) | — | 27 | 5/6 | [md](arlekino__test-repository.md)  |
+| 193 | [intboard/intellectboard](https://source-craft-pulse.vercel.app/a/e0765659-0e1e-4242-bc68-09f016326c87) | PHP | 27 | 4/6 | [md](intboard__intellectboard.md)  |
+| 194 | [artemfomik/lct-pyatnashka-misisxmipt](https://source-craft-pulse.vercel.app/a/805a34c8-bef7-4c44-b796-4f67b025f0f1) | — | 27 | 4/6 | [md](artemfomik__lct-pyatnashka-misisxmipt.md)  |
+| 195 | [yc-social-centre/mri-newborns](https://source-craft-pulse.vercel.app/a/26f1f8cd-3269-41b1-a374-306a533ea102) | Python | 27 | 4/6 | [md](yc-social-centre__mri-newborns.md)  |
+| 196 | [ananasiki/auto-reviewer](https://source-craft-pulse.vercel.app/a/3a3d93b1-3eaa-47c0-82fb-e491aaaf8ce1) | Python | 27 | 4/6 | [md](ananasiki__auto-reviewer.md)  |
+| 197 | [cppshizoid/dagflow](https://source-craft-pulse.vercel.app/a/bf17c022-97cb-476c-8939-20c4b8fa5462) | C++ | 27 | 5/6 | [md](cppshizoid__dagflow.md)  |
+| 198 | [transformation1liders/frontend](https://source-craft-pulse.vercel.app/a/ac0867bf-cccd-4eee-af2d-dedaf116393b) | TSX | 26 | 4/6 | [md](transformation1liders__frontend.md)  |
+| 199 | [transformation1liders/mobile](https://source-craft-pulse.vercel.app/a/1a29944e-b23e-4314-b849-5ed6cd75257b) | TSX | 26 | 4/6 | [md](transformation1liders__mobile.md)  |
+| 200 | [user01/fork-test](https://source-craft-pulse.vercel.app/a/9b6c1da9-e094-49f8-adf9-c36407097106) | Python | 26 | 4/6 | [md](user01__fork-test.md)  |
+| 201 | [aleksey-troynikov/nodejs-tes](https://source-craft-pulse.vercel.app/a/ac44375c-6969-4b3c-a25c-7d7da7222b12) | JavaScript | 26 | 4/6 | [md](aleksey-troynikov__nodejs-tes.md)  |
+| 202 | [rickie/filesanitizer](https://source-craft-pulse.vercel.app/a/c28f251c-97b0-4e93-b495-b356f44c06aa) | Go | 26 | 4/6 | [md](rickie__filesanitizer.md)  |
+| 203 | [gradosphera/adnl-tunnel](https://source-craft-pulse.vercel.app/a/f2dcddaa-bd66-4d73-b586-30eafa2c436a) | Go | 26 | 4/6 | [md](gradosphera__adnl-tunnel.md)  |
+| 204 | [organization-sanraizh/ccl](https://source-craft-pulse.vercel.app/a/0ff1b577-2c62-4fdf-97fe-f2296c4775b7) | D | 26 | 4/6 | [md](organization-sanraizh__ccl.md)  |
+| 205 | [lagrang13/art-rs](https://source-craft-pulse.vercel.app/a/4d9cd85b-66c9-42d8-a194-1a3abd5a365c) | Rust | 26 | 4/6 | [md](lagrang13__art-rs.md)  |
+| 206 | [gradosphera/dao](https://source-craft-pulse.vercel.app/a/d498b554-827f-42d3-921e-61a05f57f10b) | JavaScript | 26 | 4/6 | [md](gradosphera__dao.md)  |
+| 207 | [dimensionker/abobadoski-coach-recsys](https://source-craft-pulse.vercel.app/a/50f3bbe2-b472-451c-acc9-30c2fb708222) | Python | 26 | 4/6 | [md](dimensionker__abobadoski-coach-recsys.md)  |
+| 208 | [machineunlearning/ai-360-telegram-bot](https://source-craft-pulse.vercel.app/a/26073b74-a8f9-425c-b773-57143dbb6979) | Python | 26 | 4/6 | [md](machineunlearning__ai-360-telegram-bot.md)  |
+| 209 | [simba77/docker-php](https://source-craft-pulse.vercel.app/a/b8abd409-9dd0-4e31-b07d-8c94bfa0793d) | PHP | 26 | 4/6 | [md](simba77__docker-php.md)  |
+| 210 | [gucci-ded/review-analytics](https://source-craft-pulse.vercel.app/a/ba926cb5-8352-4ee9-ac5a-ff7d4f838c61) | Go | 25 | 4/6 | [md](gucci-ded__review-analytics.md)  |
+| 211 | [ale-moroko/cspnikole](https://source-craft-pulse.vercel.app/a/423a72a3-dfa6-421a-aca0-590fd88c37d1) | HTML | 25 | 4/6 | [md](ale-moroko__cspnikole.md)  |
+| 212 | [knife-org/observer-water](https://source-craft-pulse.vercel.app/a/ff21a530-88f4-43c9-8ac0-ecd3051cfa62) | TSX | 25 | 4/6 | [md](knife-org__observer-water.md)  |
+| 213 | [ya-evgenykolesnikov/tetris-python](https://source-craft-pulse.vercel.app/a/5f128a1b-4d5c-4872-85ae-1bedf33bbac3) | Python | 25 | 4/6 | [md](ya-evgenykolesnikov__tetris-python.md)  |
+| 214 | [bulatgumerow/ner-api](https://source-craft-pulse.vercel.app/a/d1a99b64-3f66-4899-ac37-1491433c1377) | Python | 25 | 4/6 | [md](bulatgumerow__ner-api.md)  |
+| 215 | [yndx-saxumcordis/test-node-js](https://source-craft-pulse.vercel.app/a/d04a0541-2aed-4ceb-9ee9-41f189703a54) | Python | 25 | 4/6 | [md](yndx-saxumcordis__test-node-js.md)  |
+| 216 | [ya-evillive/gulp-maxgraph](https://source-craft-pulse.vercel.app/a/9f37800b-23bd-4e93-a91b-cf0ff424d938) | PHP | 25 | 4/6 | [md](ya-evillive__gulp-maxgraph.md)  |
+| 217 | [quantum-leap/feedback-ai-itmo](https://source-craft-pulse.vercel.app/a/ac366002-e953-43e6-b537-a53e39c287fb) | Python | 25 | 4/6 | [md](quantum-leap__feedback-ai-itmo.md)  |
+| 218 | [itqdev/adnova](https://source-craft-pulse.vercel.app/a/9eed5b68-17fd-4af2-8e23-81ef6c3b99ab) | Python | 25 | 4/6 | [md](itqdev__adnova.md)  |
+| 219 | [anton-chuv/anton-chuv-site](https://source-craft-pulse.vercel.app/a/8588ed6d-a9e4-4ecc-ba04-f846f4707547) | — | 24 | 5/6 | [md](anton-chuv__anton-chuv-site.md)  |
+| 220 | [organization-pauc/disk-failure-simulator](https://source-craft-pulse.vercel.app/a/7aa44439-e8cc-4433-9e64-995e5c2ba151) | HTML | 24 | 4/6 | [md](organization-pauc__disk-failure-simulator.md)  |
+| 221 | [omalab/tg](https://source-craft-pulse.vercel.app/a/135dd931-0857-407d-a3a8-8f5428bcad33) | JavaScript | 24 | 4/6 | [md](omalab__tg.md)  |
+| 222 | [kurvivor19/wh-invasion](https://source-craft-pulse.vercel.app/a/96085cc7-2a7b-411d-886b-13a0643c823f) | Clojure | 24 | 4/6 | [md](kurvivor19__wh-invasion.md)  |
+| 223 | [vladleonff/vk-bot](https://source-craft-pulse.vercel.app/a/85554df1-def3-4a88-8f99-764e85a315f7) | Python | 24 | 4/6 | [md](vladleonff__vk-bot.md)  |
+| 224 | [organization-maksimlitvinov39mailru/aith-gang-hack25](https://source-craft-pulse.vercel.app/a/2e7cd26e-f2c5-4694-86f7-5946099e7708) | Python | 24 | 4/6 | [md](organization-maksimlitvinov39mailru__aith-gang-hack25.md)  |
+| 225 | [itmo-gng/ai-product-hackathon](https://source-craft-pulse.vercel.app/a/607cced0-5efc-423e-b121-d732b66a79c4) | TSX | 24 | 4/6 | [md](itmo-gng__ai-product-hackathon.md)  |
+| 226 | [sourcecraft/sourcecraft-heroes-template](https://source-craft-pulse.vercel.app/a/d53d37e7-8894-4b26-8e2d-2d73341a1c32) | JavaScript | 24 | 5/6 | [md](sourcecraft__sourcecraft-heroes-template.md)  |
+| 227 | [transformation1liders/axiom](https://source-craft-pulse.vercel.app/a/d63c81ee-d498-4d71-87c8-25e56ddc0d10) | Jupyter Notebook | 23 | 4/6 | [md](transformation1liders__axiom.md)  |
+| 228 | [alekseichebenyuk/snake-game](https://source-craft-pulse.vercel.app/a/1bb23d3d-e2fc-4692-aba3-ad93ddfa4ad8) | JavaScript | 23 | 4/6 | [md](alekseichebenyuk__snake-game.md)  |
+| 229 | [tomilov/sah-kd-tree](https://source-craft-pulse.vercel.app/a/09099214-8209-475d-a604-966d52fa01b3) | C++ | 23 | 4/6 | [md](tomilov__sah-kd-tree.md)  |
+| 230 | [sorokin-e-s/llm](https://source-craft-pulse.vercel.app/a/aae4f9c7-3462-4539-b68e-6e1b0ce5d59c) | JavaScript | 23 | 4/6 | [md](sorokin-e-s__llm.md)  |
+| 231 | [smallslowtank-sourcecraft/tg-bot-yc-function-aiogram](https://source-craft-pulse.vercel.app/a/80893083-fe27-4a49-be02-c69498089055) | Shell | 23 | 4/6 | [md](smallslowtank-sourcecraft__tg-bot-yc-function-aiogram.md)  |
+| 232 | [naemnek/apple-mcp](https://source-craft-pulse.vercel.app/a/de6d48b8-ea3c-4e67-a76c-37adbe00fbbe) | TypeScript | 23 | 5/6 | [md](naemnek__apple-mcp.md)  |
+| 233 | [four-gyri/archive-web](https://source-craft-pulse.vercel.app/a/379af493-39db-4384-8a70-c5c17d9b73ea) | TSX | 23 | 4/6 | [md](four-gyri__archive-web.md)  |
+| 234 | [aidar-nez/ifmo-gdz](https://source-craft-pulse.vercel.app/a/406ee811-3179-4313-b5b0-eb9ceca38d60) | Python | 23 | 4/6 | [md](aidar-nez__ifmo-gdz.md)  |
+| 235 | [postgres-dm/y-site](https://source-craft-pulse.vercel.app/a/793aeaf9-f127-4724-aba2-00a72f65edf6) | HTML | 23 | 4/6 | [md](postgres-dm__y-site.md)  |
+| 236 | [denis-fomichev-ent/abobadoski-coach-backend](https://source-craft-pulse.vercel.app/a/5f6903d4-086b-4aca-ba7c-391fac44b25a) | Python | 23 | 4/6 | [md](denis-fomichev-ent__abobadoski-coach-backend.md)  |
+| 237 | [ivi-ippolitov/enummethods](https://source-craft-pulse.vercel.app/a/a191f9cd-bc8d-4db3-8d0b-017e1e8eb199) | Go | 22 | 4/6 | [md](ivi-ippolitov__enummethods.md)  |
+| 238 | [alltimelowskill/just-system-ecs](https://source-craft-pulse.vercel.app/a/6f49b3c1-051e-4028-9bea-4c6c12bb35ec) | Go | 22 | 4/6 | [md](alltimelowskill__just-system-ecs.md)  |
+| 239 | [adokky/zero-json](https://source-craft-pulse.vercel.app/a/a1cddb35-e853-4639-a0d9-14187b5495d1) | Kotlin | 22 | 4/6 | [md](adokky__zero-json.md)  |
+| 240 | [utimur555/it-booster-frontend](https://source-craft-pulse.vercel.app/a/09ec5d04-11cd-43cd-b078-c723eec9d74a) | TypeScript | 22 | 5/6 | [md](utimur555__it-booster-frontend.md)  |
+| 241 | [usersourcecraft/my-python](https://source-craft-pulse.vercel.app/a/bf02a218-f976-40aa-b523-f0669e32e7e6) | Python | 22 | 4/6 | [md](usersourcecraft__my-python.md)  |
+| 242 | [egorlem/ultima-zsh-theme](https://source-craft-pulse.vercel.app/a/74598129-51ca-423d-ba3f-09fc354e3e18) | Shell | 22 | 4/6 | [md](egorlem__ultima-zsh-theme.md)  |
+| 243 | [dimflix-official/pytemplate](https://source-craft-pulse.vercel.app/a/ee5835ac-9155-4c4c-a9ca-182960d07d8f) | Python | 22 | 4/6 | [md](dimflix-official__pytemplate.md)  |
+| 244 | [mister-alex49/masto-multi-agent-system-trace-observer](https://source-craft-pulse.vercel.app/a/791ba7c2-21eb-4bbc-96d8-c3eb28ceefc0) | Python | 22 | 4/6 | [md](mister-alex49__masto-multi-agent-system-trace-observer.md)  |
+| 245 | [bueno-top-one/mvp](https://source-craft-pulse.vercel.app/a/ec4fe18d-6118-4375-bfaa-038414e5c708) | TSX | 22 | 4/6 | [md](bueno-top-one__mvp.md)  |
+| 246 | [larichevakat/k-k](https://source-craft-pulse.vercel.app/a/094bfacb-f83e-4b1a-864e-e0fb2c8a1658) | Python | 21 | 4/6 | [md](larichevakat__k-k.md)  |
+| 247 | [p2p-decentralized-emulation/fonline](https://source-craft-pulse.vercel.app/a/896cbc1d-e2cf-4cb1-98f6-f0943e1dcdc0) | JavaScript | 21 | 5/6 | [md](p2p-decentralized-emulation__fonline.md)  |
+| 248 | [alexander-globa/code-reviewer](https://source-craft-pulse.vercel.app/a/10645727-cdef-4238-84d7-db350cf840b2) | Shell | 21 | 4/6 | [md](alexander-globa__code-reviewer.md)  |
+| 249 | [loskiq/pr8](https://source-craft-pulse.vercel.app/a/f39e0437-9407-4694-82e2-d1363a8d2aa9) | Python | 21 | 5/6 | [md](loskiq__pr8.md)  |
+| 250 | [filipushaok/brokerapp](https://source-craft-pulse.vercel.app/a/99381d29-2cf6-4875-92c4-22ed1add3814) | Java | 21 | 5/6 | [md](filipushaok__brokerapp.md)  |
+| 251 | [sr-data-lct-2025/backend](https://source-craft-pulse.vercel.app/a/5f1317dd-d4e8-4e29-883a-8d02f9b4b779) | Go | 20 | 4/6 | [md](sr-data-lct-2025__backend.md)  |
+| 252 | [alex-arkhipov/guess-person](https://source-craft-pulse.vercel.app/a/19715e1d-55ae-4b54-b01a-85a83205d8dd) | Python | 20 | 4/6 | [md](alex-arkhipov__guess-person.md)  |
+| 253 | [kaloshinba/demo](https://source-craft-pulse.vercel.app/a/fb7d419c-f18d-4aa8-b8f7-0a7869db2623) | — | 20 | 4/6 | [md](kaloshinba__demo.md)  |
+| 254 | [sshambir-public/compiler-template](https://source-craft-pulse.vercel.app/a/3e720de6-d8e0-4428-a915-348b2d4e5cbc) | C# | 20 | 4/6 | [md](sshambir-public__compiler-template.md)  |
+| 255 | [alex-qawerz/frontend-trash](https://source-craft-pulse.vercel.app/a/0ac2f753-6e66-46a0-ab39-ffe3c78b7c52) | HTML | 20 | 4/6 | [md](alex-qawerz__frontend-trash.md)  |
+| 256 | [shef-er/dotfiles](https://source-craft-pulse.vercel.app/a/3253aa1e-b6b7-4671-b08e-edbbb1545f2b) | Shell | 20 | 4/6 | [md](shef-er__dotfiles.md)  |
+| 257 | [sergeev-i-n/djantimat](https://source-craft-pulse.vercel.app/a/dea1031a-8414-4373-9117-ea4c4d893808) | Python | 20 | 4/6 | [md](sergeev-i-n__djantimat.md)  |
+| 258 | [gradosphera/vote-contracts](https://source-craft-pulse.vercel.app/a/77105832-1e77-4b17-a836-1658bf53cb47) | TypeScript | 20 | 4/6 | [md](gradosphera__vote-contracts.md)  |
+| 259 | [artem-kazachenko12/birthday-calendar-front](https://source-craft-pulse.vercel.app/a/3a119be8-0da5-40f0-862c-07b6261eff83) | JavaScript | 19 | 5/6 | [md](artem-kazachenko12__birthday-calendar-front.md)  |
+| 260 | [yndx-a-koptsov/docker-image](https://source-craft-pulse.vercel.app/a/c8b09e07-409f-4138-b165-e8efc818644b) | — | 19 | 4/6 | [md](yndx-a-koptsov__docker-image.md)  |
+| 261 | [nphne-hi4y5xnu/leakage-detector-with-automl](https://source-craft-pulse.vercel.app/a/8941a9e9-1a25-43cb-be47-4609dd61cc06) | Python | 19 | 4/6 | [md](nphne-hi4y5xnu__leakage-detector-with-automl.md)  |
+| 262 | [siniavskijand/hello-world](https://source-craft-pulse.vercel.app/a/afc89558-ef22-4ce3-91bb-7a2698ab5f84) | Go | 19 | 4/6 | [md](siniavskijand__hello-world.md)  |
+| 263 | [mikhail-bondarevsky/gh-action-test4](https://source-craft-pulse.vercel.app/a/6f56153e-bb5d-4699-aaf1-6e4a85fd44aa) | JavaScript | 19 | 4/6 | [md](mikhail-bondarevsky__gh-action-test4.md)  |
+| 264 | [elfenmail/typescript-react-vite-app](https://source-craft-pulse.vercel.app/a/fbb72652-f882-40e6-9b7e-78147a621bb0) | TypeScript | 19 | 4/6 | [md](elfenmail__typescript-react-vite-app.md)  |
+| 265 | [alex-qawerz/wutheringwaves-convence-tracker](https://source-craft-pulse.vercel.app/a/331bed92-23a3-4267-98d3-eb2d3dc14bef) | Python | 19 | 4/6 | [md](alex-qawerz__wutheringwaves-convence-tracker.md)  |
+| 266 | [gradosphera/blago-escrow](https://source-craft-pulse.vercel.app/a/d87befab-a016-45e5-a969-3fbdfe45e732) | TypeScript | 19 | 4/6 | [md](gradosphera__blago-escrow.md)  |
+| 267 | [gradosphera/academy](https://source-craft-pulse.vercel.app/a/cd5090a4-8236-4d22-b115-e921217c9e5a) | Go | 19 | 4/6 | [md](gradosphera__academy.md)  |
+| 268 | [dimflix-official/valentine-from-a-programmer](https://source-craft-pulse.vercel.app/a/838dff5c-5709-445a-865f-11263734cc7e) | Python | 19 | 4/6 | [md](dimflix-official__valentine-from-a-programmer.md)  |
+| 269 | [itmo-chads/x5agent](https://source-craft-pulse.vercel.app/a/985a73fd-c3d1-4d97-8ac4-93514ed9dd8e) | Jupyter Notebook | 19 | 4/6 | [md](itmo-chads__x5agent.md)  |
+| 270 | [examples/sourcecraft-sites-hugo-examples](https://source-craft-pulse.vercel.app/a/0c9403e1-630f-4204-a83d-7155c9490306) | — | 19 | 4/6 | [md](examples__sourcecraft-sites-hugo-examples.md)  |
+| 271 | [knife-org/backend](https://source-craft-pulse.vercel.app/a/17483585-8024-4999-accf-e7f4645a4bf1) | Kotlin | 18 | 4/6 | [md](knife-org__backend.md)  |
+| 272 | [four-gyri/archive-worker](https://source-craft-pulse.vercel.app/a/1debf942-5aa3-4584-8dd0-9ff89bbc5087) | Python | 18 | 4/6 | [md](four-gyri__archive-worker.md)  |
+| 273 | [robomarvel/robot-controls](https://source-craft-pulse.vercel.app/a/30445f33-2db9-46d8-b400-a5070b6cca06) | JavaScript | 18 | 4/6 | [md](robomarvel__robot-controls.md)  |
+| 274 | [s-evg13/locty](https://source-craft-pulse.vercel.app/a/e299dea8-3ffb-4f7d-b581-8a0d9fde3605) | Python | 18 | 4/6 | [md](s-evg13__locty.md)  |
+| 275 | [nphne-nni22uwn/my-backendcource](https://source-craft-pulse.vercel.app/a/01a20a9b-af99-4a1b-add5-d1a95c553801) | Python | 18 | 4/6 | [md](nphne-nni22uwn__my-backendcource.md)  |
+| 276 | [metalhead/translatish](https://source-craft-pulse.vercel.app/a/2a48249f-64b2-4057-8612-88c578e3cd44) | — | 18 | 4/6 | [md](metalhead__translatish.md)  |
+| 277 | [igolubev84/test](https://source-craft-pulse.vercel.app/a/9b4f5ec9-b095-4e2c-b2b2-c7e826504fb3) | JavaScript | 18 | 4/6 | [md](igolubev84__test.md)  |
+| 278 | [adokky/bitvector](https://source-craft-pulse.vercel.app/a/86d0293e-fa56-4542-a5f6-d63d6241449d) | Kotlin | 18 | 4/6 | [md](adokky__bitvector.md)  |
+| 279 | [kanibor1/undefined](https://source-craft-pulse.vercel.app/a/348098f4-3d0e-44d6-8e27-0b946c117705) | — | 18 | 4/6 | [md](kanibor1__undefined.md)  |
+| 280 | [angrytaigafox/horizontal-timeline](https://source-craft-pulse.vercel.app/a/01459ba7-644e-43f0-9b6e-f4c2397c7e76) | Dart | 18 | 4/6 | [md](angrytaigafox__horizontal-timeline.md)  |
+| 281 | [lagrang13/mwcas-rs](https://source-craft-pulse.vercel.app/a/ead525b5-fcc4-498d-af71-b557d3b244e3) | Rust | 18 | 4/6 | [md](lagrang13__mwcas-rs.md)  |
+| 282 | [horoshevd/test-yc-cicd](https://source-craft-pulse.vercel.app/a/964693d3-51c1-4876-ad9a-8df84937f280) | HTML | 18 | 4/6 | [md](horoshevd__test-yc-cicd.md)  |
+| 283 | [fitmanyak/docker-test](https://source-craft-pulse.vercel.app/a/1f6a6050-e310-4eb2-a9ee-53b6b72b2fa2) | — | 18 | 4/6 | [md](fitmanyak__docker-test.md)  |
+| 284 | [sashadance322/sliding-knowledge-diagnostics](https://source-craft-pulse.vercel.app/a/7aa8f776-cf98-4f39-9eae-6a8ee7764c0a) | Python | 18 | 4/6 | [md](sashadance322__sliding-knowledge-diagnostics.md)  |
+| 285 | [ilugly/news-aggregator](https://source-craft-pulse.vercel.app/a/8840ece4-29c5-42b4-8086-01fd4d2624c8) | Python | 17 | 4/6 | [md](ilugly__news-aggregator.md)  |
+| 286 | [kuznecov-fd0/model-infer](https://source-craft-pulse.vercel.app/a/78fc2723-9907-4a3f-9cb7-f7f1b470434f) | Python | 17 | 4/6 | [md](kuznecov-fd0__model-infer.md)  |
+| 287 | [p2p-decentralized-emulation/mmmerge](https://source-craft-pulse.vercel.app/a/9471b7e8-af35-4e08-bed6-ba5f7801e9e4) | Lua | 17 | 5/6 | [md](p2p-decentralized-emulation__mmmerge.md)  |
+| 288 | [ca6p/godot-web-test](https://source-craft-pulse.vercel.app/a/f1087ad2-bbf5-4556-94f3-a7b090906f42) | PLSQL | 17 | 4/6 | [md](ca6p__godot-web-test.md)  |
+| 289 | [viachaslau-tratsiak/zx-bpe](https://source-craft-pulse.vercel.app/a/8a7fe6a1-3e79-4e2c-93b3-456b98015fbd) | Kotlin | 17 | 4/6 | [md](viachaslau-tratsiak__zx-bpe.md)  |
+| 290 | [gradosphera/blago-jetton](https://source-craft-pulse.vercel.app/a/2020860e-0385-4b31-b262-914a8ff30ec6) | TypeScript | 17 | 4/6 | [md](gradosphera__blago-jetton.md)  |
+| 291 | [cycle-ya-id/adb-battery-information](https://source-craft-pulse.vercel.app/a/6fe4a5f3-dd36-468f-8fe4-fc1b2248944e) | JavaScript | 17 | 4/6 | [md](cycle-ya-id__adb-battery-information.md)  |
+| 292 | [lagrang13/orc-rs](https://source-craft-pulse.vercel.app/a/f418678a-3d0e-409c-b7ef-efc522a402b2) | Rust | 17 | 4/6 | [md](lagrang13__orc-rs.md)  |
+| 293 | [lagrang13/hazard-eras](https://source-craft-pulse.vercel.app/a/eb36523f-be23-4328-a3cb-b511ee0f2444) | Rust | 17 | 4/6 | [md](lagrang13__hazard-eras.md)  |
+| 294 | [gradosphera/ecoplay](https://source-craft-pulse.vercel.app/a/7465c2bb-cc62-4e46-8ee9-4eddfc32b1d2) | Svelte | 17 | 4/6 | [md](gradosphera__ecoplay.md)  |
+| 295 | [postgres-dm/bazaragro-bot-dev](https://source-craft-pulse.vercel.app/a/2103eeea-2e29-4e96-abae-1a61a0da3d32) | Python | 17 | 4/6 | [md](postgres-dm__bazaragro-bot-dev.md)  |
+| 296 | [alexeyshevchenko03/sliding-knowledge-diagnostics](https://source-craft-pulse.vercel.app/a/15a5a1cc-40fc-4a8c-9359-b8c6c4a5a1f6) | Python | 17 | 4/6 | [md](alexeyshevchenko03__sliding-knowledge-diagnostics.md)  |
+| 297 | [vladislav/test](https://source-craft-pulse.vercel.app/a/397cd999-a298-4436-aad6-11cc8058662c) | HTML | 16 | 4/6 | [md](vladislav__test.md)  |
+| 298 | [knife-org/model](https://source-craft-pulse.vercel.app/a/bafcce54-844c-4108-ab65-a318f6695208) | Python | 16 | 4/6 | [md](knife-org__model.md)  |
+| 299 | [makoligoncharov/sreda](https://source-craft-pulse.vercel.app/a/c8b21056-4b2b-4438-ad1b-63e912146d4c) | Python | 16 | 4/6 | [md](makoligoncharov__sreda.md)  |
+| 300 | [nautes11/test](https://source-craft-pulse.vercel.app/a/90e23f05-caf4-4faa-9378-54fcb6f0e7cd) | JavaScript | 16 | 5/6 | [md](nautes11__test.md)  |
+| 301 | [krivonosov-roma1/hottask](https://source-craft-pulse.vercel.app/a/f2886617-2e08-4567-ae7a-3d179f8dc159) | JavaScript | 16 | 4/6 | [md](krivonosov-roma1__hottask.md)  |
+| 302 | [selfal/swift-test](https://source-craft-pulse.vercel.app/a/307ae571-235b-4a30-8e0c-3548bf7de33d) | Shell | 16 | 5/6 | [md](selfal__swift-test.md)  |
+| 303 | [adokky/kodec](https://source-craft-pulse.vercel.app/a/3318ed94-431c-4020-bc22-ffe8b488ff65) | Kotlin | 16 | 4/6 | [md](adokky__kodec.md)  |
+| 304 | [veged/veged-and-code](https://source-craft-pulse.vercel.app/a/e1402cdf-32a2-40d8-aeba-f4cfd7aea0b6) | JavaScript | 16 | 4/6 | [md](veged__veged-and-code.md)  |
+| 305 | [ikanamchiki/pulmovision](https://source-craft-pulse.vercel.app/a/0e45a469-45e6-4b7e-9979-9373b8bc1126) | Python | 16 | 4/6 | [md](ikanamchiki__pulmovision.md)  |
+| 306 | [x3group/ai-career-assistant](https://source-craft-pulse.vercel.app/a/5838312a-a2f1-4fe9-8fae-5b0869584086) | Java | 16 | 4/6 | [md](x3group__ai-career-assistant.md)  |
+| 307 | [pavel-elisseeff/django-vibe-coding](https://source-craft-pulse.vercel.app/a/19f7a177-62a7-4d4e-ba9f-7339079a8bb7) | JavaScript | 15 | 4/6 | [md](pavel-elisseeff__django-vibe-coding.md)  |
+| 308 | [ostranna/libs](https://source-craft-pulse.vercel.app/a/8e4b2495-5c13-419b-9f5e-b58df4d6e56f) | C | 15 | 4/6 | [md](ostranna__libs.md)  |
+| 309 | [faermanperm/tradecryptobot](https://source-craft-pulse.vercel.app/a/96f3efd1-607a-4f6c-ab18-a3b4754cc9bb) | Python | 15 | 4/6 | [md](faermanperm__tradecryptobot.md)  |
+| 310 | [algor/control-eye-backend](https://source-craft-pulse.vercel.app/a/e169556a-9353-476c-8acf-a97f91c11796) | Python | 15 | 4/6 | [md](algor__control-eye-backend.md)  |
+| 311 | [1337/anoml](https://source-craft-pulse.vercel.app/a/1b256ad8-c6e6-462b-9bcb-fa299ec1de82) | C++ | 15 | 4/6 | [md](1337__anoml.md)  |
+| 312 | [organization-krll-py/ai-knowledge-diagnostics](https://source-craft-pulse.vercel.app/a/deccc389-37e5-4e47-b15a-3af9796eadf2) | Python | 15 | 4/6 | [md](organization-krll-py__ai-knowledge-diagnostics.md)  |
+| 313 | [stepanow/gittest1](https://source-craft-pulse.vercel.app/a/8c00335a-c38d-44d2-9493-3a368ffb5ba2) | Java | 14 | 4/6 | [md](stepanow__gittest1.md)  |
+| 314 | [evgenijtumar096-gmail-com/secpass](https://source-craft-pulse.vercel.app/a/bdae8ace-1ae0-4331-9e7e-3ae6221c063d) | JavaScript | 14 | 4/6 | [md](evgenijtumar096-gmail-com__secpass.md)  |
+| 315 | [konstkaras/word-finder](https://source-craft-pulse.vercel.app/a/8504fe9d-e26e-49d4-a6b4-f566a10203e0) | Java | 14 | 4/6 | [md](konstkaras__word-finder.md)  |
+| 316 | [a-v-belyakov82/cachingstoragewithqueue](https://source-craft-pulse.vercel.app/a/07893723-65d0-49c7-baec-61f26440c2ad) | Go | 14 | 4/6 | [md](a-v-belyakov82__cachingstoragewithqueue.md)  |
+| 317 | [twofaced-janus/kingdom-system](https://source-craft-pulse.vercel.app/a/6193f54c-b648-4731-96d2-460f2af4734f) | TSX | 14 | 4/6 | [md](twofaced-janus__kingdom-system.md)  |
+| 318 | [rmh2025/rmh-api-backend](https://source-craft-pulse.vercel.app/a/8374e2a9-d918-4e45-a6c2-3033e63236ab) | Python | 14 | 4/6 | [md](rmh2025__rmh-api-backend.md)  |
+| 319 | [mythmazo/yafuse](https://source-craft-pulse.vercel.app/a/279866b2-7ab9-4fb7-89b1-f4386ec0d6fd) | Go | 14 | 5/6 | [md](mythmazo__yafuse.md)  |
+| 320 | [organization-yab1ochkin/bdui-admin](https://source-craft-pulse.vercel.app/a/1363ffc1-dfb2-485a-bb9a-eb4db125d544) | TSX | 13 | 4/6 | [md](organization-yab1ochkin__bdui-admin.md)  |
+| 321 | [daniilpaholko/boar-jump-game](https://source-craft-pulse.vercel.app/a/2a0adf87-9207-4c29-bcce-b91a071e8edc) | JavaScript | 13 | 4/6 | [md](daniilpaholko__boar-jump-game.md)  |
+| 322 | [kipia38/kompound-calculator](https://source-craft-pulse.vercel.app/a/9b47382d-9bfa-4acc-b0b0-2436044ffe29) | Java | 13 | 4/6 | [md](kipia38__kompound-calculator.md)  |
+| 323 | [r3d0c/boostr-infra](https://source-craft-pulse.vercel.app/a/17a025e6-80b5-4bb2-b3bc-2e29538ad70e) | Shell | 13 | 4/6 | [md](r3d0c__boostr-infra.md)  |
+| 324 | [aleksey-troynikov/java-test](https://source-craft-pulse.vercel.app/a/96f13e58-baf2-4910-88e7-3c65f34f4377) | Java | 13 | 4/6 | [md](aleksey-troynikov__java-test.md)  |
+| 325 | [rioncool222/test-poc](https://source-craft-pulse.vercel.app/a/f7f9f757-4c76-4819-a9f2-56d5c4347102) | HTML | 13 | 5/6 | [md](rioncool222__test-poc.md)  |
+| 326 | [dimflix-official/spectrum-security](https://source-craft-pulse.vercel.app/a/7db7cea4-6ec4-4c29-9fb0-1d304ffd68a9) | Python | 13 | 4/6 | [md](dimflix-official__spectrum-security.md)  |
+| 327 | [nik-kunets/geobot](https://source-craft-pulse.vercel.app/a/7679f210-e786-4cc6-aaba-ecc6d85f6315) | Go | 12 | 4/6 | [md](nik-kunets__geobot.md)  |
+| 328 | [kaiz0/chocolatner](https://source-craft-pulse.vercel.app/a/9d47621d-9d65-44f4-b7be-d0c14b2a47b5) | Python | 12 | 4/6 | [md](kaiz0__chocolatner.md)  |
+| 329 | [hdtopaz/uin-cheker](https://source-craft-pulse.vercel.app/a/a334a626-2095-4954-8014-def929a4cde6) | Kotlin | 12 | 4/6 | [md](hdtopaz__uin-cheker.md)  |
+| 330 | [ost-vld/pure-bash-coverage](https://source-craft-pulse.vercel.app/a/9c33ab64-1429-46de-8dab-3bf19a1e0626) | Shell | 12 | 4/6 | [md](ost-vld__pure-bash-coverage.md)  |
+| 331 | [panyutishevakatya/moscowhack](https://source-craft-pulse.vercel.app/a/5840feb9-0d9f-4d5c-97b4-0ea0b1e1bf53) | Python | 12 | 4/6 | [md](panyutishevakatya__moscowhack.md)  |
+| 332 | [shumrganization/my-messenger-maxim](https://source-craft-pulse.vercel.app/a/85c10451-9890-4b21-84d6-d5d34cd1a159) | Python | 12 | 4/6 | [md](shumrganization__my-messenger-maxim.md)  |
+| 333 | [koreshkov-ak/dreams-test](https://source-craft-pulse.vercel.app/a/2081008f-810b-45f3-9b59-6f8e016201cd) | Shell | 11 | 5/6 | [md](koreshkov-ak__dreams-test.md)  |
+| 334 | [nero-sketch/yvix-site](https://source-craft-pulse.vercel.app/a/d4100059-b34c-4de5-b355-cfcb4652f0f3) | Vue | 10 | 4/6 | [md](nero-sketch__yvix-site.md)  |
+| 335 | [eldar-aleidarov/404](https://source-craft-pulse.vercel.app/a/83bf5cc8-49ec-4730-b2d3-9a2784bef8e2) | HTML | 10 | 4/6 | [md](eldar-aleidarov__404.md)  |
+| 336 | [kirpa100/itmo-gpt](https://source-craft-pulse.vercel.app/a/e7add6fc-74db-47d0-92f4-ea43bc36b0be) | Python | 10 | 4/6 | [md](kirpa100__itmo-gpt.md)  |
+| 337 | [icefoxswork/selection-pattern](https://source-craft-pulse.vercel.app/a/b8e7519e-397f-4f3f-a3da-d27181741c7e) | TSX | 10 | 4/6 | [md](icefoxswork__selection-pattern.md)  |
+| 338 | [bagram2025/main](https://source-craft-pulse.vercel.app/a/bfc72741-4f60-4caa-b307-17322befddaf) | Shell | 9 | 4/6 | [md](bagram2025__main.md)  |
+| 339 | [artem-kazachenko12/birthday-calendar](https://source-craft-pulse.vercel.app/a/e4480cde-c841-4550-b884-302e5fa15ca3) | Kotlin | 9 | 5/6 | [md](artem-kazachenko12__birthday-calendar.md)  |
+| 340 | [danil/xo](https://source-craft-pulse.vercel.app/a/8dec2d3b-c434-433d-b729-5ca08cfcea92) | JavaScript | 9 | 4/6 | [md](danil__xo.md)  |
+| 341 | [zh-vitaliy92/autoparsealertbot](https://source-craft-pulse.vercel.app/a/e35347b5-d655-4afb-89c4-3133cb0f8764) | Python | 9 | 4/6 | [md](zh-vitaliy92__autoparsealertbot.md)  |
+| 342 | [ysco/tpl](https://source-craft-pulse.vercel.app/a/48d2bd66-82ad-4faf-bcf0-1590a0507a93) | C++ | 9 | 4/6 | [md](ysco__tpl.md)  |
+| 343 | [vshatrov/test-migration-speed](https://source-craft-pulse.vercel.app/a/e4a9ed4b-dfaf-4cdf-a795-1ed992fccdec) | C++ | 9 | 4/6 | [md](vshatrov__test-migration-speed.md)  |
+| 344 | [edibroq/aboba](https://source-craft-pulse.vercel.app/a/fed0f9d6-27fb-487b-ac03-9d807bb98b51) | Python | 9 | 5/6 | [md](edibroq__aboba.md)  |
+| 345 | [nikola-1711/blink-cmp-source-craft](https://source-craft-pulse.vercel.app/a/ff53543f-086f-4085-b51e-2c9f49b72f47) | Lua | 9 | 4/6 | [md](nikola-1711__blink-cmp-source-craft.md)  |
+| 346 | [sr-data-lct-2025/web](https://source-craft-pulse.vercel.app/a/6c04234c-b6ad-44ff-91c6-6c4fc9970eb1) | TSX | 8 | 4/6 | [md](sr-data-lct-2025__web.md)  |
+| 347 | [garikkanareikin/firstproject](https://source-craft-pulse.vercel.app/a/329ee73c-3738-4ad6-a53a-2459f7a3ffd1) | HTML | 8 | 4/6 | [md](garikkanareikin__firstproject.md)  |
+| 348 | [igorkorsukov/tin-invest](https://source-craft-pulse.vercel.app/a/38a02d79-b9c2-4297-bdb7-be7dceb2a510) | Dart | 8 | 4/6 | [md](igorkorsukov__tin-invest.md)  |
+| 349 | [ostranna/ir-pcb](https://source-craft-pulse.vercel.app/a/99e415e8-e39c-428a-b0f8-a3455ced627e) | C | 8 | 4/6 | [md](ostranna__ir-pcb.md)  |
+| 350 | [a-v-belyakov82/zabbixapicommunicator](https://source-craft-pulse.vercel.app/a/d2a2b2d5-747d-42d9-b175-5f31d0418bfd) | Go | 8 | 4/6 | [md](a-v-belyakov82__zabbixapicommunicator.md)  |
+| 351 | [ashnsk/qwen-spring-petclinic-data-jdbc](https://source-craft-pulse.vercel.app/a/ccfe7dc8-17b0-4d9b-abaa-ed24aeead93c) | CSS | 8 | 4/6 | [md](ashnsk__qwen-spring-petclinic-data-jdbc.md)  |
+| 352 | [black-pearl/hackathon-game-mobile](https://source-craft-pulse.vercel.app/a/68662e03-fba6-46d9-ab82-18470853fdee) | Kotlin | 8 | 4/6 | [md](black-pearl__hackathon-game-mobile.md)  |
+| 353 | [zfiles/experimental](https://source-craft-pulse.vercel.app/a/f4bf6f44-2e86-4fe5-a041-cb14c67344de) | HTML | 8 | 4/6 | [md](zfiles__experimental.md)  |
+| 354 | [konstkaras/doc-template](https://source-craft-pulse.vercel.app/a/952b536a-8d09-4536-a35f-81c042231f6f) | Java | 7 | 4/6 | [md](konstkaras__doc-template.md)  |
+| 355 | [ada-dev/dca-bot-tinv](https://source-craft-pulse.vercel.app/a/71a2f2bd-2204-4da1-ae1f-3dd14a6a1ce5) | Python | 7 | 4/6 | [md](ada-dev__dca-bot-tinv.md)  |
+| 356 | [nikolaway/heaven-pleasure](https://source-craft-pulse.vercel.app/a/d410ee9a-0aa3-4442-b44b-5a0d6b7451c1) | Python | 7 | 4/6 | [md](nikolaway__heaven-pleasure.md)  |
+| 357 | [beatle95-public/reclip-client](https://source-craft-pulse.vercel.app/a/c669a777-5883-4d3c-8d93-07e7543e1e37) | C++ | 7 | 4/6 | [md](beatle95-public__reclip-client.md)  |
+| 358 | [gradosphera/gradosphera-dns-metadata](https://source-craft-pulse.vercel.app/a/6ea4999f-59d4-461c-b724-2c732581f585) | Python | 7 | 4/6 | [md](gradosphera__gradosphera-dns-metadata.md)  |
+| 359 | [maximutkin82/e-learning-react](https://source-craft-pulse.vercel.app/a/2dd84cda-e61c-4d03-be97-908cfdf83c26) | JavaScript | 7 | 4/6 | [md](maximutkin82__e-learning-react.md)  |
+| 360 | [i2z1/quarto-buildstack](https://source-craft-pulse.vercel.app/a/03a714aa-9f13-4033-b825-813ce7e49939) | — | 6 | 4/6 | [md](i2z1__quarto-buildstack.md)  |
+| 361 | [eldin-ilya/final-qualifying-work](https://source-craft-pulse.vercel.app/a/3a31c72f-0906-4144-8712-cebd0f2fc2ca) | JavaScript | 6 | 4/6 | [md](eldin-ilya__final-qualifying-work.md)  |
+| 362 | [linkmeupru/linkmeupbot](https://source-craft-pulse.vercel.app/a/c784a014-49d8-41cc-9947-2b511676f47d) | Python | 6 | 4/6 | [md](linkmeupru__linkmeupbot.md)  |
+| 363 | [andryx81/contools-admin](https://source-craft-pulse.vercel.app/a/470ac648-9c81-4917-805a-12acb43e51f6) | Batchfile | 6 | 4/6 | [md](andryx81__contools-admin.md)  |
+| 364 | [drsn/frontend](https://source-craft-pulse.vercel.app/a/a929b7a4-5548-4ca2-a888-163dfea38d59) | TSX | 6 | 5/6 | [md](drsn__frontend.md)  |
+| 365 | [boumrz/model](https://source-craft-pulse.vercel.app/a/5d38b0b1-ea8e-454c-afd6-17d2d8e6be18) | Python | 5 | 4/6 | [md](boumrz__model.md)  |
+| 366 | [alex-arkhipov/neo-operation](https://source-craft-pulse.vercel.app/a/7eead8c2-fc96-4078-b00d-c1bab3860e78) | Python | 5 | 4/6 | [md](alex-arkhipov__neo-operation.md)  |
+| 367 | [drsn/backend](https://source-craft-pulse.vercel.app/a/528117f5-aca4-40e8-ae5f-d41015610635) | Go | 5 | 4/6 | [md](drsn__backend.md)  |
+| 368 | [s-evg13/mnogolikiy-aibot](https://source-craft-pulse.vercel.app/a/2c0a01aa-67e6-42df-84f0-242c881713e8) | Python | 4 | 4/6 | [md](s-evg13__mnogolikiy-aibot.md)  |
+| 369 | [coder-guys/lct-game](https://source-craft-pulse.vercel.app/a/1b1ac451-1d7e-49fe-a3aa-e208c7abed39) | C# | 4 | 4/6 | [md](coder-guys__lct-game.md)  |
+| 370 | [laystoll/quetimae](https://source-craft-pulse.vercel.app/a/8aa1c983-be3a-401b-a087-77b76d68fa2c) | JavaScript | 3 | 4/6 | [md](laystoll__quetimae.md)  |
+| 371 | [sr-data-lct-2025/ml](https://source-craft-pulse.vercel.app/a/7979c27e-0cf9-4b5c-ac51-0973c549eeab) | Python | 2 | 4/6 | [md](sr-data-lct-2025__ml.md)  |
+| 372 | [raph/a-repo-from-template](https://source-craft-pulse.vercel.app/a/b1bbf03c-7949-466c-b312-ae34fba63cbd) | — | 0 | 5/6 | [md](raph__a-repo-from-template.md)  |
+| 373 | [ysco/ood](https://source-craft-pulse.vercel.app/a/50ba1898-8462-4fd5-8aeb-ddee8e070acb) | C++ | 0 | 4/6 | [md](ysco__ood.md)  |
+| 374 | [alexander-globa/docker](https://source-craft-pulse.vercel.app/a/d45bb754-0542-4e15-baa8-7b426acd2e82) | Shell | 0 | 4/6 | [md](alexander-globa__docker.md)  |
+| 375 | [dforgeek/xui](https://source-craft-pulse.vercel.app/a/5003743d-c4fb-4a99-83ca-c737ca98b884) | Python | 0 | 4/6 | [md](dforgeek__xui.md)  |
+| 376 | [ostranna/quetra](https://source-craft-pulse.vercel.app/a/d88ee472-1f99-4c84-8848-7bd847c19d64) | C | 0 | 4/6 | [md](ostranna__quetra.md)  |
+| 377 | [fl64/dvp-demo-app](https://source-craft-pulse.vercel.app/a/695ba934-77ec-48c5-83b1-e20e075fb9c9) | HTML | 0 | 4/6 | [md](fl64__dvp-demo-app.md)  |
+| 378 | [pjamm/dotfiles](https://source-craft-pulse.vercel.app/a/6789f222-6866-4ab6-80b1-85eb30419658) | — | 0 | 4/6 | [md](pjamm__dotfiles.md)  |
+| 379 | [xui-studiia-artemiia-lebedeva/xuistudio](https://source-craft-pulse.vercel.app/a/5821fb04-2bbd-489d-b626-3cb85c8a4c32) | Python | 0 | 4/6 | [md](xui-studiia-artemiia-lebedeva__xuistudio.md)  |
+| 380 | [viribus-team/ff-app](https://source-craft-pulse.vercel.app/a/031c6b82-4bd2-4f57-8ea9-348d5b565194) | — | 0 | 4/6 | [md](viribus-team__ff-app.md)  |
+
+## Материалы без места в рейтинге
+
+| # | Репозиторий | Язык | Балл | Покрытие | Отчёт |
+|---:|---|---|---:|---:|---|
+| 1 | [erik-lite/losty](https://source-craft-pulse.vercel.app/a/28304011-3a1b-4e30-9011-24bb8ba09173) | TypeScript | — | 1/6 | [md](erik-lite__losty.md)  |
+| 2 | [phys-dev/phys-dev-book](https://source-craft-pulse.vercel.app/a/5f57ae4a-683f-42da-b62b-e119682e213d) | HTML | — | 4/6 | [md](phys-dev__phys-dev-book.md)  |
+| 3 | [paul-muraviev/awesome-go](https://source-craft-pulse.vercel.app/a/a0f090f4-971f-495b-a9c5-ec2b13cedbb6) | — | — | 4/6 | [md](paul-muraviev__awesome-go.md)  |
+| 4 | [sourcecraft/documentation](https://source-craft-pulse.vercel.app/a/e7395d67-be65-4860-b62c-45e01e1c486a) | CSS | — | 5/6 | [md](sourcecraft__documentation.md)  |
+| 5 | [compiler-potion-faculty/the-way-to-jai](https://source-craft-pulse.vercel.app/a/b6a48c6b-73d9-4731-b79d-6e2947f3152f) | Roff | — | 4/6 | [md](compiler-potion-faculty__the-way-to-jai.md)  |
+| 6 | [robert-aksenov/cli-for-sourcecraft](https://source-craft-pulse.vercel.app/a/a063ebdb-b9a6-45f7-80e7-c89a5d90ca3c) | — | — | 4/6 | [md](robert-aksenov__cli-for-sourcecraft.md)  |
+| 7 | [hipsterkid/gists](https://source-craft-pulse.vercel.app/a/275810f4-314e-4b65-8196-9d008fd9c882) | Ruby | — | 4/6 | [md](hipsterkid__gists.md)  |
+| 8 | [sashamelentyev/dotfiles](https://source-craft-pulse.vercel.app/a/a69dbae3-c41b-4b2d-ad94-e4e16e929350) | — | — | 4/6 | [md](sashamelentyev__dotfiles.md)  |
+| 9 | [mikhail-bondarevsky/test-it-demo](https://source-craft-pulse.vercel.app/a/b35399aa-7a04-418f-aa30-a854c80dda47) | Python | — | 4/6 | [md](mikhail-bondarevsky__test-it-demo.md)  |
+| 10 | [yc-social-centre/med-robot-max](https://source-craft-pulse.vercel.app/a/68280be3-f2e4-4238-9759-37b8671c8d39) | — | — | 4/6 | [md](yc-social-centre__med-robot-max.md)  |
+| 11 | [smallslowtank-sourcecraft/oh-my-zsh-on-yandex-cloud-shell](https://source-craft-pulse.vercel.app/a/0fb8ccc1-7f8a-414c-adbf-242da0876409) | — | — | 4/6 | [md](smallslowtank-sourcecraft__oh-my-zsh-on-yandex-cloud-shell.md)  |
+| 12 | [p2p-decentralized-emulation/mangos](https://source-craft-pulse.vercel.app/a/69236e4b-16d0-4691-a170-9e118de15cd9) | JavaScript | — | 5/6 | [md](p2p-decentralized-emulation__mangos.md)  |
+| 13 | [oleg-philon/awesome-pods](https://source-craft-pulse.vercel.app/a/13773526-3dd7-4e81-9699-89f12483babd) | HTML | — | 4/6 | [md](oleg-philon__awesome-pods.md)  |
+| 14 | [mikhail-bondarevsky/lockbox-demo](https://source-craft-pulse.vercel.app/a/f2307f21-426e-49db-b319-d8a25fac878f) | — | — | 4/6 | [md](mikhail-bondarevsky__lockbox-demo.md)  |
+| 15 | [mrmkoreshok/yandexlyceum](https://source-craft-pulse.vercel.app/a/48fcdeb2-f852-426d-a4d7-4bee6fc4ae62) | Python | — | 4/6 | [md](mrmkoreshok__yandexlyceum.md)  |
+| 16 | [vova-so/robot](https://source-craft-pulse.vercel.app/a/bb714342-95c0-4ea8-aeb1-f56fa73cfc66) | Python | — | 4/6 | [md](vova-so__robot.md)  |
+| 17 | [br0020/prostye-primery-1c](https://source-craft-pulse.vercel.app/a/40eece9c-95ba-4eba-98f0-bdf36aad8b0c) | 1C Enterprise | — | 4/6 | [md](br0020__prostye-primery-1c.md)  |
+| 18 | [knzsoft/python-task-collection](https://source-craft-pulse.vercel.app/a/5bae3ee5-e466-4d40-9aba-e91080cc55b7) | Python | — | 4/6 | [md](knzsoft__python-task-collection.md)  |
+| 19 | [software-development-tools/lectures](https://source-craft-pulse.vercel.app/a/92737042-a608-4a20-bc7e-4f0ef3685f79) | — | — | 4/6 | [md](software-development-tools__lectures.md)  |
+| 20 | [software-development-tools/practice](https://source-craft-pulse.vercel.app/a/2e8e8cc4-d0ea-4b97-a9e4-81180e8c55e0) | — | — | 4/6 | [md](software-development-tools__practice.md)  |
+| 21 | [pavel-elisseeff/plantuml](https://source-craft-pulse.vercel.app/a/f046f50d-bdb0-4484-87c4-c36430b96612) | — | — | 4/6 | [md](pavel-elisseeff__plantuml.md)  |
+| 22 | [alekseichebenyuk/auauauaua](https://source-craft-pulse.vercel.app/a/f76369b5-b2ad-440a-88f1-7789d9d97cf5) | — | — | 4/6 | [md](alekseichebenyuk__auauauaua.md)  |
+| 23 | [shibanov-lexa2013/test](https://source-craft-pulse.vercel.app/a/69d93100-8ab8-4676-94bc-b1c8ddf06d51) | TypeScript | — | 4/6 | [md](shibanov-lexa2013__test.md)  |
+| 24 | [alexander-globa/templates](https://source-craft-pulse.vercel.app/a/76e7e24e-98e3-4482-832f-2f38fa68eaf8) | Shell | — | 4/6 | [md](alexander-globa__templates.md)  |
+| 25 | [231313131/1234500](https://source-craft-pulse.vercel.app/a/258df9c3-d57b-48d9-8e16-4055ac88a260) | — | — | 4/6 | [md](231313131__1234500.md)  |
+| 26 | [231313131/12345](https://source-craft-pulse.vercel.app/a/8a9177b3-8414-4ab1-9ff0-cac55fa472f1) | — | — | 5/6 | [md](231313131__12345.md)  |
+| 27 | [oleglilitko/mg-static](https://source-craft-pulse.vercel.app/a/9dccaa71-9c20-44e9-a02a-2b281f5f7b01) | HTML | — | 4/6 | [md](oleglilitko__mg-static.md)  |
+| 28 | [childermas/tfom](https://source-craft-pulse.vercel.app/a/4d073c5a-f089-4380-9cb8-de40545e9219) | — | — | 5/6 | [md](childermas__tfom.md)  |
+| 29 | [infator/infator](https://source-craft-pulse.vercel.app/a/84817107-a61b-42b7-89e5-252c69022371) | HTML | — | 4/6 | [md](infator__infator.md)  |
+| 30 | [alexander-globa/manuals](https://source-craft-pulse.vercel.app/a/7ba470fe-e3ff-4c8b-ade5-4410eb584b28) | Shell | — | 4/6 | [md](alexander-globa__manuals.md)  |
+| 31 | [k-antonets/python2025](https://source-craft-pulse.vercel.app/a/02b1486c-65ea-4c8a-83d5-25735aa1c6bf) | Jupyter Notebook | — | 4/6 | [md](k-antonets__python2025.md)  |
+| 32 | [rioncool222/scripttextareaheadimg-srcx-onerrorpromptdocument-domain121121](https://source-craft-pulse.vercel.app/a/16b5edbd-16b5-452b-83e9-1d62f794f586) | HTML | — | 5/6 | [md](rioncool222__scripttextareaheadimg-srcx-onerrorpromptdocument-domain121121.md)  |
+| 33 | [stapler/repo-for-tests](https://source-craft-pulse.vercel.app/a/4f3c1b42-be94-46f6-91e5-17b65f98a09d) | Shell | — | 4/6 | [md](stapler__repo-for-tests.md)  |
+| 34 | [appolimp/hello](https://source-craft-pulse.vercel.app/a/07689960-e4bf-422f-ba73-8366bcd13f2c) | — | — | 4/6 | [md](appolimp__hello.md)  |
+| 35 | [aleksey-troynikov/empty-123](https://source-craft-pulse.vercel.app/a/b83c590f-c9f3-4ddd-adbb-690a90d07ea5) | — | — | 4/6 | [md](aleksey-troynikov__empty-123.md)  |
+| 36 | [itschandra/cahand](https://source-craft-pulse.vercel.app/a/94dabd20-ce4e-46a2-9347-7d693d7f5461) | — | — | 5/6 | [md](itschandra__cahand.md)  |
+| 37 | [ivan19vanov/3d-sistema-koordinat](https://source-craft-pulse.vercel.app/a/33b39a34-ab0b-43dc-a7b9-05a4c7f96b69) | HTML | — | 4/6 | [md](ivan19vanov__3d-sistema-koordinat.md)  |
+| 38 | [organization-pauc/storage-sim](https://source-craft-pulse.vercel.app/a/d26682a3-3cfd-4cc7-8166-4644eb404863) | HTML | — | 4/6 | [md](organization-pauc__storage-sim.md)  |
+| 39 | [datalens/docs](https://source-craft-pulse.vercel.app/a/8216400d-d19b-4059-a3c4-7b3dba31146d) | JavaScript | — | 4/6 | [md](datalens__docs.md)  |
+| 40 | [vladleonff/quantum-cloning-machine](https://source-craft-pulse.vercel.app/a/3ea02400-7a3b-469e-bfd6-438c3648cacb) | HTML | — | 4/6 | [md](vladleonff__quantum-cloning-machine.md)  |
+| 41 | [kondrashovag1/gearcnc-portal](https://source-craft-pulse.vercel.app/a/d2c2be8e-e3af-4ecb-9509-f25457c96691) | JavaScript | — | 4/6 | [md](kondrashovag1__gearcnc-portal.md)  |
+| 42 | [vladleonff/menger](https://source-craft-pulse.vercel.app/a/ab7560dd-da85-4e36-ae48-7fb9ee1fbfcd) | HTML | — | 4/6 | [md](vladleonff__menger.md)  |
+| 43 | [yellowbank/repo1](https://source-craft-pulse.vercel.app/a/329dcc27-bc35-4894-958e-dcfc641f63b7) | — | — | 5/6 | [md](yellowbank__repo1.md)  |
+| 44 | [ivanetsas/temp](https://source-craft-pulse.vercel.app/a/c393f75c-885a-44b5-b513-faa3efa4cab6) | Java | — | 5/6 | [md](ivanetsas__temp.md)  |
+| 45 | [231313131/mr-qipparu](https://source-craft-pulse.vercel.app/a/e38f8c99-9383-4d34-9be2-be802b88b36b) | Python | — | 5/6 | [md](231313131__mr-qipparu.md)  |
+| 46 | [gowalisin/kis](https://source-craft-pulse.vercel.app/a/8af4b2c3-b3f0-4588-9a9f-004d8867c8be) | — | — | 4/6 | [md](gowalisin__kis.md)  |
+| 47 | [a-v-belyakov82/golang-structures-and-algorithms](https://source-craft-pulse.vercel.app/a/6c46718e-f99a-45c6-9fae-57837962c933) | Go | — | 4/6 | [md](a-v-belyakov82__golang-structures-and-algorithms.md)  |
+| 48 | [muztoxa/ru-services](https://source-craft-pulse.vercel.app/a/df0136bf-122e-48e3-bea2-14c6fa9dc0aa) | — | — | 4/6 | [md](muztoxa__ru-services.md)  |
+| 49 | [dev-sourcecraft/12345](https://source-craft-pulse.vercel.app/a/0d5bce54-417d-4bf2-b7c9-eccd6a0013b7) | — | — | 5/6 | [md](dev-sourcecraft__12345.md)  |
+| 50 | [paul-muraviev/awesome-cpp](https://source-craft-pulse.vercel.app/a/d1e4b7f5-7c64-4fed-8361-3931c3c33faf) | — | — | 4/6 | [md](paul-muraviev__awesome-cpp.md)  |
+| 51 | [nikita696/ai-news-site](https://source-craft-pulse.vercel.app/a/dcd24acb-5c26-4828-84e3-1926c5c92789) | — | — | 4/6 | [md](nikita696__ai-news-site.md)  |
+| 52 | [tbd-ai-product-hack/ai-skill-forge](https://source-craft-pulse.vercel.app/a/7194f3f3-8f46-4c5b-90dc-d7072322e474) | Go | — | 4/6 | [md](tbd-ai-product-hack__ai-skill-forge.md)  |
+| 53 | [gradosphera/docs](https://source-craft-pulse.vercel.app/a/fbdf1873-c17a-4176-b1bc-b559abef0c7d) | TypeScript | — | 4/6 | [md](gradosphera__docs.md)  |
+| 54 | [tima-data-lakehouse-lct/backend](https://source-craft-pulse.vercel.app/a/990919b0-5fa0-41a8-8044-6afbbaedb20b) | Python | — | 4/6 | [md](tima-data-lakehouse-lct__backend.md)  |
+| 55 | [nik1tagerasimyuk/mpn-website](https://source-craft-pulse.vercel.app/a/265ebbed-be38-4146-84b0-54034f93ec3d) | Python | — | 4/6 | [md](nik1tagerasimyuk__mpn-website.md)  |
+| 56 | [mindset2-hakaton/lidar-clouds](https://source-craft-pulse.vercel.app/a/b7052510-f792-4387-ba10-2f1d5f7b240e) | Python | — | 4/6 | [md](mindset2-hakaton__lidar-clouds.md)  |
+| 57 | [dashalukianova17/testtest](https://source-craft-pulse.vercel.app/a/f91e58c7-1327-4de5-ba11-adc7f6493eb3) | Java | — | 4/6 | [md](dashalukianova17__testtest.md)  |
+| 58 | [enablingteam/insights](https://source-craft-pulse.vercel.app/a/d7589831-ca78-411f-b368-0255f57e0d46) | — | — | 4/6 | [md](enablingteam__insights.md)  |
+| 59 | [gradosphera/brand-assets](https://source-craft-pulse.vercel.app/a/b4c564d9-6aee-49f9-9622-f44043128751) | — | — | 4/6 | [md](gradosphera__brand-assets.md)  |
+| 60 | [fompronin/heh](https://source-craft-pulse.vercel.app/a/e70ef63f-d117-4a97-ae01-3102a38b5a05) | — | — | 5/6 | [md](fompronin__heh.md)  |
+| 61 | [matveydurden/projecct](https://source-craft-pulse.vercel.app/a/ff028860-f5af-4474-8c0a-6248cd69a39a) | — | — | 4/6 | [md](matveydurden__projecct.md)  |
+| 62 | [mikhail-bondarevsky/s3-static-site](https://source-craft-pulse.vercel.app/a/212be568-4e34-4289-ba2c-68db3d73fd65) | CSS | — | 4/6 | [md](mikhail-bondarevsky__s3-static-site.md)  |
+| 63 | [yy-1/payloadsallthethings](https://source-craft-pulse.vercel.app/a/f1aa493b-79a6-46a7-a241-ab9325e7b336) | Python | — | 4/6 | [md](yy-1__payloadsallthethings.md)  |
+| 64 | [kelmik91/helps-links](https://source-craft-pulse.vercel.app/a/dbca0ce8-5001-4413-a9f1-82283b10a2da) | — | — | 4/6 | [md](kelmik91__helps-links.md)  |
+| 65 | [notacompany/notacompany-org](https://source-craft-pulse.vercel.app/a/2d91a6b1-33c9-4e86-9de5-1788b1988a0e) | HTML | — | 4/6 | [md](notacompany__notacompany-org.md)  |
+| 66 | [dimflix-official/newsguard](https://source-craft-pulse.vercel.app/a/cc132ed7-2dad-4ff5-a0cd-36788436cac6) | Jupyter Notebook | — | 4/6 | [md](dimflix-official__newsguard.md)  |
+| 67 | [examples/code-navigation](https://source-craft-pulse.vercel.app/a/8faa28ca-2c81-4f1c-acc6-ad6befaa0073) | Java | — | 5/6 | [md](examples__code-navigation.md)  |
+| 68 | [block-element-modifier/bem-identity](https://source-craft-pulse.vercel.app/a/724eb60f-9e0b-47f2-97c2-ad9f48e4af79) | — | — | 5/6 | [md](block-element-modifier__bem-identity.md)  |
+| 69 | [raph/its-wednesday-my-dudes](https://source-craft-pulse.vercel.app/a/a88bb512-f78a-4e15-b86f-1c78c9018a7a) | — | — | 4/6 | [md](raph__its-wednesday-my-dudes.md)  |
+| 70 | [sourcecraft/sourcecraft](https://source-craft-pulse.vercel.app/a/4244b32d-add6-4b55-b806-851fa077e690) | — | — | 5/6 | [md](sourcecraft__sourcecraft.md)  |
+| 71 | [block-element-modifier/bem-method](https://source-craft-pulse.vercel.app/a/604bda6f-cd81-4b02-937d-87f16d04d793) | CSS | — | 5/6 | [md](block-element-modifier__bem-method.md)  |
