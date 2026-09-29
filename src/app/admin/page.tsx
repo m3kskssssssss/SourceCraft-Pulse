@@ -47,6 +47,8 @@ export default async function AdminOverview() {
           оглавление README.md. PDF собирается дольше, поэтому разбит на части по {PDF_PART}.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
+          {/* Скачивание файла, а не переход по страницам — нужен обычный <a>. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a
             href="/api/admin/reports-export?format=md"
             className="rounded-full bg-[color:var(--ink)] px-4 py-2 text-sm font-medium text-[color:var(--paper)]"
@@ -54,6 +56,7 @@ export default async function AdminOverview() {
             Все отчёты · Markdown
           </a>
           {Array.from({ length: pdfParts }, (_, i) => (
+            // eslint-disable-next-line @next/next/no-html-link-for-pages
             <a
               key={i}
               href={`/api/admin/reports-export?format=pdf&part=${i + 1}`}
