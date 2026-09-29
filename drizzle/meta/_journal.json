@@ -92,6 +92,13 @@
       "when": 1790550000000,
       "tag": "0012_catalog_repositories",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790679362961,
+      "tag": "0013_commit_checks",
+      "breakpoints": true
     }
   ]
 }

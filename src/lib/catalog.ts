@@ -213,16 +213,21 @@ export async function nextCatalogCandidates(
     .limit(limit);
 }
 
-/** Через сколько дней публичная оценка считается устаревшей (ТЗ, раздел 6). */
+/**
+ * Через сколько дней публичная оценка считается устаревшей без изменений в
+ * репозитории. По умолчанию 0 — выключено: неизменный репозиторий больше не
+ * пересчитывается по возрасту, его дважды в сутки сверяет проверка коммитов
+ * (lib/commit-check.ts) и оставляет оценку как есть.
+ */
 export function publicRefreshDays(): number {
   const raw = Number.parseInt(process.env.PUBLIC_REFRESH_DAYS ?? '', 10);
-  return Number.isFinite(raw) && raw > 0 ? raw : 7;
+  return Number.isFinite(raw) && raw > 0 ? raw : 0;
 }
 
 /**
  * Опубликованные оценки, которые пора пересчитать: репозиторий изменился
- * после анализа (по last_updated из каталога) или оценке больше
- * PUBLIC_REFRESH_DAYS дней. Изменившиеся — первыми, потом самые старые.
+ * после анализа (по last_updated из каталога) или — если задан
+ * PUBLIC_REFRESH_DAYS — оценке больше стольких дней. Изменившиеся — первыми.
  *
  * Не берём репозиторий, если по нему уже идёт прогон или прогон заводили за
  * последние сутки: упавший пересчёт не должен повторяться каждую минуту, а
@@ -243,7 +248,7 @@ export async function nextRefreshCandidates(
       and (a.metrics -> 'rating' ->> 'excluded') is null
       and a.finished_at < now() - interval '1 day'
       and (
-        a.finished_at < now() - make_interval(days => ${days}::int)
+        (${days}::int > 0 and a.finished_at < now() - make_interval(days => ${days}::int))
         or c.last_updated_at > a.finished_at
       )
       and not exists (
@@ -354,7 +359,7 @@ const catalogJobSql = sql`exists (
  * брошенный, как и в lib/analysis/run.
  */
 const busyJobSql = sql`(
-  j.locked_at > now() - interval '6 minutes'
+  coalesce(j.locked_at > now() - interval '6 minutes', false)
   or (j.locked_at is null and j.created_at > now() - interval '2 minutes')
 )`;
 

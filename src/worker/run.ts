@@ -25,7 +25,8 @@
 //                          (по умолчанию 0: каждая оценка — клон и вызовы модели).
 //   PUBLIC_REFRESH_BATCH — сколько устаревших публичных оценок ставить на пересчёт, когда очередь
 //                          пуста (по умолчанию 2, 0 — не пересчитывать);
-//   PUBLIC_REFRESH_DAYS  — через сколько дней публичная оценка устаревает (по умолчанию 7).
+//   PUBLIC_REFRESH_DAYS  — через сколько дней публичная оценка устаревает (по умолчанию 0 — никогда);
+//   COMMIT_CHECK_SECONDS — сколько секунд отдавать проверке новых коммитов (по умолчанию 120, 0 — не проверять).
 
 import 'dotenv/config';
 import { hostname } from 'node:os';
@@ -34,6 +35,7 @@ import { MAX_ATTEMPTS, processAnalysis, type ClaimedJob, type ProcessOutcome } f
 import { enqueueDailyRefresh } from '../lib/ownership';
 import { syncDueTokens } from '../lib/token-sync';
 import { catalogSyncDue, enqueueCatalogAnalyses, enqueuePublicRefresh, pendingJobs, syncCatalog } from '../lib/catalog';
+import { runCommitCheck } from '../lib/commit-check';
 
 const DEFAULT_BATCH_SIZE = 6;
 const DEFAULT_CONCURRENCY = 3;
@@ -105,8 +107,29 @@ async function main(): Promise<void> {
       console.warn(`[worker ${workerId}] Обход каталога не прошёл: ${describe(err)}`);
     }
   }
+  // Проверка новых коммитов (00:00 и 12:00 МСК): сверяет только то, что ещё
+  // не сверено в текущем окне, так что в остальное время почти ничего не
+  // стоит. Переоценки встают в общую очередь и считаются ниже.
+  const commitCheckSeconds = envIntAllowZero('COMMIT_CHECK_SECONDS', 120);
+  if (commitCheckSeconds > 0) {
+    try {
+      const check = await runCommitCheck(db, {
+        deadline: Math.min(deadline, Date.now() + commitCheckSeconds * 1000),
+        trigger: 'schedule',
+      });
+      if (check.checked > 0) {
+        console.log(
+          `[worker ${workerId}] Проверка коммитов: ${check.checked} репозиториев, без изменений ${check.unchanged}, ` +
+            `на переоценку ${check.changed}, ошибок ${check.errors}, осталось ${check.remaining}.`,
+        );
+      }
+    } catch (err) {
+      console.warn(`[worker ${workerId}] Проверка коммитов не прошла: ${describe(err)}`);
+    }
+  }
+
   // Плановый пересчёт публичного рейтинга: изменившиеся после анализа
-  // репозитории и оценки старше PUBLIC_REFRESH_DAYS. Небольшими пачками и
+  // репозитории и (если задано) оценки старше PUBLIC_REFRESH_DAYS. Небольшими пачками и
   // только при пустой очереди, чтобы не отнимать слоты у живых запросов.
   const refreshBatch = envIntAllowZero('PUBLIC_REFRESH_BATCH', 2);
   if (refreshBatch > 0) {

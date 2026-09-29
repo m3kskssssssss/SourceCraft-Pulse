@@ -10,8 +10,12 @@ import { Planet } from './components/Planet';
 import { LeaderboardRows, Podium } from './components/Leaderboard';
 import { ArticlesStrip } from './components/learn/ArticlesStrip';
 import { ReposPromo } from './components/ReposPromo';
+import { ScoreRefreshInfo } from './components/ScoreRefreshInfo';
 import { EmptyState } from './components/ui';
 import { getLeaderboard } from '@/lib/ranking';
+import { db } from '@/db/client';
+import { getCommitCheckBrief, type CommitCheckBrief } from '@/lib/commit-check';
+import { nextSlotStart } from '@/lib/commit-slots';
 import { listArticles } from '@/lib/learn';
 import { CATEGORY_ACCENT_CLASS, CATEGORY_ORDER, CATEGORY_TITLES } from '@/lib/category-meta';
 
@@ -36,7 +40,18 @@ export default async function HomePage({
   }
   if (['sort', 'q', 'lang', 'page'].some((k) => legacy.has(k))) redirect(`/rating?${legacy.toString()}`);
 
-  const { items, total } = await getLeaderboard({ sort: 'score', limit: PREVIEW_SIZE });
+  const [{ items, total }, brief] = await Promise.all([
+    getLeaderboard({ sort: 'score', limit: PREVIEW_SIZE }),
+    // Сводка проверок — украшение: без базы главная всё равно открывается.
+    getCommitCheckBrief(db).catch(
+      (): CommitCheckBrief => ({
+        lastRunAt: null,
+        nextSlot: nextSlotStart().toISOString(),
+        unchanged: 0,
+        changed: 0,
+      }),
+    ),
+  ]);
   const podium = items.length >= 3 ? items.slice(0, 3) : [];
   const rows = podium.length > 0 ? items.slice(3) : items;
 
@@ -152,6 +167,13 @@ export default async function HomePage({
             )}
           </>
         )}
+      </section>
+
+      <div className="hairline h-px" />
+
+      {/* Как обновляются оценки: проверка коммитов в 00:00 и 12:00 МСК. */}
+      <section className="py-12 sm:py-16">
+        <ScoreRefreshInfo brief={brief} />
       </section>
 
       <div className="hairline h-px" />
