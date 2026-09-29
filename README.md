@@ -11,7 +11,7 @@ Pulse — веб-сервис, который анализирует откры�
 |---|---|
 | Демонстрационный стенд | <https://source-craft-pulse.vercel.app> |
 | Исходный код | <https://sourcecraft.dev/lct-hackaton-2026/case-18-repo-health-score-team-59> |
-| Презентация (PPTX, с анимированным демо) | <https://disk.yandex.ru/i/v_2sGaoYu4MV3Q> |
+| Презентация (PPTX с анимированным демо и PDF) | <https://disk.yandex.ru/d/QHgVruFsjCUMHw> |
 | Отчёты по всем репозиториям рейтинга | [docs/reports/](docs/reports/README.md) |
 | Кейс | ЛЦТ 2026, кейс 18 «Сервис оценки здоровья открытых репозиториев SourceCraft» |
 
