@@ -34,6 +34,7 @@ import { getWorkerDb, getWorkerPool, shutdownWorkerDb } from '../db/worker-clien
 import { MAX_ATTEMPTS, processAnalysis, type ClaimedJob, type ProcessOutcome } from '../lib/analysis/run';
 import { enqueueDailyRefresh } from '../lib/ownership';
 import { syncDueTokens } from '../lib/token-sync';
+import { backfillEmptyCommits, backfillReviews } from '../lib/backfill';
 import { catalogSyncDue, enqueueCatalogAnalyses, enqueuePublicRefresh, pendingJobs, syncCatalog } from '../lib/catalog';
 import { isCommitCheckEnabled, runCommitCheck } from '../lib/commit-check';
 
@@ -141,6 +142,23 @@ async function main(): Promise<void> {
     } catch (err) {
       console.warn(`[worker ${workerId}] Плановый пересчёт не встал: ${describe(err)}`);
     }
+  }
+
+  // Догрузка ревью и пустых коммитов в старые оценки (lib/backfill.ts): без
+  // ИИ, до двух минут за запуск и только при пустой очереди.
+  try {
+    if ((await pendingJobs(db)) === 0) {
+      const until = Math.min(deadline, Date.now() + 120_000);
+      const [reviews, empty] = await Promise.all([
+        backfillReviews(db, { deadline: until }),
+        backfillEmptyCommits(db, { deadline: until }),
+      ]);
+      if (reviews.filled + empty.filled > 0) {
+        console.log(`[worker ${workerId}] Догрузка аналитики: ревью ${reviews.filled}, пустые коммиты ${empty.filled}.`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[worker ${workerId}] Догрузка аналитики не прошла: ${describe(err)}`);
   }
 
   const autoAnalyze = envIntAllowZero('CATALOG_AUTO_ANALYZE', 0);

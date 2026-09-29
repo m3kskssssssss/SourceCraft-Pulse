@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { adminCommitCheckToggleAction, requireAdmin } from '@/app/actions/admin';
 import { AutoRefresh } from '@/app/components/AutoRefresh';
+import { BackfillButton } from '@/app/components/BackfillButton';
 import { CommitCheckButton } from '@/app/components/CommitCheckButton';
 import { Chip, EmptyState, Stat } from '@/app/components/ui';
 import { db } from '@/db/client';
+import { pendingBackfill } from '@/lib/backfill';
 import { getCommitCheckSummary, getRecentChecks, type RecentCheckRow } from '@/lib/commit-check';
 import { APP_TIME_ZONE } from '@/lib/time';
 
@@ -19,7 +21,11 @@ function when(iso: string): string {
 
 export default async function AdminCommits() {
   await requireAdmin();
-  const [s, recent] = await Promise.all([getCommitCheckSummary(db), getRecentChecks(db, 50)]);
+  const [s, recent, backfillPending] = await Promise.all([
+    getCommitCheckSummary(db),
+    getRecentChecks(db, 50),
+    pendingBackfill(db),
+  ]);
 
   return (
     <section>
@@ -60,6 +66,8 @@ export default async function AdminCommits() {
             </button>
           </form>
           <CommitCheckButton disabled={s.evaluated === 0} />
+          {/* Ревью PR и пустые коммиты в оценках, посчитанных до их появления. */}
+          <BackfillButton pending={backfillPending} />
         </div>
       </div>
 
