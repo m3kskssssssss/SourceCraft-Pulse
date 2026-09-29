@@ -89,7 +89,7 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
         </div>
         {catalog && (
           <p className="rise mt-3 max-w-2xl text-sm text-[color:var(--muted)]" style={{ animationDelay: '90ms' }}>
-            Оценено <span className="tabular-nums text-[color:var(--ink-2)]">{catalog.analyzed.toLocaleString('ru-RU')}</span>{' '}
+            В рейтинге <span className="tabular-nums text-[color:var(--ink-2)]">{overview.total.toLocaleString('ru-RU')}</span>{' '}
             из <span className="tabular-nums text-[color:var(--ink-2)]">{catalog.eligible.toLocaleString('ru-RU')}</span>{' '}
             публичных проектов каталога SourceCraft.{' '}
             <Link href="/methodology" className="underline">

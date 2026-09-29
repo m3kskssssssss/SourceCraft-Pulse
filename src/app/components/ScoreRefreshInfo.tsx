@@ -55,7 +55,6 @@ export function ScoreRefreshInfo({ brief }: { brief: CommitCheckBrief }) {
     hour: '2-digit',
     minute: '2-digit',
   });
-  const touched = brief.unchanged + brief.changed;
 
   return (
     <div className="grid items-center gap-8 overflow-hidden rounded-3xl border border-[color:var(--line)] bg-[color:var(--paper-2)] p-5 sm:p-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] md:gap-10 md:p-10">
@@ -85,15 +84,6 @@ export function ScoreRefreshInfo({ brief }: { brief: CommitCheckBrief }) {
             <dt className="sr-only">Следующая проверка</dt>
             <dd>{brief.enabled ? `Следующая проверка: ${next} МСК.` : 'Плановая проверка приостановлена.'}</dd>
           </div>
-          {touched > 0 && (
-            <div className="pl-4">
-              <dt className="sr-only">Текущий цикл</dt>
-              <dd>
-                Текущий цикл: без изменений — {brief.unchanged.toLocaleString('ru-RU')}, направлено на
-                повторную оценку — {brief.changed.toLocaleString('ru-RU')}.
-              </dd>
-            </div>
-          )}
         </dl>
       </div>
 
