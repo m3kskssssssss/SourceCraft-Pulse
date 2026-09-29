@@ -28,7 +28,7 @@ export const OWNER_ROLES: readonly RepoRole[] = ['admin', 'maintainer'];
 
 /** Сколько репозиториев на организацию и всего проверяем за раз. */
 const REPOS_PER_ORG = 100;
-const MAX_CHECKED = 60;
+const MAX_CHECKED = 120;
 /** Сколько репозиториев берём из /me/repos. */
 const MY_REPOS_LIMIT = 300;
 const MAX_EXTRA_ORGS = 5;
@@ -163,14 +163,40 @@ export async function scanTokenRepositories(
 
   // Приватные тоже проверяем: их оценка — личная, правами токена владельца,
   // и в публичный рейтинг она не попадает.
+  //
+  // Порядок проверки: сначала личное пространство, потом названные
+  // организации, потом остальное из /me/repos. Иначе своё не доходило до
+  // проверки: /me/repos первым отдаёт десятки чужих репозиториев общей
+  // организации (например, хакатона), и лимит кончался на них.
   const repos = [...unique.values()];
-  const toCheck = repos.slice(0, MAX_CHECKED);
+  const personal = user.username?.toLowerCase() ?? null;
+  const named = new Set(extraOrgs.map((o) => o.toLowerCase()));
+  const rank = (r: TokenRepo): number => {
+    const org = r.org.toLowerCase();
+    if (org === personal) return 0;
+    if (named.has(org)) return 1;
+    return 2;
+  };
+  const ordered = [...repos].sort((a, b) => rank(a) - rank(b));
+  const toCheck = ordered.slice(0, MAX_CHECKED);
+  for (const r of ordered.slice(MAX_CHECKED)) {
+    r.note = `роль не проверяли: за раз проверяем ${MAX_CHECKED} репозиториев`;
+  }
   if (repos.length > MAX_CHECKED) {
-    notes.push(`Роли проверены у первых ${MAX_CHECKED} репозиториев из ${repos.length}.`);
+    notes.push(`Роли проверены у ${MAX_CHECKED} репозиториев из ${repos.length}: сначала личное пространство и названные организации.`);
   }
   await Promise.all(
     toCheck.map(async (r) => {
       const { role, note } = await checkRepoRole(client, user.id, r.org, r.repo);
+      // Личное пространство принадлежит владельцу токена целиком: его права
+      // заданы на уровне пространства, и в ролях самого репозитория его
+      // может не быть. Пространство — то, чей slug совпал с username из
+      // GET /user этого же токена.
+      if (!role && personal && r.org.toLowerCase() === personal && !note?.startsWith('роли не получены')) {
+        r.role = 'admin';
+        r.note = null;
+        return;
+      }
       r.role = role;
       r.note = note;
     }),
