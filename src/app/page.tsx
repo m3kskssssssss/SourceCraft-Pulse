@@ -45,6 +45,7 @@ export default async function HomePage({
     // Сводка проверок — украшение: без базы главная всё равно открывается.
     getCommitCheckBrief(db).catch(
       (): CommitCheckBrief => ({
+        enabled: true,
         lastRunAt: null,
         nextSlot: nextSlotStart().toISOString(),
         unchanged: 0,

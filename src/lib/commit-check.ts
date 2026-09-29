@@ -43,6 +43,21 @@ const MAX_ATTEMPTS = 3;
 
 const LAST_RUN_KEY = 'commits.lastRun';
 const FORCE_SINCE_KEY = 'commits.forceSince';
+const ENABLED_KEY = 'commits.enabled';
+
+/**
+ * Включена ли плановая проверка (тумблер во вкладке админки «Коммиты»).
+ * По умолчанию — да. Выключенная не трогает расписание и не запускает
+ * переоценки; кнопка «Проверить сейчас» работает и тогда.
+ */
+export async function isCommitCheckEnabled(db: Db): Promise<boolean> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, ENABLED_KEY) });
+  return row?.value !== false;
+}
+
+export async function setCommitCheckEnabled(db: Db, enabled: boolean): Promise<void> {
+  await saveSetting(db, ENABLED_KEY, enabled);
+}
 
 // ---------- Верхушка ветки ----------
 
@@ -383,6 +398,7 @@ export type LastCheckRun = CheckRunResult & {
 };
 
 export type CommitCheckSummary = {
+  enabled: boolean;
   lastRun: LastCheckRun | null;
   slotStart: string;
   nextSlot: string;
@@ -399,7 +415,8 @@ export type CommitCheckSummary = {
 export async function getCommitCheckSummary(db: Db): Promise<CommitCheckSummary> {
   const now = new Date();
   const since = await effectiveSince(db, now);
-  const [lastRow, counts, evaluated, pending, due] = await Promise.all([
+  const [enabled, lastRow, counts, evaluated, pending, due] = await Promise.all([
+    isCommitCheckEnabled(db),
     db.query.settings.findFirst({ where: eq(settings.key, LAST_RUN_KEY) }),
     db.execute<{ unchanged: number; changed: number; errors: number }>(sql`
       select
@@ -420,6 +437,7 @@ export async function getCommitCheckSummary(db: Db): Promise<CommitCheckSummary>
   ]);
   const c = counts.rows[0];
   return {
+    enabled,
     lastRun: (lastRow?.value as LastCheckRun | undefined) ?? null,
     slotStart: since.toISOString(),
     nextSlot: nextSlotStart(now).toISOString(),
@@ -431,6 +449,7 @@ export async function getCommitCheckSummary(db: Db): Promise<CommitCheckSummary>
 }
 
 export type CommitCheckBrief = {
+  enabled: boolean;
   lastRunAt: string | null;
   nextSlot: string;
   /** С начала текущего окна. */
@@ -442,7 +461,8 @@ export type CommitCheckBrief = {
 export async function getCommitCheckBrief(db: Db): Promise<CommitCheckBrief> {
   const now = new Date();
   const since = currentSlotStart(now);
-  const [lastRow, counts] = await Promise.all([
+  const [enabled, lastRow, counts] = await Promise.all([
+    isCommitCheckEnabled(db),
     db.query.settings.findFirst({ where: eq(settings.key, LAST_RUN_KEY) }),
     db.execute<{ unchanged: number; changed: number }>(sql`
       select
@@ -453,6 +473,7 @@ export async function getCommitCheckBrief(db: Db): Promise<CommitCheckBrief> {
   ]);
   const last = lastRow?.value as LastCheckRun | undefined;
   return {
+    enabled,
     lastRunAt: last?.at ?? null,
     nextSlot: nextSlotStart(now).toISOString(),
     unchanged: counts.rows[0]?.unchanged ?? 0,

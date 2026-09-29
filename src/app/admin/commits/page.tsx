@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireAdmin } from '@/app/actions/admin';
+import { adminCommitCheckToggleAction, requireAdmin } from '@/app/actions/admin';
 import { AutoRefresh } from '@/app/components/AutoRefresh';
 import { CommitCheckButton } from '@/app/components/CommitCheckButton';
 import { Chip, EmptyState, Stat } from '@/app/components/ui';
@@ -34,8 +34,41 @@ export default async function AdminCommits() {
             остаётся, в истории отметка «без изменений». Есть — репозиторий переоценивается.
           </p>
         </div>
-        <CommitCheckButton disabled={s.evaluated === 0} />
+        <div className="flex flex-wrap items-start gap-3 sm:justify-end">
+          {/* Тумблер плановой проверки: форма шлёт противоположное значение. */}
+          <form action={adminCommitCheckToggleAction}>
+            <input type="hidden" name="enabled" value={s.enabled ? '0' : '1'} />
+            <button
+              type="submit"
+              role="switch"
+              aria-checked={s.enabled}
+              className="flex items-center gap-3 rounded-full border border-[color:var(--line)] py-1.5 pl-4 pr-1.5 text-sm transition active:scale-[0.97] hover:bg-[color:var(--panel)]"
+            >
+              <span>{s.enabled ? 'По расписанию: вкл' : 'По расписанию: выкл'}</span>
+              <span
+                className={`relative h-6 w-11 rounded-full transition ${
+                  s.enabled ? 'bg-[color:var(--ink)]' : 'bg-[color:var(--line-2)]'
+                }`}
+                aria-hidden
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-[color:var(--paper)] shadow transition-all ${
+                    s.enabled ? 'left-[22px]' : 'left-0.5'
+                  }`}
+                />
+              </span>
+            </button>
+          </form>
+          <CommitCheckButton disabled={s.evaluated === 0} />
+        </div>
       </div>
+
+      {!s.enabled && (
+        <p className="mt-4 rounded-2xl border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3 text-sm text-[color:var(--ink-2)]">
+          Плановая проверка выключена: в 00:00 и 12:00 ничего не сверяется и не переоценивается.
+          «Проверить сейчас» по-прежнему работает.
+        </p>
+      )}
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Оценённых репозиториев" value={fmt(s.evaluated)} />

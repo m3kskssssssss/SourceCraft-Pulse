@@ -35,7 +35,7 @@ import { MAX_ATTEMPTS, processAnalysis, type ClaimedJob, type ProcessOutcome } f
 import { enqueueDailyRefresh } from '../lib/ownership';
 import { syncDueTokens } from '../lib/token-sync';
 import { catalogSyncDue, enqueueCatalogAnalyses, enqueuePublicRefresh, pendingJobs, syncCatalog } from '../lib/catalog';
-import { runCommitCheck } from '../lib/commit-check';
+import { isCommitCheckEnabled, runCommitCheck } from '../lib/commit-check';
 
 const DEFAULT_BATCH_SIZE = 6;
 const DEFAULT_CONCURRENCY = 3;
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
   // не сверено в текущем окне, так что в остальное время почти ничего не
   // стоит. Переоценки встают в общую очередь и считаются ниже.
   const commitCheckSeconds = envIntAllowZero('COMMIT_CHECK_SECONDS', 120);
-  if (commitCheckSeconds > 0) {
+  if (commitCheckSeconds > 0 && (await isCommitCheckEnabled(db).catch(() => true))) {
     try {
       const check = await runCommitCheck(db, {
         deadline: Math.min(deadline, Date.now() + commitCheckSeconds * 1000),

@@ -15,7 +15,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { db } from '@/db/client';
 import { ADMIN_COOKIE_NAME, verifyAdminSession } from '@/lib/admin-session';
-import { driveReanalyses, runCommitCheck } from '@/lib/commit-check';
+import { driveReanalyses, isCommitCheckEnabled, runCommitCheck } from '@/lib/commit-check';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,11 +35,17 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const url = new URL(request.url);
+  const force = url.searchParams.get('force') === '1';
+  // Тумблер в админке выключил плановую проверку: планировщик уходит ни с
+  // чем. Ручной запуск из админки (force или его досчёт) идёт всё равно.
+  if (!admin && !(await isCommitCheckEnabled(db))) {
+    return NextResponse.json({ disabled: true });
+  }
   const started = Date.now();
   const check = await runCommitCheck(db, {
     deadline: started + CHECK_WINDOW_MS,
     trigger: admin && !bearer ? 'admin' : 'schedule',
-    force: url.searchParams.get('force') === '1',
+    force,
   });
 
   // Запуск оценки пускается только по CRON_SECRET; без него переоценки ждут

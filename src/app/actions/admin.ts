@@ -30,6 +30,7 @@ import {
 import { rateLimit } from '@/lib/rate-limit';
 import { claimJobForAnalysis, processAnalysis, type ProcessOutcome } from '@/lib/analysis/run';
 import { setCatalogRunning, syncCatalog } from '@/lib/catalog';
+import { setCommitCheckEnabled } from '@/lib/commit-check';
 
 const RATE_LIMIT_ATTEMPTS = 5;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
@@ -574,6 +575,16 @@ export async function adminCatalogStartAction(): Promise<void> {
   await setCatalogRunning(db, true);
   await recordEvent('admin_catalog_start', {});
   revalidatePath('/admin/catalog');
+}
+
+/** Тумблер плановой проверки новых коммитов (вкладка «Коммиты»). */
+export async function adminCommitCheckToggleAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const enabled = formData.get('enabled') === '1';
+  await setCommitCheckEnabled(db, enabled);
+  await recordEvent(enabled ? 'admin_commit_check_on' : 'admin_commit_check_off', {});
+  revalidatePath('/admin/commits');
+  revalidatePath('/');
 }
 
 /** «Стоп»: новые не берутся, начатые оценки доходят до конца. */
