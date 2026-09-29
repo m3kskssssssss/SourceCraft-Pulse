@@ -17,6 +17,8 @@ export type RawCommit = {
   /** ISO-дата автора. */
   authorDate: string;
   subject: string;
+  /** Дерево коммита: по нему узнаём пустые коммиты (дерево как у родителя). */
+  tree?: string;
 };
 
 export async function readCloneCommits(
@@ -34,5 +36,6 @@ export async function readCloneCommits(
     // isomorphic-git отдаёт unix-время автора в секундах.
     authorDate: new Date(entry.commit.author.timestamp * 1000).toISOString(),
     subject: (entry.commit.message.split('\n', 1)[0] ?? '').trim(),
+    tree: entry.commit.tree,
   }));
 }

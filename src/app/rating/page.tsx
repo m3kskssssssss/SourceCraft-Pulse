@@ -79,6 +79,14 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
           Публичные репозитории SourceCraft с опубликованной оценкой. У каждого — балл здоровья,
           разбивка по шести категориям и отзывы людей.
         </p>
+        <div className="rise mt-5" style={{ animationDelay: '75ms' }}>
+          <Link
+            href="/compare"
+            className="inline-flex rounded-full border border-[color:var(--line)] px-4 py-2 text-sm transition hover:bg-[color:var(--panel)]"
+          >
+            Сравнить репозитории
+          </Link>
+        </div>
         {catalog && (
           <p className="rise mt-3 max-w-2xl text-sm text-[color:var(--muted)]" style={{ animationDelay: '90ms' }}>
             Оценено <span className="tabular-nums text-[color:var(--ink-2)]">{catalog.analyzed.toLocaleString('ru-RU')}</span>{' '}

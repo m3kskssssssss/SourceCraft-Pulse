@@ -13,6 +13,8 @@ import { auth } from '@/auth';
 import { toggleVisibilityAction } from '@/app/actions/visibility';
 import { claimRepositoryAction } from '@/app/actions/repos';
 import { AnalysisHistory } from '@/app/components/AnalysisHistory';
+import { ExtraAnalytics } from '@/app/components/ExtraAnalytics';
+import { ensureReviewStats, readExtraAnalytics, type ExtraAnalytics as ExtraAnalyticsData } from '@/lib/extra-analytics';
 import { AnalysisRunner } from '@/app/components/AnalysisRunner';
 import { BadgeMarkdown } from '@/app/components/BadgeMarkdown';
 import { Bar, CardDiv, CategoryMini, Chip, EmptyState, ScoreDial } from '@/app/components/ui';
@@ -258,6 +260,10 @@ export default async function AnalysisPage({ params }: PageProps) {
   )?.kind;
   const kind = analysis.kind ?? kindMeta?.kind ?? 'project';
   const isMaterial = kind === 'material';
+  const extras: ExtraAnalyticsData = {
+    ...readExtraAnalytics(analysis.metrics),
+    reviews: repo ? await ensureReviewStats(db, analysis, repo) : readExtraAnalytics(analysis.metrics).reviews,
+  };
   const kindSummary = typeof kindMeta?.summary === 'string' ? kindMeta.summary : null;
   const kindTopics = Array.isArray(kindMeta?.topics)
     ? kindMeta.topics.filter((t): t is string => typeof t === 'string').slice(0, 6)
@@ -764,6 +770,19 @@ export default async function AnalysisPage({ params }: PageProps) {
           </div>
         </section>
       )}
+
+      {/* Дополнительная аналитика: CODEOWNERS, пустые коммиты, ревью PR. В балл
+          не входит. У старых анализов ревью догружается при первом открытии. */}
+      <section className="mt-12">
+        <SectionHead
+          eyebrow="Аналитика"
+          title="Дополнительная аналитика"
+          hint="Показатели сопровождения проекта. В Repo Health Score не входят."
+        />
+        <div className="mt-6">
+          <ExtraAnalytics extras={extras} />
+        </div>
+      </section>
 
       {/* Путь создания */}
       {gitGraph && gitGraph.commits.length > 1 && (

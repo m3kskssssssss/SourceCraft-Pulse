@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aggregateGitStats, type CommitRecord } from '../stats';
+import { aggregateGitStats, countEmptyCommits, type CommitRecord } from '../stats';
 
 /** Коротко собирает коммит: важны только автор и дата. */
 function commit(sha: string, email: string, date: string): CommitRecord {
@@ -77,5 +77,29 @@ describe('aggregateGitStats', () => {
     );
     expect(s.commitsLast90Days).toBe(1);
     expect(s.lastCommitDate).toBe('2026-09-10T00:00:00.000Z');
+  });
+});
+
+describe('countEmptyCommits', () => {
+  const now = new Date('2026-09-29T12:00:00Z');
+  const at = (days: number) => new Date(now.getTime() - days * 86_400_000).toISOString();
+
+  it('считает коммиты с деревом родителя и пропускает слияния и старые', () => {
+    const commits = [
+      { oid: 'e', parents: ['d'], tree: 't2', authorDate: at(1) }, // пустой
+      { oid: 'd', parents: ['c'], tree: 't2', authorDate: at(2) },
+      { oid: 'c', parents: ['b', 'x'], tree: 't1', authorDate: at(3) }, // слияние
+      { oid: 'b', parents: ['a'], tree: 't1', authorDate: at(200) }, // пустой, но вне окна
+      { oid: 'a', parents: [], tree: 't1', authorDate: at(201) },
+    ];
+    expect(countEmptyCommits(commits, now)).toBe(1);
+  });
+
+  it('не считает пустым коммит на границе клона — родителя не с чем сравнить', () => {
+    expect(countEmptyCommits([{ oid: 'b', parents: ['a'], tree: 't', authorDate: at(1) }], now)).toBe(0);
+  });
+
+  it('null, если деревьев в логе нет', () => {
+    expect(countEmptyCommits([{ oid: 'b', parents: ['a'], authorDate: at(1) }], now)).toBeNull();
   });
 });

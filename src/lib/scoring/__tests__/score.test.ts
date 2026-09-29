@@ -475,3 +475,17 @@ function applyRecommendationsToFacts(
 // Дополнительный статический тест — что типы метрик компилируются.
 const _typecheck: MetricScore | undefined = undefined;
 void _typecheck;
+
+describe('пустые коммиты', () => {
+  it('не поднимают метрику коммитов', () => {
+    const base = makePerfectFacts();
+    const honest = { ...base, gitHistory: { ...base.gitHistory, commitsLast90Days: 10, emptyCommitsLast90Days: 0 } };
+    const padded = { ...base, gitHistory: { ...base.gitHistory, commitsLast90Days: 200, emptyCommitsLast90Days: 190 } };
+    const metric = (f: typeof base) =>
+      scoreRepo(f)
+        .categoryScores.flatMap((c) => c.metrics)
+        .find((m) => m.key === 'activity.commits_90d');
+    expect(metric(padded)?.value).toBe(metric(honest)?.value);
+    expect(metric(padded)?.hint).toContain('190 пустых');
+  });
+});

@@ -41,6 +41,7 @@ import {
   type CodeFacts,
 } from './git/code-facts';
 import { readCloneCommits, type RawCommit } from './git/commits';
+import { collectReviewStats, type ReviewStats } from './reviews';
 import { collectGitGraph, emptyGitGraph, type GitGraph } from './git/graph';
 import {
   getSourcecraftClient,
@@ -141,6 +142,12 @@ export type RepoFacts = {
   ciConfig: CiConfigFacts | null;
   /** CI-прогоны — только с токеном владельца, в балл не входят. */
   ci: CiFacts;
+  /**
+   * Review-комментарии последних pull request (lib/reviews.ts). В балл не
+   * входит. undefined — факты собраны до появления поля: сводку тогда
+   * догружает отчёт при первом открытии.
+   */
+  reviews?: ReviewStats;
   /** Полный текст README.md (если найден в git-клоне). */
   readme: string | null;
   missing: string[];
@@ -149,6 +156,8 @@ export type RepoFacts = {
 // ---------- Пороги/лимиты ----------
 
 const PULLS_SAMPLE_LIMIT = 50;
+/** Сколько даём комментариям PR: они идут параллельно с клоном. */
+const REVIEWS_BUDGET_MS = 60_000;
 const ISSUES_SAMPLE_LIMIT = 50;
 const CONTRIBUTORS_LIMIT = 200;
 const TREE_ITEMS_LIMIT = 5000;
@@ -477,6 +486,12 @@ export async function collectRepoFacts(
 
   trace('api');
 
+  // Комментарии к PR — отдельный запрос на каждый: идут параллельно с клоном,
+  // ждём их в самом конце. Сбой не роняет анализ.
+  const reviewsPromise: Promise<ReviewStats> = collectReviewStats(client, org, repo, pullRequests, {
+    deadline: Date.now() + REVIEWS_BUDGET_MS,
+  }).catch(() => ({ available: false, reason: 'comments_fetch_failed', collectedAt: new Date().toISOString() }));
+
   const flags = computeTreeFlags(treeEntries);
   if (!flags.hasReadme) missing.push('readme_missing');
   if (!flags.hasLicense) missing.push('license_missing');
@@ -681,6 +696,7 @@ export async function collectRepoFacts(
     : await dependencyAudit.scan(scanInput);
 
   const ci = await collectCiFacts(org, repo, options.ciToken);
+  const reviews = await reviewsPromise;
 
   return {
     org,
@@ -692,6 +708,7 @@ export async function collectRepoFacts(
     languages,
     defaultBranch: repository?.default_branch ?? null,
     headSha,
+    reviews,
     cloneUrl: { https: cloneUrlHttps, ssh: cloneUrlSsh },
     webUrl: repository?.web_url ?? null,
     contributors,
