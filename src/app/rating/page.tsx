@@ -23,7 +23,15 @@ export const metadata: Metadata = {
   description: 'Все опубликованные оценки репозиториев SourceCraft: баллы, категории, отзывы людей.',
 };
 
-type Search = { sort?: string; q?: string; lang?: string | string[]; page?: string };
+type Search = { sort?: string; q?: string; lang?: string | string[]; page?: string; kind?: string };
+
+type KindFilter = 'project' | 'material' | undefined;
+
+const KIND_OPTIONS: ReadonlyArray<[KindFilter, string]> = [
+  [undefined, 'Все'],
+  ['project', 'Проекты'],
+  ['material', 'Полезные материалы'],
+];
 
 const PAGE_SIZE = 30;
 
@@ -41,10 +49,11 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
   const languages = normalizeLanguages(sp.lang);
   const page = Math.max(1, Number.parseInt(sp.page ?? '', 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
-  const filtered = Boolean(query || languages.length);
+  const kind: KindFilter = sp.kind === 'project' || sp.kind === 'material' ? sp.kind : undefined;
+  const filtered = Boolean(query || languages.length || kind);
 
   const [{ items, total }, facets, overview, catalog] = await Promise.all([
-    getLeaderboard({ sort, query, languages, limit: PAGE_SIZE, offset }),
+    getLeaderboard({ sort, query, languages, kind, limit: PAGE_SIZE, offset }),
     getLanguageFacets(),
     getLeaderboardOverview(),
     // Каталог может быть ещё не обойдён (или миграция не применена) — тогда без счётчика.
@@ -58,10 +67,18 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
   const podium = sort === 'score' && page === 1 && !filtered && items.length >= 3 ? items.slice(0, 3) : [];
   const rows = podium.length > 0 ? items.slice(3) : items;
 
-  const buildHref = (patch: { sort?: string; q?: string; languages?: string[]; page?: string }): string => {
+  const buildHref = (patch: {
+    sort?: string;
+    q?: string;
+    languages?: string[];
+    page?: string;
+    kind?: KindFilter | 'all';
+  }): string => {
     const params = new URLSearchParams();
     const nextSort = patch.sort ?? sort;
     if (nextSort && nextSort !== 'score') params.set('sort', nextSort);
+    const nextKind = patch.kind === 'all' ? undefined : (patch.kind ?? kind);
+    if (nextKind) params.set('kind', nextKind);
     const nextQ = patch.q ?? query;
     if (nextQ) params.set('q', nextQ);
     for (const lang of patch.languages ?? languages) params.append('lang', lang);
@@ -117,6 +134,16 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
               </SortLink>
             ))}
           </div>
+        </div>
+
+        {/* Проекты и полезные материалы (курсы, конспекты, подборки) — разные
+            сущности: материалы идут без места в рейтинге, их удобно смотреть отдельно. */}
+        <div className="mt-5 flex max-w-full flex-wrap items-center gap-1 rounded-3xl bg-[color:var(--panel)] p-1 text-sm sm:w-fit">
+          {KIND_OPTIONS.map(([key, label]) => (
+            <SortLink key={label} href={buildHref({ kind: key ?? 'all', page: '1' })} active={kind === key}>
+              {label}
+            </SortLink>
+          ))}
         </div>
 
         <LeaderboardFilters

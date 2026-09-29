@@ -103,6 +103,8 @@ export type LeaderboardParams = {
   query?: string;
   /** Фильтр по языкам: показываем строки с любым из них. */
   languages?: string[];
+  /** Только проекты или только полезные материалы (курсы, конспекты, подборки). */
+  kind?: 'project' | 'material';
   limit?: number;
   offset?: number;
 };
@@ -131,6 +133,11 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     params.languages && params.languages.length > 0
       ? inArray(repositories.language, params.languages)
       : undefined,
+    params.kind === 'material'
+      ? eq(analyses.kind, 'material')
+      : params.kind === 'project'
+        ? sql`coalesce(${analyses.kind}, 'project') <> 'material'`
+        : undefined,
   );
 
   // Строки и счётчик — независимые запросы, отправляем их одновременно:
