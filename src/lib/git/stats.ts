@@ -61,3 +61,29 @@ export function aggregateGitStats(commits: CommitRecord[], now: Date = new Date(
     topAuthorSharePercent,
   };
 }
+
+/**
+ * Пустые коммиты за окно: не слияние, а дерево то же, что у единственного
+ * родителя, — файлы не изменились. Так выглядит накрутка активности
+ * (`git commit --allow-empty`). Родитель должен быть в том же логе: у
+ * коммита на границе shallow-клона сравнить не с чем, и его не считаем.
+ * null — деревьев в логе нет (старый формат), сказать нечего.
+ */
+export function countEmptyCommits(
+  commits: Array<{ oid: string; parents: string[]; tree?: string; authorDate: string }>,
+  now: Date = new Date(),
+): number | null {
+  if (commits.length === 0) return 0;
+  if (commits.some((c) => !c.tree)) return null;
+  const treeByOid = new Map(commits.map((c) => [c.oid, c.tree]));
+  const cutoff = now.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  let empty = 0;
+  for (const c of commits) {
+    const ts = Date.parse(c.authorDate);
+    if (!Number.isFinite(ts) || ts < cutoff) continue;
+    if (c.parents.length !== 1) continue;
+    const parentTree = treeByOid.get(c.parents[0]!);
+    if (parentTree !== undefined && parentTree === c.tree) empty += 1;
+  }
+  return empty;
+}

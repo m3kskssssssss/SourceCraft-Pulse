@@ -114,6 +114,12 @@ export default async function RepositoryPage({ params }: PageProps) {
                   Подробности анализа →
                 </Link>
                 <ReevaluateButton org={latest.org} repo={latest.repo} ownedId={ownedId} />
+                <Link
+                  href={`/compare?r=${encodeURIComponent(`${latest.org}/${latest.repo}`)}`}
+                  className="inline-flex items-center justify-center rounded-full border border-[color:var(--line)] px-4 py-2 text-sm hover:bg-[color:var(--panel)]"
+                >
+                  Сравнить
+                </Link>
               </div>
             </div>
           </div>

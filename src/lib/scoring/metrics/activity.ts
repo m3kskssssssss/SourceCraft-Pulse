@@ -100,13 +100,20 @@ function commitsMetric(facts: RepoFacts): MetricScore {
       hint: 'Не удалось получить git-историю',
     };
   }
-  const value = logScore(gh.commitsLast90Days, { target: COMMITS_90D_TARGET });
+  // Пустые коммиты (дерево как у родителя) активностью не считаем: так
+  // накручивают счётчик, не меняя ни строчки. У старых фактов поля нет.
+  const empty = gh.emptyCommitsLast90Days ?? 0;
+  const counted = Math.max(0, gh.commitsLast90Days - empty);
+  const value = logScore(counted, { target: COMMITS_90D_TARGET });
   return {
     key: 'activity.commits_90d',
     category: CATEGORY,
     weight: ACTIVITY_WEIGHTS.commitsLast90Days,
     value,
-    hint: `Коммитов за 90 дней: ${gh.commitsLast90Days}`,
+    hint:
+      empty > 0
+        ? `Коммитов за 90 дней: ${counted} (ещё ${empty} пустых не учтены)`
+        : `Коммитов за 90 дней: ${counted}`,
     target: 60,
     effort: 'medium',
     recommendationKind: 'increase_commit_frequency',

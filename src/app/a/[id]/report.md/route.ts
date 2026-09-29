@@ -7,6 +7,7 @@ import { db } from '@/db/client';
 import { analyses, repositories } from '@/db/schema';
 import { auth } from '@/auth';
 import { buildReportMarkdown } from '@/lib/report-markdown';
+import { ensureReviewStats, readExtraAnalytics } from '@/lib/extra-analytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     penalties: (analysis.metrics as { penalties?: unknown } | null)?.penalties ?? [],
     pageUrl: `${origin}/a/${analysis.id}`,
     methodologyUrl: `${origin}/methodology`,
+    extras: { ...readExtraAnalytics(analysis.metrics), reviews: await ensureReviewStats(db, analysis, repo) },
   });
 
   const filename = `pulse-${repo.orgSlug}-${repo.repoSlug}.md`.replace(/[^\w.-]+/g, '_');

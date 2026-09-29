@@ -11,6 +11,7 @@ import { computeCoverage } from './scoring/coverage';
 import { PRIORITY_LABELS, RECOMMENDATION_WHY, recommendationPriority, strengthsAndWeaknesses } from './scoring/insights';
 import type { AppliedPenalty, CategoryKey, CategoryScore, MetricScore, Recommendation } from './scoring/types';
 import { APP_TIME_ZONE } from './time';
+import type { ExtraAnalytics } from './extra-analytics';
 
 export type ReportInput = {
   org: string;
@@ -27,6 +28,8 @@ export type ReportInput = {
   /** Абсолютный адрес страницы анализа — ссылка «открыть в Pulse». */
   pageUrl: string;
   methodologyUrl: string;
+  /** CODEOWNERS, пустые коммиты, ревью PR — вне балла. */
+  extras?: ExtraAnalytics;
 };
 
 const EFFORT_LABELS: Record<string, string> = {
@@ -136,6 +139,10 @@ export function buildReportMarkdown(input: ReportInput): string {
     }
   }
 
+  if (input.extras && input.kind !== 'material') {
+    lines.push(...extraAnalyticsLines(input.extras));
+  }
+
   if (missing.length > 0) {
     lines.push('## Что не удалось собрать', '');
     for (const note of missing) lines.push(`- ${note.text}${note.detail ? ` (${note.detail})` : ''}`);
@@ -152,4 +159,45 @@ function formatValue(value: number | null | undefined, empty: string): string {
 
 function escapeCell(text: string): string {
   return text.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+}
+
+/** Раздел «Дополнительная аналитика»: те же три показателя, что на странице. */
+export function extraAnalyticsLines(extras: ExtraAnalytics): string[] {
+  const lines = ['## Дополнительная аналитика', '', 'Показатели сопровождения проекта. В Repo Health Score не входят.', ''];
+  const co = extras.codeowners;
+  lines.push(
+    `- **CODEOWNERS:** ${
+      co.status === 'present' ? `есть (${co.path})` : co.status === 'absent' ? 'нет' : 'нет данных'
+    }`,
+  );
+  const ec = extras.emptyCommits;
+  lines.push(
+    `- **Пустые коммиты за 90 дней:** ${
+      ec.status === 'known'
+        ? `${ec.empty} из ${ec.total}${ec.empty > 0 ? ' (не учтены в метрике коммитов)' : ''}`
+        : ec.reason === 'old_analysis'
+          ? 'нет данных (анализ выполнен до появления проверки)'
+          : 'нет данных'
+    }`,
+  );
+  const r = extras.reviews;
+  if (!r || !r.available) {
+    lines.push('- **Ревью pull request:** нет данных');
+  } else if (r.sampledPrs === 0) {
+    lines.push('- **Ревью pull request:** pull request не используются');
+  } else {
+    lines.push(
+      `- **Ревью pull request:** комментарии не автора в ${r.reviewedPrs} из ${r.sampledPrs} последних PR`,
+      `  - комментариев ревьюеров: ${r.reviewComments}; медиана на PR с ревью: ${r.medianCommentsPerReviewedPr ?? '—'}`,
+      `  - медиана до первого ревью: ${r.medianFirstReviewHours === null ? '—' : `${r.medianFirstReviewHours} ч`}`,
+      `  - открытых PR без ревью дольше 7 дней: ${r.waitingPrs}`,
+      `  - замечаний к уже изменённому коду: ${r.outdatedSharePercent === null ? '—' : `${r.outdatedSharePercent}%`}`,
+      `  - комментариев SourceCraft AppSec: ${r.appsecComments}`,
+    );
+    if (r.topReviewers.length > 0) {
+      lines.push(`  - основные ревьюеры: ${r.topReviewers.map((t) => `${t.slug} (${t.comments})`).join(', ')}`);
+    }
+  }
+  lines.push('');
+  return lines;
 }

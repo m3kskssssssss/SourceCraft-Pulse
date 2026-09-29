@@ -7,7 +7,9 @@
 
 import { NextResponse } from 'next/server';
 import { buildPublicReport, findLatestPublicAnalysis } from '@/lib/public-report';
+import { db } from '@/db/client';
 import { buildReportMarkdown } from '@/lib/report-markdown';
+import { ensureReviewStats, readExtraAnalytics } from '@/lib/extra-analytics';
 import { clientIp, rateLimit } from '@/lib/rate-limit';
 import { InvalidSlugError, parseSlug } from '@/lib/slug';
 
@@ -62,9 +64,15 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       penalties: (analysis.metrics as { penalties?: unknown } | null)?.penalties ?? [],
       pageUrl: `${origin}/a/${analysis.id}`,
       methodologyUrl: `${origin}/methodology`,
+      extras: { ...readExtraAnalytics(analysis.metrics), reviews: await ensureReviewStats(db, analysis, repository) },
     });
     return new Response(markdown, { headers: { ...headers, 'Content-Type': 'text/markdown; charset=utf-8' } });
   }
 
-  return NextResponse.json(buildPublicReport(found.analysis, found.repository, origin), { headers });
+  // CODEOWNERS, пустые коммиты и ревью PR — вне балла, отдельным полем.
+  const extras = {
+    ...readExtraAnalytics(found.analysis.metrics),
+    reviews: await ensureReviewStats(db, found.analysis, found.repository),
+  };
+  return NextResponse.json({ ...buildPublicReport(found.analysis, found.repository, origin), extras }, { headers });
 }

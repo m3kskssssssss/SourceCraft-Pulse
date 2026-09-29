@@ -9,7 +9,7 @@
 
 import { readFilesFromClone, type IndexedClone } from './clone';
 import { readCloneCommits, type RawCommit } from './commits';
-import { aggregateGitStats, type CommitRecord } from './stats';
+import { aggregateGitStats, countEmptyCommits, type CommitRecord } from './stats';
 import { scanForSecrets, type SecretHit } from './secrets';
 
 export type GitHistoryFacts = {
@@ -18,6 +18,11 @@ export type GitHistoryFacts = {
   uniqueAuthorsLast90Days: number | null;
   lastCommitDate: string | null;
   topAuthorSharePercent: number | null;
+  /**
+   * Пустые коммиты за 90 дней (дерево как у родителя) — они вычитаются из
+   * метрики коммитов. undefined — факты собраны до появления поля.
+   */
+  emptyCommitsLast90Days?: number | null;
   secretHits: SecretHit[];
   /** Сколько файлов на HEAD успели просмотреть в поиске секретов. */
   secretsScannedFiles: number;
@@ -77,8 +82,10 @@ export async function analyzeGitHistoryInClone(
   if (!hasHistory) errors.push('history_unavailable');
 
   let commits: CommitRecord[];
+  let emptyCommitsLast90Days: number | null = null;
   try {
     const raw = options.commits ?? (await readCloneCommits(clone.repo, options.commitLimit ?? DEFAULT_COMMIT_LIMIT));
+    if (hasHistory) emptyCommitsLast90Days = countEmptyCommits(raw);
     commits = raw.map((entry) => ({
       sha: entry.oid,
       authorName: entry.authorName,
@@ -122,6 +129,7 @@ export async function analyzeGitHistoryInClone(
     uniqueAuthorsLast90Days: stats.uniqueAuthorsLast90Days,
     lastCommitDate: stats.lastCommitDate,
     topAuthorSharePercent: stats.topAuthorSharePercent,
+    emptyCommitsLast90Days,
     secretHits,
     secretsScannedFiles,
     errors,
