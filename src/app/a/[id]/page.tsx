@@ -56,7 +56,7 @@ import {
 } from '@/lib/scoring/insights';
 import { appSecCategoryScore } from '@/lib/scoring/metrics/security';
 import { pickRatingExclusion, RATING_EXCLUSION_LABELS } from '@/lib/rating-eligibility';
-import { getRepoHistory } from '@/lib/history';
+import { getChecksForAnalyses, getRepoHistory } from '@/lib/history';
 import { APP_TIME_ZONE } from '@/lib/time';
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -98,6 +98,7 @@ export default async function AnalysisPage({ params }: PageProps) {
   const history = repo
     ? await getRepoHistory({ org: repo.orgSlug, repo: repo.repoSlug, viewerId: userId ?? null })
     : [];
+  const historyChecks = await getChecksForAnalyses(history.map((h) => h.id));
 
   // Отклик людей: звёзды и обсуждение. Нужны только готовому анализу, но
   // запрашиваются здесь же — до ветвления по статусу их всё равно не видно.
@@ -423,6 +424,21 @@ export default async function AnalysisPage({ params }: PageProps) {
         )}
       </section>
 
+      {/* История оценок — сразу под шапкой: как балл менялся и когда его
+          последний раз подтверждала проверка новых коммитов. */}
+      {history.length > 0 && (
+        <section className="rise mt-10" style={{ animationDelay: '20ms' }}>
+          <SectionHead
+            eyebrow="Динамика"
+            title="История оценок"
+            hint="Доступные вам прогоны этого репозитория. В 00:00 и 12:00 по Москве проверяем новые коммиты: нет — оценка та же, есть — переоцениваем."
+          />
+          <div className="mt-6">
+            <AnalysisHistory items={history} checks={historyChecks} currentId={analysis.id} />
+          </div>
+        </section>
+      )}
+
       {!viewerOwnsRepo && (
         <section className="rise mt-6" style={{ animationDelay: '30ms' }}>
           <CardDiv tone="outline" className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -745,20 +761,6 @@ export default async function AnalysisPage({ params }: PageProps) {
                 hint="Ни одной метрики собрать не удалось: репозиторий закрыт или недоступен."
               />
             )}
-          </div>
-        </section>
-      )}
-
-      {/* История прогонов */}
-      {history.length > 1 && (
-        <section className="mt-12">
-          <SectionHead
-            eyebrow="Динамика"
-            title="История оценок"
-            hint="Доступные вам прогоны этого репозитория."
-          />
-          <div className="mt-6">
-            <AnalysisHistory items={history} currentId={analysis.id} />
           </div>
         </section>
       )}

@@ -306,7 +306,7 @@ export async function processAnalysis(
  * он подтверждённый владелец этого репозитория и токен действует. Чужой
  * прогон чужим токеном не считаем никогда.
  */
-async function loadOwnerToken(
+export async function loadOwnerToken(
   db: AnalysisDb,
   userId: string | null,
   repositoryId: string,

@@ -18,6 +18,11 @@ const NAV = [
     label: 'Каталог',
     match: (p: string) => p.startsWith('/admin/catalog'),
   },
+  {
+    href: '/admin/commits',
+    label: 'Коммиты',
+    match: (p: string) => p.startsWith('/admin/commits'),
+  },
   { href: '/admin/users', label: 'Пользователи', match: (p: string) => p.startsWith('/admin/users') },
   {
     href: '/admin/social',

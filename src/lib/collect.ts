@@ -98,6 +98,11 @@ export type RepoFacts = {
   /** Раскладка по языкам по составу файлов. */
   languages: LanguageShare[];
   defaultBranch: string | null;
+  /**
+   * Коммит, на котором стоял HEAD клона. По нему плановая проверка понимает,
+   * появились ли новые коммиты (lib/commit-check.ts). В старых фактах поля нет.
+   */
+  headSha?: string | null;
   cloneUrl: { https: string | null; ssh: string | null };
   webUrl: string | null;
   contributors: UserProfile[];
@@ -484,6 +489,7 @@ export async function collectRepoFacts(
   let code: CodeFacts = emptyCodeFacts();
   let gitGraph: GitGraph = emptyGitGraph();
   let ciConfig: CiConfigFacts | null = null;
+  let headSha: string | null = null;
 
   if ((options.runGitAnalysis ?? true) && cloneUrlHttps) {
     try {
@@ -504,6 +510,7 @@ export async function collectRepoFacts(
           // Индекс путь→oid строится одним обходом дерева и дальше кормит
           // всех: метрики кода, скан секретов, lock-файлы, README.
           trace(repoClone.tipOnly ? 'clone (верхушка)' : 'clone');
+          headSha = repoClone.headOid;
 
           phase('index');
           const clone = await openIndexedClone(repoClone);
@@ -684,6 +691,7 @@ export async function collectRepoFacts(
     language,
     languages,
     defaultBranch: repository?.default_branch ?? null,
+    headSha,
     cloneUrl: { https: cloneUrlHttps, ssh: cloneUrlSsh },
     webUrl: repository?.web_url ?? null,
     contributors,

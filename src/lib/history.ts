@@ -4,9 +4,9 @@
 // вправе видеть конкретный смотрящий. Свои анализы видны независимо от
 // публикации, чужие — только публичные.
 
-import { and, desc, eq, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { analyses, repositories } from '@/db/schema';
+import { analyses, commitChecks, repositories } from '@/db/schema';
 import { pickCategoryValues, type CategoryValues } from '@/lib/category-meta';
 
 export type AnalysisStatus = 'queued' | 'running' | 'done' | 'failed';
@@ -119,6 +119,58 @@ export async function countRepoHistory(params: {
       ),
     );
   return rows[0]?.count ?? 0;
+}
+
+/**
+ * Плановая проверка новых коммитов, привязанная к видимой смотрящему оценке.
+ * `unchanged` — коммитов не было, оценка подтверждена как есть; `changed` —
+ * были, и заведена переоценка (`reanalysisId`).
+ */
+export type HistoryCheck = {
+  id: string;
+  analysisId: string;
+  outcome: 'unchanged' | 'changed';
+  checkedAt: string;
+  reanalysisId: string | null;
+  reanalysisStatus: AnalysisStatus | null;
+};
+
+/** Проверки коммитов по оценкам, которые смотрящий и так видит. */
+export async function getChecksForAnalyses(
+  analysisIds: string[],
+  limit = 30,
+): Promise<HistoryCheck[]> {
+  if (analysisIds.length === 0) return [];
+  const rows = await db
+    .select({
+      id: commitChecks.id,
+      analysisId: commitChecks.analysisId,
+      outcome: commitChecks.outcome,
+      checkedAt: commitChecks.checkedAt,
+      reanalysisId: commitChecks.reanalysisId,
+      // Сырым SQL: drizzle теряет имя таблицы в коррелированном подзапросе.
+      reanalysisStatus: sql<AnalysisStatus | null>`(
+        select a.status from analyses a where a.id = "commit_checks"."reanalysis_id"
+      )`,
+    })
+    .from(commitChecks)
+    .where(
+      and(
+        inArray(commitChecks.analysisId, analysisIds),
+        inArray(commitChecks.outcome, ['unchanged', 'changed']),
+      ),
+    )
+    .orderBy(desc(commitChecks.checkedAt))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.id,
+    analysisId: r.analysisId,
+    outcome: r.outcome as HistoryCheck['outcome'],
+    checkedAt: r.checkedAt.toISOString(),
+    reanalysisId: r.reanalysisId,
+    reanalysisStatus: r.reanalysisStatus ?? null,
+  }));
 }
 
 // ---------- внутреннее ----------

@@ -503,21 +503,34 @@ function CategoryMiniPrioritized({
       {empty.length > 0 && (
         <div
           className={cx(
-            'flex flex-wrap items-end gap-3 opacity-[0.36]',
+            'flex flex-wrap items-end opacity-[0.36]',
+            md ? 'gap-3' : 'gap-2 sm:gap-2.5',
             md && known.length > 0 && 'mt-3',
           )}
         >
+          {/* В обычной строке рейтинга — тот же размер, что у категорий с
+              данными: отличаются только приглушённостью и местом в конце. */}
           {empty.map((key) => (
             <div
               key={key}
-              className="w-14"
+              className={md ? 'w-14' : 'w-11 sm:w-12'}
               title={`${CATEGORY_TITLES[key]}: ${values[key] == null ? 'нет данных' : '0'}`}
             >
               <div className="flex items-baseline justify-between gap-1">
-                <span className="text-base uppercase leading-none tracking-wide text-[color:var(--muted-2)]">
+                <span
+                  className={cx(
+                    'uppercase tracking-wide text-[color:var(--muted-2)]',
+                    md ? 'text-base leading-none' : 'text-[10px]',
+                  )}
+                >
                   {CATEGORY_SHORT[key]}
                 </span>
-                <span className="text-lg leading-none tabular-nums text-[color:var(--muted-2)]">
+                <span
+                  className={cx(
+                    'tabular-nums text-[color:var(--muted-2)]',
+                    md ? 'text-lg leading-none' : 'text-[13px] font-semibold',
+                  )}
+                >
                   {values[key] ?? '—'}
                 </span>
               </div>

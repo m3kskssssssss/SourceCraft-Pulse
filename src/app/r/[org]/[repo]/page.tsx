@@ -4,7 +4,8 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { getLatestPublicAnalysis } from '@/lib/ranking';
-import { getRepoHistory } from '@/lib/history';
+import { getChecksForAnalyses, getRepoHistory, type HistoryCheck } from '@/lib/history';
+import { nextSlotStart } from '@/lib/commit-slots';
 import { Bar, Chip, EmptyState, ScoreDial } from '@/app/components/ui';
 import { CATEGORY_ACCENT_CLASS, CATEGORY_ORDER, CATEGORY_TITLES } from '@/lib/category-meta';
 import { AnalysisHistory } from '@/app/components/AnalysisHistory';
@@ -33,6 +34,9 @@ export default async function RepositoryPage({ params }: PageProps) {
     findOwnedRepoId(db, viewerId, { org, repo }),
   ]);
   const scUrl = `https://sourcecraft.dev/${org}/${repo}`;
+  const checks = await getChecksForAnalyses(history.map((h) => h.id));
+  // Последняя проверка коммитов по показанной оценке или по более свежей.
+  const lastCheck = latest ? (checks.find((c) => c.analysisId === latest.id) ?? null) : null;
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-14">
@@ -101,6 +105,7 @@ export default async function RepositoryPage({ params }: PageProps) {
                   <Chip tone="default">Форков: {latest.forks.toLocaleString('ru-RU')}</Chip>
                 )}
               </div>
+              <CheckLine check={lastCheck} />
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href={`/a/${latest.id}`}
@@ -192,14 +197,15 @@ export default async function RepositoryPage({ params }: PageProps) {
           />
         </div>
       )}
-      {history.length > 1 && (
-        <section className="mt-12">
+      {history.length > 0 && (
+        <section className="rise mt-10" style={{ animationDelay: '60ms' }}>
           <h2 className="text-2xl font-semibold tracking-tight">История оценок</h2>
           <p className="mt-1 text-sm text-[color:var(--muted)]">
-            Как менялась оценка от прогона к прогону.
+            Дважды в сутки, в 00:00 и 12:00 по Москве, проверяем новые коммиты: нет — оценка
+            остаётся той же, есть — репозиторий переоценивается.
           </p>
           <div className="mt-6">
-            <AnalysisHistory items={history} />
+            <AnalysisHistory items={history} checks={checks} />
           </div>
         </section>
       )}
@@ -210,4 +216,36 @@ export default async function RepositoryPage({ params }: PageProps) {
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString('ru-RU', { timeZone: APP_TIME_ZONE, year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/** Итог последней проверки коммитов под оценкой на карточке. */
+function CheckLine({ check }: { check: HistoryCheck | null }) {
+  const next = formatDateTime(nextSlotStart().toISOString());
+  let text: string;
+  if (!check) text = `Новые коммиты проверим ${next} по Москве.`;
+  else if (check.outcome === 'unchanged')
+    text = `Проверено ${formatDateTime(check.checkedAt)}: новых коммитов нет, оценка актуальна. Следующая проверка — ${next}.`;
+  else if (check.reanalysisStatus === 'queued' || check.reanalysisStatus === 'running')
+    text = `${formatDateTime(check.checkedAt)} появились новые коммиты — репозиторий переоценивается.`;
+  else text = `${formatDateTime(check.checkedAt)} появились новые коммиты, переоценка не удалась. Повторим ${next}.`;
+  return (
+    <p className="mt-4 flex items-start gap-2 text-xs text-[color:var(--muted)]">
+      <span
+        className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+        style={{ background: check?.outcome === 'changed' ? 'var(--accent-activity)' : 'var(--accent-security)' }}
+        aria-hidden
+      />
+      <span>{text}</span>
+    </p>
+  );
+}
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('ru-RU', {
+    timeZone: APP_TIME_ZONE,
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }

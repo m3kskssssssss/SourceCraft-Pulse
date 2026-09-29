@@ -232,6 +232,45 @@ export const analyses = pgTable(
   }),
 );
 
+// ---------- Проверка новых коммитов ----------
+//
+// Дважды в сутки (00:00 и 12:00 по Москве) по каждому оценённому репозиторию
+// сверяем верхушку ветки по умолчанию с той, на которой считалась последняя
+// оценка. Коммитов не было — пишем строку «без изменений»: оценка та же, и
+// история показывает, что её подтвердили. Были — строка «изменился» и новый
+// прогон (reanalysis_id). Строки лёгкие: сами факты не копируются.
+
+export const commitChecks = pgTable(
+  'commit_checks',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    repositoryId: uuid('repository_id')
+      .notNull()
+      .references(() => repositories.id, { onDelete: 'cascade' }),
+    /** Оценка, которую сверяли: её балл и остаётся при «без изменений». */
+    analysisId: uuid('analysis_id')
+      .notNull()
+      .references(() => analyses.id, { onDelete: 'cascade' }),
+    /** 'unchanged' | 'changed' | 'error'. */
+    outcome: text('outcome').notNull(),
+    /** Верхушка ветки по умолчанию на момент проверки; null — не узнали. */
+    headSha: text('head_sha'),
+    /** Прогон, заведённый из-за новых коммитов. */
+    reanalysisId: uuid('reanalysis_id').references(() => analyses.id, { onDelete: 'set null' }),
+    /** 'schedule' — плановая проверка, 'admin' — кнопка в админке. */
+    trigger: text('trigger').notNull().default('schedule'),
+    error: text('error'),
+    checkedAt: timestamp('checked_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    byRepoChecked: index('commit_checks_repo_checked_idx').on(t.repositoryId, t.checkedAt.desc()),
+    byAnalysis: index('commit_checks_analysis_idx').on(t.analysisId),
+    byChecked: index('commit_checks_checked_idx').on(t.checkedAt.desc()),
+  }),
+);
+
 // ---------- Свои репозитории ----------
 //
 // Пользователь заявляет репозиторий своим и доказывает это ключом: кладёт его
