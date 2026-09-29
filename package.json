@@ -19,6 +19,8 @@
     "worker": "tsx src/worker/run.ts",
     "seed:repos": "tsx src/db/seed-repos.ts",
     "catalog:sync": "tsx src/db/sync-catalog.ts",
+    "backfill:reviews": "tsx src/db/backfill-reviews.ts",
+    "backfill:empty-commits": "tsx src/db/backfill-empty-commits.ts",
     "ai:ping": "tsx src/cli/ai-ping.ts",
     "admin:hash": "tsx src/cli/admin-hash.ts"
   },

@@ -127,6 +127,8 @@ docker compose up -d --build
 | `pnpm collect <org> <repo> [--score] [--ai]` | сбор фактов о репозитории и расчёт оценки из консоли |
 | `pnpm worker` | обработка очереди анализов и плановых задач |
 | `pnpm catalog:sync [--enqueue=N]` | обход каталога SourceCraft; при `--enqueue` — постановка N неоценённых в очередь |
+| `pnpm backfill:reviews [--limit=N] [--dry-run]` | догрузить сводку ревью PR в уже посчитанные публичные анализы: только API, без клона и ИИ |
+| `pnpm backfill:empty-commits [--limit=N] [--dry-run]` | досчитать пустые коммиты в уже посчитанных публичных анализах: клон истории за 90 дней, без ИИ, балл не меняется |
 | `pnpm seed:repos [--auto] [--count=N]` | постановка выбранных репозиториев в очередь |
 | `pnpm gen:api` | обновление типов из OpenAPI SourceCraft |
 | `pnpm ai:ping` | проверка подключения к модели и кэша |
