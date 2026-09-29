@@ -47,11 +47,7 @@ export function Podium({ items }: { items: LeaderboardItem[] }) {
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[color:var(--muted)]">
             <span className="min-w-0 truncate">{item.language ?? 'Язык не определён'}</span>
-            {item.forks != null && (
-              <span className="inline-flex shrink-0 items-center gap-1">
-                <ForkIcon /> {item.forks.toLocaleString('ru-RU')}
-              </span>
-            )}
+            <RepoMeta item={item} />
           </div>
           <SocialLine item={item} className="relative mt-2" />
           {item.kind !== 'material' && (
@@ -104,12 +100,7 @@ export function LeaderboardRows({ items, startPlace }: { items: LeaderboardItem[
                     </span>
                   )}
                   <span className="truncate">{item.language ?? 'Язык не определён'}</span>
-                  {item.forks != null && (
-                    <span className="inline-flex items-center gap-1">
-                      <ForkIcon /> {item.forks.toLocaleString('ru-RU')}
-                    </span>
-                  )}
-                  {item.publishedAt && <span>{formatDate(item.publishedAt)}</span>}
+                  <RepoMeta item={item} />
                 </div>
                 <SocialLine item={item} className="relative mt-1.5" />
               </div>
@@ -173,13 +164,32 @@ function SocialLine({ item, className }: { item: LeaderboardItem; className?: st
   );
 }
 
-function ForkIcon() {
+/**
+ * Лайки SourceCraft и дата последней активности — обязательные колонки
+ * рейтинга по ТЗ. Неизвестное не показываем: «0 лайков» вместо «не знаем»
+ * было бы неправдой.
+ */
+function RepoMeta({ item }: { item: LeaderboardItem }) {
   return (
-    <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-      <circle cx="4" cy="3" r="1.75" />
-      <circle cx="12" cy="3" r="1.75" />
-      <circle cx="8" cy="13" r="1.75" />
-      <path d="M4 5v2c0 1 .5 1.5 1.5 1.5h5C11.5 8.5 12 8 12 7V5M8 9v2.5" />
+    <>
+      {item.likes != null && (
+        <span className="inline-flex shrink-0 items-center gap-1" title="Лайки на SourceCraft">
+          <HeartIcon /> {item.likes.toLocaleString('ru-RU')}
+        </span>
+      )}
+      {item.lastActivityAt && (
+        <span className="shrink-0" title="Последняя активность в репозитории">
+          активность {formatDate(item.lastActivityAt)}
+        </span>
+      )}
+    </>
+  );
+}
+
+function HeartIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden>
+      <path d="M8 13.5S2 10 2 6a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.5-6 7.5Z" />
     </svg>
   );
 }

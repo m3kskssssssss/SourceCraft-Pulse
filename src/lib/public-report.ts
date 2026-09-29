@@ -12,6 +12,7 @@ import { metricLabel } from './metric-labels';
 import { describeMissingList } from './missing-labels';
 import { pickRatingExclusion, RATING_EXCLUSION_LABELS } from './rating-eligibility';
 import { computeCoverage } from './scoring/coverage';
+import { RECOMMENDATION_WHY, recommendationPriority, strengthsAndWeaknesses, type Priority } from './scoring/insights';
 import type { AppliedPenalty, CategoryKey, CategoryScore, MetricScore, Recommendation } from './scoring/types';
 
 type AnalysisRow = typeof analyses.$inferSelect;
@@ -39,8 +40,13 @@ export type PublicReport = {
     metrics: Array<{ key: string; title: string; score: number | null; hint: string | null }>;
   }>;
   penalties: Array<{ key: string; amount: number; reason: string }>;
+  /** Лучшие и худшие измеренные метрики. */
+  strengths: Array<{ metric: string; title: string; category: string; score: number; hint: string | null }>;
+  weaknesses: Array<{ metric: string; title: string; category: string; score: number; hint: string | null }>;
   recommendations: Array<{
     title: string;
+    priority: Priority;
+    why: string | null;
     now: string | null;
     how: string | null;
     category: string;
@@ -88,6 +94,14 @@ export function buildPublicReport(
     (Array.isArray(analysis.missing) ? analysis.missing : []).filter((m): m is string => typeof m === 'string'),
   );
   const unranked = pickRatingExclusion(analysis.metrics);
+  const { strengths, weaknesses } = strengthsAndWeaknesses(categories);
+  const insight = (s: (typeof strengths)[number]) => ({
+    metric: s.key,
+    title: metricLabel(s.key),
+    category: s.category,
+    score: s.value,
+    hint: s.hint,
+  });
   const kind = analysis.kind ?? 'project';
   const kindMeta = (analysis.metrics as { kind?: { summary?: unknown; topics?: unknown } } | null)?.kind;
 
@@ -126,8 +140,12 @@ export function buildPublicReport(
         })),
       })),
     penalties: penalties.map((p) => ({ key: p.key, amount: p.amount, reason: p.reason })),
+    strengths: strengths.map(insight),
+    weaknesses: weaknesses.map(insight),
     recommendations: recommendations.map((r) => ({
       title: r.title,
+      priority: recommendationPriority(r),
+      why: (RECOMMENDATION_WHY[r.category] as string | undefined) ?? null,
       now: r.now ?? null,
       how: r.how ?? null,
       category: r.category,

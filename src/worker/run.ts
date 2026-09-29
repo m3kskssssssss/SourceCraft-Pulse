@@ -23,6 +23,9 @@
 //   CATALOG_SYNC_HOURS  — как часто обходить каталог SourceCraft (по умолчанию 24, 0 — не обходить);
 //   CATALOG_AUTO_ANALYZE — сколько репозиториев каталога ставить на оценку, когда очередь пуста
 //                          (по умолчанию 0: каждая оценка — клон и вызовы модели).
+//   PUBLIC_REFRESH_BATCH — сколько устаревших публичных оценок ставить на пересчёт, когда очередь
+//                          пуста (по умолчанию 2, 0 — не пересчитывать);
+//   PUBLIC_REFRESH_DAYS  — через сколько дней публичная оценка устаревает (по умолчанию 7).
 
 import 'dotenv/config';
 import { hostname } from 'node:os';
@@ -30,7 +33,7 @@ import { getWorkerDb, getWorkerPool, shutdownWorkerDb } from '../db/worker-clien
 import { MAX_ATTEMPTS, processAnalysis, type ClaimedJob, type ProcessOutcome } from '../lib/analysis/run';
 import { enqueueDailyRefresh } from '../lib/ownership';
 import { syncDueTokens } from '../lib/token-sync';
-import { catalogSyncDue, enqueueCatalogAnalyses, pendingJobs, syncCatalog } from '../lib/catalog';
+import { catalogSyncDue, enqueueCatalogAnalyses, enqueuePublicRefresh, pendingJobs, syncCatalog } from '../lib/catalog';
 
 const DEFAULT_BATCH_SIZE = 6;
 const DEFAULT_CONCURRENCY = 3;
@@ -102,6 +105,21 @@ async function main(): Promise<void> {
       console.warn(`[worker ${workerId}] Обход каталога не прошёл: ${describe(err)}`);
     }
   }
+  // Плановый пересчёт публичного рейтинга: изменившиеся после анализа
+  // репозитории и оценки старше PUBLIC_REFRESH_DAYS. Небольшими пачками и
+  // только при пустой очереди, чтобы не отнимать слоты у живых запросов.
+  const refreshBatch = envIntAllowZero('PUBLIC_REFRESH_BATCH', 2);
+  if (refreshBatch > 0) {
+    try {
+      if ((await pendingJobs(db)) === 0) {
+        const queued = await enqueuePublicRefresh(db, refreshBatch);
+        if (queued > 0) console.log(`[worker ${workerId}] Плановый пересчёт рейтинга: ${queued}.`);
+      }
+    } catch (err) {
+      console.warn(`[worker ${workerId}] Плановый пересчёт не встал: ${describe(err)}`);
+    }
+  }
+
   const autoAnalyze = envIntAllowZero('CATALOG_AUTO_ANALYZE', 0);
   if (autoAnalyze > 0) {
     try {

@@ -2,9 +2,9 @@
 // и в /api/public/leaderboard. Возвращает уже подготовленные для UI/JSON
 // сущности без внутренних полей вроде requestedBy.
 
-import { and, desc, eq, ilike, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { analyses, analysisComments, analysisRatings, repositories } from '@/db/schema';
+import { analyses, analysisComments, analysisRatings, catalogRepositories, repositories } from '@/db/schema';
 import {
   CATEGORY_ORDER,
   EMPTY_CATEGORY_VALUES,
@@ -13,20 +13,67 @@ import {
 } from '@/lib/category-meta';
 
 /**
- * 'score' — балл здоровья, 'forks' — «по популярности».
- *
- * Популярность теперь значит оценку людей, а не число форков: звёзды
- * пользователей — про то, насколько разбор полезен, и именно их просили
- * поднимать наверх. Форки остались тай-брейком между равными средними, и имя
- * ключа не меняем, чтобы старые ссылки и бейджи не отвалились.
+ * Сортировки рейтинга по ТЗ (раздел 4): по баллу, по лайкам SourceCraft и по
+ * последней активности. 'forks' — средняя оценка людей в Pulse (форки решают
+ * спор равных); имя ключа прежнее, чтобы старые ссылки не отвалились.
  */
-export type LeaderboardSort = 'score' | 'forks';
+export type LeaderboardSort = 'score' | 'likes' | 'activity' | 'forks';
+
+export const LEADERBOARD_SORTS: readonly LeaderboardSort[] = ['score', 'likes', 'activity', 'forks'];
+
+export function parseLeaderboardSort(value: string | null | undefined): LeaderboardSort {
+  return LEADERBOARD_SORTS.includes(value as LeaderboardSort) ? (value as LeaderboardSort) : 'score';
+}
 
 /**
  * Место в рейтинге есть у всех, кроме помеченных при анализе копий. У прогонов
  * до появления пометки её нет — они участвуют, как раньше.
  */
 const RANKED = sql`((${analyses.metrics} -> 'rating' ->> 'excluded') is null)`;
+
+/**
+ * Карточка каталога (суточный обход GET /repos) для той же пары org/repo:
+ * оттуда свежие лайки и дата последнего обновления. Слаги сверяем без учёта
+ * регистра — в repositories они такие, как их ввёл человек.
+ */
+const CATALOG_JOIN = sql`lower(${catalogRepositories.orgSlug}) = lower(${repositories.orgSlug})
+  and lower(${catalogRepositories.repoSlug}) = lower(${repositories.repoSlug})`;
+
+/** Факты анализа: карточка репозитория из API и история из клона. */
+const FACT_LIKES = sql`(${analyses.metrics} -> 'facts' -> 'repository' -> 'rating' ->> 'value')`;
+const FACT_REPO_UPDATED = sql`(${analyses.metrics} -> 'facts' -> 'repository' ->> 'last_updated')`;
+const FACT_LAST_COMMIT = sql`(${analyses.metrics} -> 'facts' -> 'gitHistory' ->> 'lastCommitDate')`;
+
+/** Строку из jsonb превращаем в дату, только если она на неё похожа. */
+function asTimestamp(text: SQL) {
+  return sql`case when ${text} ~ '^\\d{4}-\\d{2}-\\d{2}' then (${text})::timestamptz end`;
+}
+
+/**
+ * Лайки SourceCraft (rating.value): свежие из каталога, иначе — на момент
+ * анализа. null — неизвестно, а не ноль.
+ */
+const LIKES = sql<number | null>`coalesce(
+  ${catalogRepositories.likes},
+  case when ${FACT_LIKES} ~ '^-?\\d+(\\.\\d+)?$' then round((${FACT_LIKES})::numeric)::int end
+)`;
+
+/**
+ * Последняя активность — самое позднее из: обновление по каталогу, обновление
+ * по карточке на момент анализа, последний коммит в клоне. greatest()
+ * пропускает null, поэтому хватает любого из трёх.
+ */
+const LAST_ACTIVITY = sql<Date | string | null>`greatest(
+  ${catalogRepositories.lastUpdatedAt},
+  ${asTimestamp(FACT_REPO_UPDATED)},
+  ${asTimestamp(FACT_LAST_COMMIT)}
+)`;
+
+function toIso(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
 
 export type LeaderboardItem = {
   id: string;
@@ -39,6 +86,10 @@ export type LeaderboardItem = {
   /** Баллы категорий: в строке рейтинга они объясняют оценку. */
   categories: CategoryValues;
   forks: number | null;
+  /** Лайки SourceCraft. null — неизвестно. */
+  likes: number | null;
+  /** Последняя активность в репозитории (ISO). null — неизвестно. */
+  lastActivityAt: string | null;
   /** Средняя оценка пользователей, 1..5. null — никто не оценивал. */
   ratingAverage: number | null;
   ratingCount: number;
@@ -65,7 +116,7 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
 }> {
   const limit = clampInt(params.limit ?? 20, 1, 100);
   const offset = clampInt(params.offset ?? 0, 0, 10_000);
-  const sort: LeaderboardSort = params.sort === 'forks' ? 'forks' : 'score';
+  const sort = parseLeaderboardSort(params.sort);
 
   const where = and(
     eq(analyses.isPublic, true),
@@ -113,6 +164,8 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
       score: analyses.score,
       categoryScores: analyses.categoryScores,
       forks: repositories.forksCount,
+      likes: LIKES,
+      lastActivityAt: LAST_ACTIVITY,
       ratingAvg,
       ratingCount,
       commentCount,
@@ -121,9 +174,12 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     })
     .from(analyses)
     .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
+    .leftJoin(catalogRepositories, CATALOG_JOIN)
     .where(where)
     // Материалы не конкурируют с проектами за место в рейтинге: у них нет
-    // оценки, поэтому они идут следом, своим списком.
+    // оценки, поэтому они идут следом, своим списком. Во всех сортировках
+    // неизвестное — вниз, а спор равных решает балл здоровья: даже по лайкам
+    // рейтинг не превращается в чистую популярность.
     .orderBy(
       sql`case when ${analyses.kind} = 'material' then 1 else 0 end`,
       ...(sort === 'forks'
@@ -134,7 +190,11 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
             sql`${ratingAvg} desc`,
             desc(repositories.forksCount),
           ]
-        : [desc(analyses.score)]),
+        : sort === 'likes'
+          ? [sql`${LIKES} desc nulls last`, desc(analyses.score)]
+          : sort === 'activity'
+            ? [sql`${LAST_ACTIVITY} desc nulls last`, desc(analyses.score)]
+            : [desc(analyses.score)]),
       desc(analyses.finishedAt),
     )
     .limit(limit)
@@ -158,6 +218,8 @@ export async function getLeaderboard(params: LeaderboardParams = {}): Promise<{
     score: r.score ?? null,
     categories: pickCategoryValues(r.categoryScores),
     forks: r.forks ?? null,
+    likes: r.likes === null || r.likes === undefined ? null : Number(r.likes),
+    lastActivityAt: toIso(r.lastActivityAt),
     ratingAverage: parseAverage(r.ratingAvg),
     ratingCount: r.ratingCount ?? 0,
     commentCount: r.commentCount ?? 0,
@@ -310,11 +372,14 @@ export async function getLatestPublicAnalysis(
       score: analyses.score,
       categoryScores: analyses.categoryScores,
       forks: repositories.forksCount,
+      likes: LIKES,
+      lastActivityAt: LAST_ACTIVITY,
       lastSyncedAt: repositories.lastSyncedAt,
       publishedAt: analyses.finishedAt,
     })
     .from(analyses)
     .innerJoin(repositories, eq(analyses.repositoryId, repositories.id))
+    .leftJoin(catalogRepositories, CATALOG_JOIN)
     .where(
       and(
         ilike(repositories.orgSlug, org),
@@ -337,6 +402,8 @@ export async function getLatestPublicAnalysis(
     score: r.score ?? null,
     categories: pickCategoryValues(r.categoryScores),
     forks: r.forks ?? null,
+    likes: r.likes === null || r.likes === undefined ? null : Number(r.likes),
+    lastActivityAt: toIso(r.lastActivityAt),
     // Бейджу и публичному API оценки людей не нужны — считать их ради одной
     // строки незачем.
     ratingAverage: null,

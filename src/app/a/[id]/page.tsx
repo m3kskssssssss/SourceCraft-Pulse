@@ -47,6 +47,13 @@ import type { CiFacts } from '@/lib/collect';
 import type { SecurityScanResult, Severity } from '@/lib/security/types';
 import { METRIC_LABELS } from '@/lib/metric-labels';
 import { computeCoverage, LOW_COVERAGE } from '@/lib/scoring/coverage';
+import {
+  PRIORITY_LABELS,
+  RECOMMENDATION_WHY,
+  recommendationPriority,
+  strengthsAndWeaknesses,
+  type Insight,
+} from '@/lib/scoring/insights';
 import { appSecCategoryScore } from '@/lib/scoring/metrics/security';
 import { pickRatingExclusion, RATING_EXCLUSION_LABELS } from '@/lib/rating-eligibility';
 import { getRepoHistory } from '@/lib/history';
@@ -155,6 +162,7 @@ export default async function AnalysisPage({ params }: PageProps) {
 
   const categoryScores = (analysis.categoryScores ?? []) as CategoryScore[];
   const recommendations = (analysis.recommendations ?? []) as Recommendation[];
+  const insights = strengthsAndWeaknesses(categoryScores);
   const missing = (analysis.missing ?? []) as string[];
   const missingNotes = describeMissingList(missing);
 
@@ -335,6 +343,16 @@ export default async function AnalysisPage({ params }: PageProps) {
               </ul>
             )}
             <div className="mt-5 flex flex-wrap gap-2 text-sm">
+              {repo && (
+                <a
+                  href={repo.webUrl ?? `https://sourcecraft.dev/${repo.orgSlug}/${repo.repoSlug}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="rounded-full border border-[color:var(--line-2)] px-3 py-1 text-[color:var(--ink-2)] transition hover:bg-[color:var(--panel)]"
+                >
+                  Открыть на SourceCraft ↗
+                </a>
+              )}
               {isMaterial && <Chip tone="ink">Материал</Chip>}
               {repo?.language && <Chip tone="default">{repo.language}</Chip>}
               {analysis.finishedAt && (
@@ -472,13 +490,28 @@ export default async function AnalysisPage({ params }: PageProps) {
         </section>
       )}
 
+      {/* Сильные и слабые стороны — лучшие и худшие измеренные метрики. */}
+      {!isMaterial && (insights.strengths.length > 0 || insights.weaknesses.length > 0) && (
+        <section className="rise mt-10" style={{ animationDelay: '70ms' }}>
+          <SectionHead
+            eyebrow="Коротко"
+            title="Сильные и слабые стороны"
+            hint="Метрики, которые больше всего тянут оценку вверх и вниз. «Нет данных» сюда не попадает."
+          />
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            <InsightList title="Сильные стороны" items={insights.strengths} empty="Метрик с высоким баллом пока нет." />
+            <InsightList title="Слабые стороны" items={insights.weaknesses} empty="Явно слабых мест нет." />
+          </div>
+        </section>
+      )}
+
       {/* Рекомендации: материалу нечего рекомендовать по инженерной части */}
       {!isMaterial && recommendations.length > 0 && (
         <section className="rise mt-10" style={{ animationDelay: '80ms' }}>
           <SectionHead
             eyebrow="Что подтянуть первым"
             title="Рекомендации"
-            hint="Отсортировано по приросту балла на единицу усилий."
+            hint="Отсортировано по приросту балла на единицу усилий. Приоритет — по ожидаемому приросту; находки безопасности всегда в высоком."
           />
           <ol className="mt-6 grid gap-3">
             {recommendations.map((r, idx) => (
@@ -492,6 +525,9 @@ export default async function AnalysisPage({ params }: PageProps) {
                   </span>
                   <div className="min-w-0">
                     <div className="text-[15px] font-medium leading-snug">{r.title}</div>
+                    <div className="mt-0.5 text-xs text-[color:var(--muted)]">
+                      {RECOMMENDATION_WHY[r.category]}
+                    </div>
                     {r.now && (
                       <div className="mt-0.5 text-xs text-[color:var(--muted)]">Сейчас: {r.now}</div>
                     )}
@@ -499,6 +535,9 @@ export default async function AnalysisPage({ params }: PageProps) {
                       <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-[color:var(--ink-2)]">{r.how}</p>
                     )}
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted)]">
+                      <Chip tone={recommendationPriority(r) === 'high' ? 'ink' : 'outline'}>
+                        {PRIORITY_LABELS[recommendationPriority(r)]}
+                      </Chip>
                       <Chip tone="default">
                         {CATEGORY_TITLES[r.category] ?? r.category}
                       </Chip>
@@ -878,6 +917,30 @@ function PageShell({
       </header>
       <div className="mt-6 flex flex-col gap-2 sm:mt-10">{children}</div>
     </main>
+  );
+}
+
+function InsightList({ title, items, empty }: { title: string; items: Insight[]; empty: string }) {
+  return (
+    <CardDiv tone="outline" className="p-4 sm:p-5">
+      <div className="text-sm font-medium">{title}</div>
+      {items.length === 0 ? (
+        <p className="mt-2 text-sm text-[color:var(--muted)]">{empty}</p>
+      ) : (
+        <ul className="mt-3 grid gap-2.5">
+          {items.map((item) => (
+            <li key={item.key} className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="min-w-0">
+                <span className="text-[color:var(--ink)]">{METRIC_LABELS[item.key] ?? item.key}</span>
+                <span className="text-[color:var(--muted)]"> · {CATEGORY_TITLES[item.category] ?? item.category}</span>
+                {item.hint && <span className="block text-xs text-[color:var(--muted)]">{item.hint}</span>}
+              </span>
+              <span className="shrink-0 font-semibold tabular-nums">{item.value}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </CardDiv>
   );
 }
 

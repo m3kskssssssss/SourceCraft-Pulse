@@ -1,5 +1,5 @@
 // Публичный API рейтинга. Возвращает только опубликованные анализы.
-// GET /api/public/leaderboard?sort=score|forks&q=...&lang=Python,Go&limit=20&offset=0
+// GET /api/public/leaderboard?sort=score|likes|activity|forks&q=...&lang=Python,Go&limit=20&offset=0
 //
 // lang принимает несколько языков через запятую — как и фильтр на главной.
 
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 60;
 
 const querySchema = z.object({
-  sort: z.enum(['score', 'forks']).optional(),
+  sort: z.enum(['score', 'likes', 'activity', 'forks']).optional(),
   q: z.string().max(120).optional(),
   lang: z.string().max(400).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),

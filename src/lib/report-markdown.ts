@@ -8,6 +8,7 @@ import { CATEGORY_ORDER, CATEGORY_TITLES, categoryOrder, categoryWeightPercent }
 import { metricLabel } from './metric-labels';
 import { describeMissingList } from './missing-labels';
 import { computeCoverage } from './scoring/coverage';
+import { PRIORITY_LABELS, RECOMMENDATION_WHY, recommendationPriority, strengthsAndWeaknesses } from './scoring/insights';
 import type { AppliedPenalty, CategoryKey, CategoryScore, MetricScore, Recommendation } from './scoring/types';
 import { APP_TIME_ZONE } from './time';
 
@@ -75,6 +76,22 @@ export function buildReportMarkdown(input: ReportInput): string {
       '',
     );
 
+    const { strengths, weaknesses } = strengthsAndWeaknesses(sorted);
+    if (strengths.length > 0 || weaknesses.length > 0) {
+      lines.push('## Сильные и слабые стороны', '');
+      for (const [title, list] of [
+        ['Сильные стороны', strengths],
+        ['Слабые стороны', weaknesses],
+      ] as const) {
+        if (list.length === 0) continue;
+        lines.push(`**${title}**`, '');
+        for (const s of list) {
+          lines.push(`- ${metricLabel(s.key)} (${CATEGORY_TITLES[s.category] ?? s.category}) — ${s.value}${s.hint ? `: ${s.hint}` : ''}`);
+        }
+        lines.push('');
+      }
+    }
+
     lines.push('## Метрики', '');
     for (const c of sorted) {
       lines.push(`### ${CATEGORY_TITLES[c.key] ?? c.key} — ${formatValue(c.value, 'нет данных')}`, '');
@@ -95,18 +112,26 @@ export function buildReportMarkdown(input: ReportInput): string {
     if (recommendations.length === 0) {
       lines.push('Слабых мест, которые стоит подтянуть в первую очередь, не нашлось.', '');
     } else {
-      lines.push('| # | Что сделать | Категория | Трудозатраты | Прирост |', '|---:|---|---|---|---:|');
+      lines.push(
+        '| # | Что сделать | Приоритет | Категория | Трудозатраты | Прирост |',
+        '|---:|---|---|---|---|---:|',
+      );
       recommendations.forEach((r, i) => {
         lines.push(
-          `| ${i + 1} | ${escapeCell(r.title)} | ${CATEGORY_TITLES[r.category] ?? r.category} | ${
-            EFFORT_LABELS[r.effort] ?? r.effort
-          } | +${r.gain.toFixed(1)} |`,
+          `| ${i + 1} | ${escapeCell(r.title)} | ${PRIORITY_LABELS[recommendationPriority(r)]} | ${
+            CATEGORY_TITLES[r.category] ?? r.category
+          } | ${EFFORT_LABELS[r.effort] ?? r.effort} | +${r.gain.toFixed(1)} |`,
         );
       });
       lines.push('', 'Порядок — по приросту балла на единицу усилий.', '');
       recommendations.forEach((r, i) => {
-        if (!r.now && !r.how) return;
-        lines.push(`**${i + 1}. ${r.title}.**${r.now ? ` Сейчас: ${r.now}.` : ''}${r.how ? ` ${r.how}` : ''}`, '');
+        const why = RECOMMENDATION_WHY[r.category] as string | undefined;
+        lines.push(
+          `**${i + 1}. ${r.title}.**${why ? ` Почему важно: ${why}` : ''}${r.now ? ` Сейчас: ${r.now}.` : ''}${
+            r.how ? ` Что сделать: ${r.how}` : ''
+          }`,
+          '',
+        );
       });
     }
   }

@@ -213,6 +213,63 @@ export async function nextCatalogCandidates(
     .limit(limit);
 }
 
+/** Через сколько дней публичная оценка считается устаревшей (ТЗ, раздел 6). */
+export function publicRefreshDays(): number {
+  const raw = Number.parseInt(process.env.PUBLIC_REFRESH_DAYS ?? '', 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 7;
+}
+
+/**
+ * Опубликованные оценки, которые пора пересчитать: репозиторий изменился
+ * после анализа (по last_updated из каталога) или оценке больше
+ * PUBLIC_REFRESH_DAYS дней. Изменившиеся — первыми, потом самые старые.
+ *
+ * Не берём репозиторий, если по нему уже идёт прогон или прогон заводили за
+ * последние сутки: упавший пересчёт не должен повторяться каждую минуту, а
+ * прежняя оценка остаётся в рейтинге, пока новая не досчитана.
+ */
+export async function nextRefreshCandidates(
+  db: DbOrTx,
+  limit: number,
+): Promise<{ org: string; repo: string }[]> {
+  const days = publicRefreshDays();
+  const result = await db.execute<{ org: string; repo: string }>(sql`
+    select r.org_slug as org, r.repo_slug as repo
+    from analyses a
+    join repositories r on r.id = a.repository_id
+    join catalog_repositories c
+      on lower(c.org_slug) = lower(r.org_slug) and lower(c.repo_slug) = lower(r.repo_slug)
+    where a.is_public and a.status = 'done' and not r.is_private
+      and (a.metrics -> 'rating' ->> 'excluded') is null
+      and a.finished_at < now() - interval '1 day'
+      and (
+        a.finished_at < now() - make_interval(days => ${days}::int)
+        or c.last_updated_at > a.finished_at
+      )
+      and not exists (
+        select 1 from analyses q
+        where q.repository_id = r.id
+          and (q.status in ('queued', 'running') or q.created_at > now() - interval '1 day')
+      )
+    order by (c.last_updated_at > a.finished_at) desc nulls last, a.finished_at asc
+    limit ${limit}
+  `);
+  return result.rows;
+}
+
+/**
+ * Ставит на пересчёт до `limit` устаревших публичных оценок. Новый прогон
+ * публичный и по завершении сам снимает прежний с публикации (lib/analysis/run).
+ */
+export async function enqueuePublicRefresh(db: Db, limit: number): Promise<number> {
+  if (limit <= 0) return 0;
+  let queued = 0;
+  for (const { org, repo } of await nextRefreshCandidates(db, limit)) {
+    if (await createCatalogJob(db, org, repo)) queued += 1;
+  }
+  return queued;
+}
+
 /**
  * Заводит анализ и задачу для репозитория каталога. Оценка публичного
  * репозитория по публичным данным сразу публикуется: это и есть публичный
@@ -338,6 +395,28 @@ export async function dispatchCatalogJob(db: Db): Promise<string | null> {
     }
 
     const [next] = await nextCatalogCandidates(tx, 1);
+    if (next) return createCatalogJob(tx, next.org, next.repo);
+    // Новые кончились — пересчитываем устаревшие оценки.
+    const [stalePublic] = await nextRefreshCandidates(tx, 1);
+    if (!stalePublic) return null;
+    return createCatalogJob(tx, stalePublic.org, stalePublic.repo);
+  });
+}
+
+/**
+ * Диспетчер планового пересчёта (/api/cron/refresh-public): как
+ * dispatchCatalogJob, но без кнопки «Старт» в админке и только по
+ * устаревшим публичным оценкам. Слоты общие с прогоном каталога.
+ */
+export async function dispatchRefreshJob(db: Db): Promise<string | null> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('catalog.dispatch'))`);
+    const busy = await tx.execute<{ count: number }>(sql`
+      select count(*)::int as count from analysis_jobs j
+      where ${catalogJobSql} and ${busyJobSql} and j.attempts < ${MAX_ATTEMPTS}
+    `);
+    if ((busy.rows[0]?.count ?? 0) >= CATALOG_CONCURRENCY) return null;
+    const [next] = await nextRefreshCandidates(tx, 1);
     if (!next) return null;
     return createCatalogJob(tx, next.org, next.repo);
   });

@@ -10,6 +10,7 @@ import {
   getLanguageFacets,
   getLeaderboard,
   getLeaderboardOverview,
+  parseLeaderboardSort,
   type LeaderboardSort,
 } from '@/lib/ranking';
 import { db } from '@/db/client';
@@ -26,9 +27,16 @@ type Search = { sort?: string; q?: string; lang?: string | string[]; page?: stri
 
 const PAGE_SIZE = 30;
 
+const SORT_OPTIONS: ReadonlyArray<[LeaderboardSort, string]> = [
+  ['score', 'По оценке'],
+  ['likes', 'По лайкам'],
+  ['activity', 'По активности'],
+  ['forks', 'По отзывам'],
+];
+
 export default async function RatingPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const sort: LeaderboardSort = sp.sort === 'forks' ? 'forks' : 'score';
+  const sort: LeaderboardSort = parseLeaderboardSort(sp.sort);
   const query = sp.q?.trim() || undefined;
   const languages = normalizeLanguages(sp.lang);
   const page = Math.max(1, Number.parseInt(sp.page ?? '', 10) || 1);
@@ -91,13 +99,15 @@ export default async function RatingPage({ searchParams }: { searchParams: Promi
             {filtered ? 'Найдено' : 'Все репозитории'}{' '}
             <span className="tabular-nums text-[color:var(--muted-2)]">{total}</span>
           </h2>
-          <div className="flex items-center gap-1 rounded-full bg-[color:var(--panel)] p-1 text-sm">
-            <SortLink href={buildHref({ sort: 'score', page: '1' })} active={sort === 'score'}>
-              По оценке
-            </SortLink>
-            <SortLink href={buildHref({ sort: 'forks', page: '1' })} active={sort === 'forks'}>
-              По популярности
-            </SortLink>
+          {/* Балл, лайки SourceCraft и последняя активность — сортировки из ТЗ;
+              «Отзывы» — средняя оценка людей в Pulse. На телефоне группа
+              переносится на вторую строку, а не распирает страницу вбок. */}
+          <div className="flex max-w-full flex-wrap items-center gap-1 rounded-3xl bg-[color:var(--panel)] p-1 text-sm">
+            {SORT_OPTIONS.map(([key, label]) => (
+              <SortLink key={key} href={buildHref({ sort: key, page: '1' })} active={sort === key}>
+                {label}
+              </SortLink>
+            ))}
           </div>
         </div>
 

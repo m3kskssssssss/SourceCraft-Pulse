@@ -53,7 +53,7 @@ const ENDPOINTS: Endpoint[] = [
     path: '/api/public/leaderboard',
     what: 'Рейтинг опубликованных репозиториев.',
     curl: (o) => `curl "${o}/api/public/leaderboard?sort=score&lang=TypeScript&limit=10"`,
-    notes: 'Параметры: sort=score|forks, q — поиск по имени, lang — языки через запятую, limit до 100, offset.',
+    notes: 'Параметры: sort=score|likes|activity|forks (балл, лайки SourceCraft, последняя активность, отзывы людей), q — поиск по имени, lang — языки через запятую, limit до 100, offset.',
   },
   {
     method: 'GET',
